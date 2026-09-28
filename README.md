@@ -4,7 +4,7 @@ Infinity Armor for one shared Minecraft Java + Bedrock world. The Java Fabric se
 
 ## Start playing
 
-1. Download the **server ZIP** from the website and extract it to a folder you will keep. The source folders in this repository are for development; they are not a ready-to-run server on their own.
+1. Download the **server ZIP** from the [latest GitHub release](https://github.com/qiaokan/infinity-craft-mc/releases/latest) or the website and extract it to a folder you will keep. The source folders in this repository are for development; they are not a ready-to-run server on their own.
 2. On Mac, open `Start-Mac.command` in the extracted folder. On Windows 10/11, run `start.bat`; on Linux, run `bash start.sh`.
 3. The local browser panel guides you through agreeing to the [Minecraft EULA](https://www.minecraft.net/eula), starting the world, and copying the current join addresses. The first launch downloads checksum-pinned Python/Java components and needs an Internet connection. You do not need Minecraft installed on the host computer.
 
