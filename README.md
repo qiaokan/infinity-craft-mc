@@ -1,6 +1,6 @@
 # Infinity Craft MC
 
-Infinity Armor for one shared Minecraft Java + Bedrock world. The Java Fabric server runs the game; Geyser and Floodgate let Bedrock players join it. The public guide and downloads are at [Infinity Armor Hub](https://infinity-armor-hub.shio-coder.chatgpt.site/).
+Infinity Armor for one shared Minecraft Java + Bedrock world. The Java Fabric server runs the game; Geyser and Floodgate let Bedrock players join it. The public guide and downloads are at [Infinity Armor Hub](https://infinity-armor-hub.vercel.app/).
 
 ## Start playing
 

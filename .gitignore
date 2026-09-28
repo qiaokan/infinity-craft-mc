@@ -30,8 +30,7 @@ server/.remote/
 /vendor/
 website/dist/downloads/
 website/dist/index.html
-website/.openai/
-website/.sites-runtime/
+website/.vercel/
 *.zip
 *.mcpack
 *.mcaddon
