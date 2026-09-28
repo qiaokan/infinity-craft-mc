@@ -97,14 +97,22 @@ def tunnels(root):
 def public_status(root,listing):
     results=[]
     for edition,name,protocol,port in targets(root):
-        found=next((item for item in listing if matches(item.get("tunnelconfig",{}),name,protocol,port)),None)
+        found=None;address=None;best=-1
+        for item in listing:
+            if not matches(item.get("tunnelconfig",{}),name,protocol,port):continue
+            state=item.get("status",{}).get("state","stopped")
+            candidate=None
+            if state=="running":
+                for value in item.get("remoteurls",[]):
+                    try:
+                        parsed=urlparse(value)
+                        if parsed.scheme==protocol and parsed.hostname and parsed.port:
+                            candidate={"host":parsed.hostname,"port":parsed.port};break
+                    except (TypeError,ValueError):
+                        continue
+            priority=3 if candidate else 2 if state=="starting" else 1 if state=="running" else 0
+            if priority>=best:found=item;address=candidate;best=priority
         state=(found or {}).get("status",{}).get("state","stopped")
-        address=None
-        if state=="running":
-            for value in found.get("remoteurls",[]):
-                parsed=urlparse(value)
-                if parsed.scheme==protocol and parsed.hostname and parsed.port:
-                    address={"host":parsed.hostname,"port":parsed.port};break
         results.append({"edition":edition,"state":state if state in {"running","starting","stopped","error"} else "unavailable","ready":address is not None,"address":address,"verified":False})
     return results
 

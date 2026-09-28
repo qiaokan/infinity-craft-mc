@@ -84,6 +84,15 @@ class PinggyJoiningTests(unittest.TestCase):
         self.assertEqual(stat.S_IMODE(record.stat().st_mode),0o600)
         with patch.object(pinggy,"start",return_value=result):self.assertEqual(pinggy.main(["start","--root",str(self.root)]),1)
 
+    def test_expired_records_do_not_hide_new_running_tunnels(self):
+        running=self.listing()
+        expired=[{"tunnelconfig":item["tunnelconfig"],"status":{"state":"exited"},"remoteurls":[]} for item in running]
+        for listing in (expired+running,running+expired):
+            result=pinggy.public_status(self.root,listing)
+            self.assertEqual([item["state"] for item in result],["running","running"])
+            self.assertTrue(all(item["ready"] for item in result))
+            self.assertEqual([item["address"]["host"] for item in result],["public-tcp.example","public-udp.example"])
+
     def test_stop_only_matching_owned_names(self):
         listing=self.listing();listing.append({"tunnelconfig":self.config("another-app","tcp",25565)})
         with patch.object(pinggy,"tunnels",return_value=listing),patch.object(pinggy,"command") as command,contextlib.redirect_stdout(io.StringIO()):pinggy.stop(self.root)

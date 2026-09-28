@@ -5,9 +5,10 @@ Validated September 27, 2026 against the `2.12.0-explore.1` Fabric JAR and pinne
 ## Results
 
 - **155 native Minecraft GameTests passed**, including the framework baseline. They cover Infinity gear, crossplay mappings, community commands, separate inventories and modes, lobbies, ranks, achievement rewards, item trades, helpers, backpacks, two-party player trading, Creative tools, physical minigames, place-specific `/guide` instructions, persisted personal bests, and the public minigame leaderboard.
-- **76 Python launcher tests passed.** They cover downloads and checksums, private dashboard control, owner settings, backups, Pinggy tunnel status and first-use installer safety, command handling, and runtime behavior.
+- **77 Python launcher tests passed.** They cover downloads and checksums, private dashboard control, owner settings, backups, Pinggy tunnel status (including expired records beside a new running tunnel) and first-use installer safety, command handling, and runtime behavior.
 - **Geyser mapping and localhost Bedrock UDP checks passed.** The generated resource pack has the referenced custom item and block textures. The bridge shut down cleanly.
 - **Two isolated full-stack starts passed** with Fabric and Geyser, including all mode dimensions, Bedrock UDP response, restart, stopped-world backup, and clean shutdown. This check used the owner's already accepted EULA; it did not accept an agreement.
+- **The upgraded live Mac passed a public Java TCP connection and public Bedrock UDP ping** through its temporary Pinggy tunnels after a private stopped-world backup. The single updated mod JAR, world folder, owner settings, and both local game listeners were checked after restart.
 
 `tools/package_crossplay.py` checks the exact native and Python test counts, report freshness, smoke-test markers, bundled SHA-256 values, and ZIP integrity before making the release. It packages explicit files only. Worlds, backups, account data, owner settings, private keys, local panel tokens, EULA acceptance, and downloaded runtimes are excluded.
 
