@@ -59,6 +59,11 @@ def main():
     items = json.loads((exported / "infinity-items.json").read_text())
     blocks = json.loads((exported / "infinity-blocks.json").read_text())
     item_count = sum(len(variants) for variants in items["items"].values()) + 1
+    # Custom Bedrock Creative entries cannot be dragged back to Java items by
+    # the pinned Geyser build; server-side /convergence hold supplies them.
+    assert all("creative_category" not in variant["bedrock_options"]
+               for variants in items["items"].values() for variant in variants), \
+        "Infinity items must not enter Geyser's broken Bedrock Creative catalog"
     block_count = sum(len(b.get("state_overrides", {})) for b in blocks["blocks"].values()) + 199
     assert f"Registered {item_count} custom items" in log, "Exported Infinity items plus built-in mapping"
     assert f"Registered {block_count} custom block overrides" in log, "Exported Infinity states plus built-in mappings"

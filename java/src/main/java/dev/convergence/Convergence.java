@@ -223,6 +223,37 @@ public class Convergence implements ModInitializer {
       say(player,"Building kit: ten block styles and two Creative wands. Hold a block then /convergence swap to use it in offhand.");return 1;
    }
 
+   /** Server-side hand placement avoids Bedrock's broken custom Creative-list drag. */
+   static int holdCreativeItem(ServerPlayerEntity player, String path) {
+      if ((!player.isCreative() && !player.getCommandSource().getPermissions()
+         .hasPermission(new Level(PermissionLevel.GAMEMASTERS))) || player.isSpectator()) {
+         player.sendMessage(Text.literal("Use /play creative before choosing Infinity gear."), false);
+         return 0;
+      }
+      Item item = ITEMS.get("convergence:" + path);
+      if (item == null) return 0;
+      ItemStack previous = player.getMainHandStack().copy();
+      if (!previous.isEmpty() && player.getInventory().getEmptySlot() < 0) {
+         player.sendMessage(Text.literal("Clear one inventory slot before replacing the item in your hand."), false);
+         return 0;
+      }
+      player.setStackInHand(Hand.MAIN_HAND, new ItemStack(item, item.getMaxCount() > 1 ? 64 : 1));
+      if (!previous.isEmpty()) player.getInventory().offerOrDrop(previous);
+      player.currentScreenHandler.sendContentUpdates();
+      player.sendMessage(Text.literal("Holding " + item.getDefaultStack().getName().getString()
+         + ". Use /convergence hold <item> to choose another."), false);
+      return 1;
+   }
+
+   private static LiteralArgumentBuilder<ServerCommandSource> holdCommand() {
+      var hold = CommandManager.literal("hold");
+      for (String name : ITEMS.keySet()) {
+         String path = name.substring("convergence:".length());
+         hold.then(CommandManager.literal(path).executes(c -> holdCreativeItem(c.getSource().getPlayerOrThrow(), path)));
+      }
+      return hold;
+   }
+
    public void onInitialize() {
       Catalog.register();
       ExpandedGear.register();
@@ -265,6 +296,7 @@ public class Convergence implements ModInitializer {
                            return 1;
                         }
                      }).then(CommandManager.literal("building").executes(c -> giveBuildingKit(c.getSource().getPlayerOrThrow())))))
+                     .then(holdCommand())
                      .then(
                         CommandManager.literal("help")
                            .executes(
@@ -272,7 +304,7 @@ public class Convergence implements ModInitializer {
                                  ((ServerCommandSource)c.getSource())
                                     .sendFeedback(
                                        () -> Text.literal(
-                                             "One set: sword sneak+Use cycles Storm/Blink/Heal; Use casts. Mace+offhand spear: Use arms combo. Mace sneak+Use launches/dives. Spear sneak+Use dashes. Tools: Use excavates/fells/digs/farms; sneak+Use pulls/cleaves/repels/heals. Shield blocks normally; sneak+Use casts Ward. Totem saves lethal damage when held. Bows fire Infinity, Void, and Starfire arrows. Radiant block glows. Full armor enables all buffs. No Slow Falling. /convergence kit building gives building blocks and Creative wands; /wardrobe and /backpack show earnable wearables and storage; /ptrade exchanges items with another player."
+                                             "One set: sword sneak+Use cycles Storm/Blink/Heal; Use casts. Mace+offhand spear: Use arms combo. Mace sneak+Use launches/dives. Spear sneak+Use dashes. Tools: Use excavates/fells/digs/farms; sneak+Use pulls/cleaves/repels/heals. Shield blocks normally; sneak+Use casts Ward. Totem saves lethal damage when held. Bows fire Infinity, Void, and Starfire arrows. Radiant block glows. Full armor enables all buffs. No Slow Falling. In Creative use /convergence hold sword (or mace, spear, pickaxe) to put one item directly in hand on Java or Bedrock. /convergence kit building gives blocks and wands; /wardrobe and /backpack show wearables and storage; /ptrade exchanges items with another player."
                                           ),
                                        false
                                     );

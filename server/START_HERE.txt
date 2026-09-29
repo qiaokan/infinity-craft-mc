@@ -36,6 +36,7 @@ New players start in the Main Hub. Existing players can use /hub.
 /guide — directions for your current place; /best — personal minigame times
 /leaderboard <map> — fastest saved times on that minigame
 /ranks — all achievement rank requirements; /rank — your progress and missing achievements
+/play creative, then /convergence hold sword — put one Infinity weapon directly in hand on Java or Bedrock. Replace sword with mace, spear, or a tool name.
 
 Every game mode and rank is free. Complete all three achievements in a group, or exchange Survival items with /trades:
 Go — stone pickaxe, iron ingot, Monster Hunter (kill a hostile mob).

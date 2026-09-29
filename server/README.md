@@ -1,4 +1,4 @@
-# Infinity Armor Exploration Server — 2.12.0-explore.3
+# Infinity Armor Exploration Server — 2.12.0-explore.4
 
 Multi-mode build based on Infinity Armor 2.3.0 and the crossplay preview. Updated September 27, 2026.
 
@@ -37,6 +37,7 @@ Automatic setup supports Mac Apple silicon/Intel, Windows x64, and Linux x64/arm
 - **Setup download fails:** read the error, check the internet connection, then start again. Completed verified downloads are reused.
 - **The launcher was forcibly closed:** make sure both Java processes have stopped before removing `launcher.lock`. A leftover `.runtime/bootstrap.lock` can be removed only after the Python setup process has stopped. Ordinary Save & Stop cleans up automatically.
 - **The panel was closed:** the world keeps running. Open the launcher again to return to the panel and stop it safely.
+- **Infinity weapon will not move from the Creative menu to your hotbar:** enter `/play creative`, then run `/convergence hold sword` (or `mace`, `spear`, `pickaxe`, `axe`, `shovel`, or `hoe`). The server equips the item directly. This works on Java and Bedrock; Bedrock's Creative menu cannot reliably supply these custom items through the current bridge.
 
 ### Optional terminal controls
 
@@ -116,6 +117,8 @@ The launcher uses Geyser **2.11.3 build 1245**, reporting support for Bedrock 26
 
 In the panel, expand **Setup progress & host commands** and grant your trusted player operator rights with `op YourJavaName`. Bedrock names normally have a leading period, such as `.BedrockName` (spaces become underscores). Then use `/convergence kit` in chat. Survival players can also craft the gear using the original recipes.
 
+For one weapon or tool in the shared Creative world, run `/play creative` and then `/convergence hold sword`. Replace `sword` with `mace`, `spear`, `pickaxe`, `axe`, `shovel`, or `hoe` to equip that item in your selected hotbar slot. `/convergence hold <item>` is available to Creative players and operators with level 2 or higher, matching `/convergence kit`. `/convergence kit` still gives the full set. Bedrock players should use the command instead of dragging a custom Infinity item from the Creative catalogue; the current Geyser bridge rejects that menu action. Java players can use the same command with an ordinary, unmodded client. Accept the server resource pack to see the Infinity textures.
+
 These commands work for ordinary players holding the corresponding gear; they do not give items or bypass cooldowns:
 
 - `/convergence power` — the held Infinity weapon/tool's normal Use power.
@@ -124,13 +127,13 @@ These commands work for ordinary players holding the corresponding gear; they do
 - `/convergence server` — show connection defaults and these controls.
 - `/convergence help` — show the original gear controls.
 
-The commands are useful on touch devices whose controls do not show a Use button for a custom item. Java right-click controls remain available. For the assisted spear/mace combo, put the spear in the offhand, hold the mace, and use `/convergence power` to arm; the original airborne targeting/timing checks still apply. The kit remains restricted to Creative players/operators.
+The commands are useful on touch devices whose controls do not show a Use button for a custom item. Java right-click controls remain available. For the assisted spear/mace combo, put the spear in the offhand, hold the mace, and use `/convergence power` to arm; the original airborne targeting/timing checks still apply. The kit remains restricted to Creative players/operators. A real iPad and Java client still need to verify Creative inventory handling and weapon controls after this change; automated server tests cannot prove the on-screen experience.
 
 ## Crossplay differences
 
 The **Java implementation** runs the world and controls everyone's gear, crafting, damage, cooldowns, inventory and terrain changes. Its custom totem activates on eligible lethal damage; the shield has native blocking. Bedrock's separate Sanctuary and scripted bow/crossbow implementations are not used in this world.
 
-All 40 custom item/block IDs are retained on the server. Twenty-three item appearances and ten placed block appearances have explicit Bedrock mappings. Bedrock uses native appearances for the chestplate's elytra form, shield, totem, bow, crossbow and three arrows to retain native flight, blocking, death-protection and ranged controls. Cosmetic armor and backpacks also use dyed native leather equipment on Bedrock. Their Infinity names and server-side powers remain. Java receives the original item textures through the generated resource pack. The original 24 supplied texture files are unchanged.
+All 40 custom item/block IDs are retained on the server. Twenty-three item appearances and ten placed block appearances have explicit Bedrock mappings. Bedrock uses native appearances for the chestplate's elytra form, shield, totem, bow, crossbow and three arrows to retain native flight, blocking, death-protection and ranged controls. Cosmetic armor and backpacks also use dyed native leather equipment on Bedrock. Their Infinity names and server-side powers remain. Java receives the original item textures through the generated resource pack. The original 24 supplied texture files are unchanged. Bedrock's custom Infinity entries are omitted from its Creative catalogue until the bridge can handle picking them up; `/convergence hold <item>` and `/convergence kit` provide server-granted gear instead. Geyser also ties custom-output recipe-book entries to that Creative category, so some Infinity recipes may be hidden from Bedrock's recipe book; authenticated Bedrock crafting still needs a device test.
 
 This is a preview, not a claim that every original visual and control behaves identically between editions. Actual Bedrock flight, shield blocking, shooting/reloading, offhand interaction, crafting, inventory movement, and multiplayer combat need an authenticated device play-test. A Java GameTest or Bedrock server ping does not establish those behaviors. See VALIDATION.md for exactly what was tested.
 

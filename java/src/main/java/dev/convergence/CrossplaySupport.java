@@ -163,7 +163,9 @@ final class CrossplaySupport {
             options.addProperty("icon", "convergence_" + path);
             options.addProperty("allow_offhand", true);
             options.addProperty("display_handheld", POWER_ITEMS.contains(path));
-            options.addProperty("creative_category", ExpandedGear.BLOCKS.contains(path) ? "construction" : "equipment");
+            // Geyser 2.11 cannot translate a Bedrock Creative-list drag for custom
+            // definitions back to a Java item. Keep the item mapping and texture,
+            // but grant Creative gear from the server with /convergence hold.
             int protection = switch (path) { case "helmet", "boots" -> 6; case "leggings" -> 8; default -> 0; };
             options.addProperty("protection_value", protection);
             definition.add("bedrock_options", options);

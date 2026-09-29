@@ -225,7 +225,7 @@ public final class GameModes {
                 };
             }
             case SURVIVAL -> "Survival: craft and explore; /sethome, /home, /backpack, /trades and /rewards are available. /hub returns to the lobby hub.";
-            case CREATIVE -> "Creative: build freely here; /convergence kit building gives building tools. /play survival switches profiles; /hub returns.";
+            case CREATIVE -> "Creative: build freely here; /convergence hold sword equips one Infinity item (also mace, spear or tools). /convergence kit building gives blocks and wands. /play survival switches profiles; /hub returns.";
             case HARDCORE -> state(p).getBoolean("eliminated",false)
                 ? "Hardcore life ended: spectate here, or /play survival to continue in another world. /hub visits the lobbies."
                 : "Hardcore: one life in this world. /play survival or /hub leaves while keeping other world progress separate.";

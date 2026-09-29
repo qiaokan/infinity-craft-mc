@@ -122,6 +122,8 @@ public class LobbyGameTests {
             c.assertTrue(GameModes.guideText(p).contains("/leaderboard <map>"),"Minigame guide teaches records");
             GameModes.switchNow(p,GameModes.Mode.ADVENTURE,"ruins");
             c.assertTrue(GameModes.guideText(p).contains("/adventure ruins or maze"),"Adventure guide lists both maps");
+            GameModes.switchNow(p,GameModes.Mode.CREATIVE,null);
+            c.assertTrue(GameModes.guideText(p).contains("/convergence hold sword"),"Creative guide explains how to equip Infinity weapons");
             GameModes.switchNow(p,GameModes.Mode.SURVIVAL,null);
             c.assertTrue(GameModes.guideText(p).contains("/backpack"),"Survival guide names a usable player feature");
             var root=c.getWorld().getServer().getCommandManager().getDispatcher().getRoot();

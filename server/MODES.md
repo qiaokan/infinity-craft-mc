@@ -14,6 +14,8 @@ Use **`/play`** in Minecraft. Java has clickable choices; the same short command
 
 These dimensions live inside the same Java world save. Java and Bedrock players share each area. The six built-in maps are small starter courses, generated automatically once; this is not a collection of large downloaded campaigns or a matchmaking network.
 
+To hold Infinity gear in Creative, enter `/play creative` and run `/convergence hold sword` (or `mace`, `spear`, `pickaxe`, `axe`, `shovel`, `hoe`, `builder_wand`, or `sculptor_wand`). The server equips the selected item on Java and Bedrock. `/convergence kit` gives the full set. Bedrock players should use these commands instead of trying to drag a custom Infinity item from the Creative catalogue. Infinity gear obtained in Creative stays in that mode's inventory when you switch worlds.
+
 Inventories, equipped armor/offhand, Ender Chests, personal backpack storage, experience, health, hunger, potion effects, bed spawns, and return positions are stored separately for each mode. Active state and inactive profiles are saved together in the player's vanilla data file. Players keep their own progress when returning. The three named home slots are shared across modes, so use different names (for example, `survival_base` and `creative_build`). Homes, warps, teleport requests, portals, and loose items cannot bypass mode isolation. Vanilla Nether and End travel remains available inside Survival. The Hardcore world has no Nether or End in this release.
 
 ## Operator access

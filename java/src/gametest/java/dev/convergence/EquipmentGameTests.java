@@ -102,6 +102,44 @@ public class EquipmentGameTests {
         c.assertEquals(CrossplaySupport.usePower(p,true),1,"Creative spear Dash is accepted");
         c.assertTrue(p.getVelocity().lengthSquared()>.5,"Creative spear applies actual movement velocity");c.complete();
     }
+    @GameTest public void creativeHoldCommandPlacesWeaponInHandAndPreservesOldGear(TestContext c){
+        var p=creative(c,"creative-hold");
+        var old=new ItemStack(Items.DIAMOND_PICKAXE);
+        old.set(DataComponentTypes.CUSTOM_NAME,net.minecraft.text.Text.literal("Keep this pickaxe"));
+        p.setStackInHand(Hand.MAIN_HAND,old);
+        p.setStackInHand(Hand.OFF_HAND,new ItemStack(Items.SHIELD));
+        var dispatcher=c.getWorld().getServer().getCommandManager().getDispatcher();
+        c.assertTrue(dispatcher.getRoot().getChild("convergence").getChild("hold").getChild("sword")!=null,
+            "Players can discover the real hold command");
+        try {c.assertEquals(dispatcher.execute("convergence hold sword",p.getCommandSource()),1,
+            "Creative command selects one Infinity weapon server-side");}
+        catch(com.mojang.brigadier.exceptions.CommandSyntaxException error){throw new AssertionError(error);}
+        c.assertEquals(p.getMainHandStack().getItem(),Convergence.ITEMS.get("convergence:sword"),"Sword is in selected hand");
+        c.assertEquals(p.getOffHandStack().getItem(),Items.SHIELD,"Offhand is unaffected");
+        c.assertTrue(p.getInventory().contains(old),"Previous named tool stays in inventory");
+        c.assertEquals(Convergence.holdCreativeItem(p,"spear"),1,"Creative can switch to another weapon");
+        c.assertEquals(p.getMainHandStack().getItem(),Convergence.ITEMS.get("convergence:spear"),"Spear is in selected hand");
+        c.assertTrue(p.getInventory().contains(gear("sword")),"Previous Infinity sword stays in inventory");
+        p.changeGameMode(GameMode.SURVIVAL);
+        c.assertEquals(Convergence.holdCreativeItem(p,"mace"),0,"Non-operator Survival cannot conjure gear");
+        c.assertEquals(p.getMainHandStack().getItem(),Convergence.ITEMS.get("convergence:spear"),"Denied command keeps held gear");
+        try {
+            OperatorGameTests.level(p,net.minecraft.command.permission.LeveledPermissionPredicate.GAMEMASTERS);
+            c.assertEquals(Convergence.holdCreativeItem(p,"mace"),1,"Level-2 operator has the same gear access as kit");
+        } finally {OperatorGameTests.deop(p);}
+        c.complete();
+    }
+    @GameTest public void creativeHoldWithFullInventoryKeepsUniqueHeldItem(TestContext c){
+        var p=creative(c,"creative-full-inventory");
+        for(int slot=0;slot<36;slot++)p.getInventory().setStack(slot,new ItemStack(Items.DIRT,64));
+        var treasured=new ItemStack(Items.DIAMOND_PICKAXE);
+        treasured.set(DataComponentTypes.CUSTOM_NAME,net.minecraft.text.Text.literal("My special pickaxe"));
+        p.setStackInHand(Hand.MAIN_HAND,treasured);
+        c.assertEquals(Convergence.holdCreativeItem(p,"sword"),0,"Full inventory rejects replacement");
+        c.assertTrue(ItemStack.areItemsAndComponentsEqual(p.getMainHandStack(),treasured),"Unique held item is unchanged");
+        c.assertFalse(p.getInventory().contains(gear("sword")),"Denied command creates no weapon");
+        c.complete();
+    }
     @GameTest public void creativeInfinityPickaxeUsesActualBlockActionWithoutDrops(TestContext c){
         var p=creative(c,"creative-excavation");var at=target(c);var world=p.getEntityWorld();wall(p,at);aim(p,at);
         p.setStackInHand(Hand.MAIN_HAND,gear("pickaxe"));

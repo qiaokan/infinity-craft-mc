@@ -18,6 +18,8 @@ The Main Hub leads to Survival, Creative, Hardcore, Minigames, and Adventure. Us
 
 Infinity gear includes custom blocks and building tools, armor looks, and backpacks with personal storage. `/ptrade <player>` opens a trade that both players review and confirm. Free, Go, Plus, Pro, and Ultra are earned through achievements or Survival item trades; Admin is owner-controlled. Powers and cosmetics can be earned separately. Optional supporter subscriptions are **planned at $10–$25 USD per month**, but checkout is not open. The earned ranks remain free and permanent. Read [`server/SUBSCRIPTIONS.md`](server/SUBSCRIPTIONS.md) for prices and status, and [`server/MODES.md`](server/MODES.md), [`server/EXPANSION.md`](server/EXPANSION.md), and [`server/REWARDS.md`](server/REWARDS.md) for play and unlocks.
 
+In Creative on Java or Bedrock, run `/convergence hold sword` to put an Infinity weapon directly in your hand. You can replace `sword` with `mace`, `spear`, a tool name, or `builder_wand`; `/convergence kit` grants the full set. The server-only Java mod does not add a client Creative tab, and the current Bedrock bridge cannot reliably move custom Infinity items from the Creative catalogue into the hotbar. Use the server commands to equip them.
+
 ## Source layout
 
 | Path | Contents |

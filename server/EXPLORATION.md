@@ -1,4 +1,4 @@
-# Exploration and scores — 2.12.0-explore.3
+# Exploration and scores — 2.12.0-explore.4
 
 Use `/guide` anywhere in the world. It responds to your current place: Main Hub, a mode lobby, a minigame, an adventure map, or a normal game mode. `/hub` returns to the Main Hub, `/lobbies` lists destinations, and `/play` chooses a mode.
 

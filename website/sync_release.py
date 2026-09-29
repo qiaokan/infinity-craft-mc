@@ -8,7 +8,7 @@ import sys
 import zipfile
 
 
-VERSION = "2.12.0-explore.3"
+VERSION = "2.12.0-explore.4"
 ROOT = Path(__file__).resolve().parent
 MAP = {
     "server.zip": f"dist/lobbies/Infinity_Armor_Lobbies_Server_v{VERSION}.zip",
