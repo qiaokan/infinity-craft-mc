@@ -49,7 +49,7 @@ def main():
     entries = {name: (server / name).read_bytes() for name in ["README.md", "VALIDATION.md", "THIRD_PARTY.md",
         "TEXTURE_CREDITS.md", "server.py", "dependencies.lock.json", "Start-Mac.command", "start.sh", "start.bat",
         "runtime.py", "runtime.lock.json", "dashboard.py", "dashboard.html", "bootstrap.sh", "bootstrap.ps1", "START_HERE.txt",
-        "community.py", "MODES.md", "LOBBIES.md", "MEMBERSHIPS.md", "REWARDS.md", "TRADING.md", "AGENTS_GUIDE.md", "EXPANSION.md", "EXPLORATION.md", "PLAYER_TRADING.md", "HOSTING.md", "infinity.service.example",
+        "community.py", "MODES.md", "LOBBIES.md", "MEMBERSHIPS.md", "SUBSCRIPTIONS.md", "REWARDS.md", "TRADING.md", "AGENTS_GUIDE.md", "EXPANSION.md", "EXPLORATION.md", "PLAYER_TRADING.md", "HOSTING.md", "infinity.service.example",
         "Start-Pinggy-Mac.command", "Stop-Pinggy-Mac.command", "PINGGY_JOINING.md", "pinggy_install.py", "pinggy_joining.py", "remote_joining.py", "remote_tunnels.py"]}
     for pin in sorted((server / "setup").glob("*.txt")):
         entries["setup/" + pin.name] = pin.read_bytes()
@@ -89,6 +89,7 @@ def main():
     shutil.copy2(server / "MODES.md", dist / "Infinity_Armor_Game_Modes.md")
     shutil.copy2(server / "LOBBIES.md", dist / "Infinity_Armor_Lobbies.md")
     shutil.copy2(server / "MEMBERSHIPS.md", dist / "Infinity_Armor_Memberships.md")
+    shutil.copy2(server / "SUBSCRIPTIONS.md", dist / "Infinity_Armor_Subscriptions.md")
     shutil.copy2(server / "REWARDS.md", dist / "Infinity_Armor_Rewards.md")
     shutil.copy2(server / "TRADING.md", dist / "Infinity_Armor_Trading.md")
     shutil.copy2(server / "AGENTS_GUIDE.md", dist / "Infinity_Armor_Agents.md")
@@ -96,10 +97,9 @@ def main():
     shutil.copy2(server / "EXPLORATION.md", dist / "Infinity_Armor_Exploration.md")
     shutil.copy2(server / "PINGGY_JOINING.md", dist / "Infinity_Armor_Pinggy_Joining.md")
     shutil.copy2(server / "PLAYER_TRADING.md", dist / "Infinity_Armor_Player_Trading.md")
-    (dist / "Infinity_Armor_Tebex_Setup.md").unlink(missing_ok=True)
     files = sorted([server_archive, source_archive, *(dist / name for name in [
         "Infinity_Armor_Lobbies_Guide.md", "Infinity_Armor_Public_Hosting.md",
-        "Infinity_Armor_Game_Modes.md", "Infinity_Armor_Lobbies.md", "Infinity_Armor_Memberships.md", "Infinity_Armor_Rewards.md", "Infinity_Armor_Trading.md", "Infinity_Armor_Agents.md", "Infinity_Armor_Expansion.md", "Infinity_Armor_Exploration.md", "Infinity_Armor_Pinggy_Joining.md", "Infinity_Armor_Player_Trading.md"])])
+        "Infinity_Armor_Game_Modes.md", "Infinity_Armor_Lobbies.md", "Infinity_Armor_Memberships.md", "Infinity_Armor_Subscriptions.md", "Infinity_Armor_Rewards.md", "Infinity_Armor_Trading.md", "Infinity_Armor_Agents.md", "Infinity_Armor_Expansion.md", "Infinity_Armor_Exploration.md", "Infinity_Armor_Pinggy_Joining.md", "Infinity_Armor_Player_Trading.md"])])
     (dist / "SHA256SUMS.txt").write_text("\n".join(hashlib.sha256(p.read_bytes()).hexdigest() + "  " + p.name for p in files) + "\n")
     for file in files:
         print(file.name, file.stat().st_size, "bytes")

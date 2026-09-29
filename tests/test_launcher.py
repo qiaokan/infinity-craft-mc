@@ -56,6 +56,50 @@ class LauncherTests(unittest.TestCase):
             bedrock_port = udp.getsockname()[1]
         launcher.check_ports(launcher.parse_args(['--bind', '127.0.0.1', '--java-port', str(port), '--bedrock-port', str(bedrock_port)]))
 
+    @unittest.skipUnless(launcher.os.name == 'posix', 'Automatic stale-lock recovery uses POSIX file locking')
+    def test_crashed_launcher_lock_is_recovered_with_free_ports(self):
+        lock = self.root / 'launcher.lock'
+        lock.write_text('999999999')
+        stale_inode = lock.stat().st_ino
+        args = launcher.parse_args(['--bind', '127.0.0.1'])
+        with patch.object(launcher.os, 'kill', side_effect=ProcessLookupError), \
+             patch.object(launcher, 'check_ports') as ports:
+            descriptor = launcher.acquire_launcher_lock(args, self.root)
+        try:
+            self.assertNotEqual(lock.stat().st_ino, stale_inode)
+            self.assertEqual(lock.read_text(), '')
+            ports.assert_called_once_with(args)
+        finally:
+            launcher.os.close(descriptor)
+            lock.unlink()
+
+    @unittest.skipUnless(launcher.os.name == 'posix', 'Automatic stale-lock recovery uses POSIX file locking')
+    def test_active_or_unverifiable_launcher_lock_is_preserved(self):
+        lock = self.root / 'launcher.lock'
+        lock.write_text(str(launcher.os.getpid()))
+        with patch.object(launcher, 'check_ports') as ports:
+            with self.assertRaisesRegex(RuntimeError, 'may still be running'):
+                launcher.acquire_launcher_lock(launcher.parse_args([]), self.root)
+            ports.assert_not_called()
+        self.assertEqual(lock.read_text(), str(launcher.os.getpid()))
+        lock.write_text('not a process ID')
+        with self.assertRaisesRegex(RuntimeError, 'valid process ID'):
+            launcher.acquire_launcher_lock(launcher.parse_args([]), self.root)
+        self.assertEqual(lock.read_text(), 'not a process ID')
+
+    @unittest.skipUnless(launcher.os.name == 'posix', 'Automatic stale-lock recovery uses POSIX file locking')
+    def test_crashed_lock_is_preserved_while_game_port_is_busy(self):
+        lock = self.root / 'launcher.lock'
+        lock.write_text('999999999')
+        with socket.socket() as listener:
+            listener.bind(('127.0.0.1', 0))
+            listener.listen(1)
+            args = launcher.parse_args(['--bind', '127.0.0.1', '--java-port', str(listener.getsockname()[1])])
+            with patch.object(launcher.os, 'kill', side_effect=ProcessLookupError):
+                with self.assertRaisesRegex(RuntimeError, 'Java port'):
+                    launcher.acquire_launcher_lock(args, self.root)
+        self.assertEqual(lock.read_text(), '999999999')
+
     def test_download_rejects_corruption_without_replacing_old_file(self):
         file = self.root / "library.jar"
         file.write_bytes(b"old file")
@@ -110,12 +154,15 @@ class LauncherTests(unittest.TestCase):
     def test_current_catalog_and_pack_cover_all_mapped_textures(self):
         import zipfile
         root = Path(__file__).resolve().parents[1]
-        mappings = json.loads((root / "research/integration/crossplay-export/infinity-items.json").read_text())
+        exports = root / "research/integration/crossplay-export"
+        if not all((exports / name).is_file() for name in ("infinity-items.json", "infinity-blocks.json")):
+            self.skipTest("Generated crossplay mapping exports are unavailable in this source-only checkout")
+        mappings = json.loads((exports / "infinity-items.json").read_text())
         definitions = [entry for entries in mappings["items"].values() for entry in entries]
         self.assertEqual(len(definitions), 23)
         self.assertEqual(len({entry["bedrock_identifier"] for entry in definitions}), 23)
         self.assertTrue(all(entry["type"] == "definition" for entry in definitions))
-        blocks = json.loads((root / "research/integration/crossplay-export/infinity-blocks.json").read_text())
+        blocks = json.loads((exports / "infinity-blocks.json").read_text())
         self.assertEqual(len(blocks["blocks"]["minecraft:note_block"]["state_overrides"]), 10)
         with zipfile.ZipFile(root / "server/geyser/packs/Infinity_Armor_Crossplay.mcpack") as pack:
             atlas = json.loads(pack.read("textures/item_texture.json"))["texture_data"]

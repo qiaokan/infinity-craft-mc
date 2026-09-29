@@ -56,6 +56,21 @@ public class AssistantGameTests {
         var plus=answer(source,"What do I need for Plus rank?");
         for(var milestone:Memberships.GOALS.get(1).milestones())c.assertTrue(plus.contains(milestone.task()),"Plus answer contains every real rank milestone");c.complete();
     }
+    @GameTest public void supporterPricingCannotBeMistakenForItemTradeOrCheckout(TestContext c) {
+        var source=normal(c);
+        var command=c.getWorld().getServer().getCommandManager().getDispatcher().getRoot().getChild("subscribe");
+        c.assertTrue(command!=null&&command.canUse(source),"Every player may read the subscription plan");
+        var plans=answer(source,"How do I subscribe?");
+        for(var price:new String[]{"Go $10", "Plus $15", "Pro $20", "Ultra $25"})
+            c.assertTrue(plans.contains(price),"Every planned USD monthly price is visible");
+        c.assertTrue(plans.contains("Checkout is unavailable")&&plans.contains("cannot charge you"),"Guide does not offer an unconfigured checkout");
+        c.assertTrue(plans.contains("Admin and OP are never sold"),"Supporter plans do not sell staff rights");
+        c.assertTrue(answer(source,"How much does Plus cost?").contains("Plus $15"),"Rank price questions show USD supporter prices");
+        c.assertTrue(answer(source,"How much does trade rank-plus cost?").contains(RewardTrades.find("rank-plus").costText()),
+            "Explicit item-trade questions retain their item costs");
+        c.assertTrue(answer(source,"Are ranks free?").contains("permanent cosmetic badges"),"Free permanent unlocks remain clear");
+        c.complete();
+    }
     @GameTest public void navigationAndHelpersRemainUsableOnBothEditions(TestContext c) {
         var hub=answer(normal(c),"How do I visit the lobbies?");
         c.assertTrue(hub.contains("/hub")&&hub.contains("/lobby survival"),"Navigation includes typeable commands");

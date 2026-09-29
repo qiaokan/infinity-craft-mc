@@ -106,12 +106,16 @@ public final class ServerAssistant {
             "Creative has six new building styles: Aurora Tiles, Obsidian Lattice, Copper Circuit, Moonstone, Sunstone Lamp and Verdant Mosaic. /convergence kit building supplies the blocks and wands to OP4.",
             "Builder Wand uses the block in your offhand to place a 3×3 plane. Sculptor Wand clears a 3×3 target plane. Both require actual Creative and work in the Creative world (OP4 can build elsewhere).",
             "Containers, unbreakable blocks and occupied placement cells are protected. Hold the wand and /convergence power on iPad; /convergence swap manages offhand. Ordinary Infinity tools also work in Creative.");
+        if(any(w,"subscribe","subscription","subscriptions","supporter","supporters","tebex","usd","monthly","checkout","dollars")
+            ||((any(w,"price","prices","cost","costs","buy","money","paid","payment")||q.contains("how much"))
+                &&any(w,"rank","ranks","membership","memberships","go","plus","pro","ultra")
+                &&!any(w,"item","items","trade","trades")))return subscriptions();
         if(any(w,"trade","trades","cost","costs","price","prices","exchange","buy","payment","confirm")||q.contains("how much"))return trades(q,w);
         boolean goRankIntent=q.equals("go")||any(w,"rank","ranks","membership","memberships","unlock","earn","badge")
             ||q.contains("need for go")||q.contains("requirements for go");
         for(var goal:Memberships.GOALS)if(w.contains(goal.tier().name().toLowerCase(Locale.ROOT))
             &&(goal.tier()!=Memberships.Tier.GO||goRankIntent))return rank(goal);
-        if(any(w,"rank","ranks","membership","memberships","subscription","subscriptions","free","paid","money"))return ranks();
+        if(any(w,"rank","ranks","membership","memberships","free","paid","money"))return ranks();
         var reward=specificReward(q,w);
         if(reward!=null)return reward(reward,op);
         if(any(w,"power","powers","flight","fly","flying","boost","buff")||q.contains("night vision"))return reward(AchievementRewards.find("hacks",false),op);
@@ -164,23 +168,28 @@ public final class ServerAssistant {
         var trade=RewardTrades.find("rank-"+goal.tier().name().toLowerCase(Locale.ROOT));
         return bounded(goal.tier()+" needs all three: "+String.join("; ",goal.milestones().stream().map(Memberships.Milestone::task).toList())+".",
             "Or unlock it permanently with /trade "+trade.id()+" confirm for "+trade.costText()+". /trade "+trade.id()+" previews without paying.",
-            "This rank is a cosmetic badge. Lower ranks are not prerequisites; it does not grant powers. /rank shows your progress and /ranks lists all goals.");
+            "This rank is a cosmetic badge. Lower ranks are not prerequisites; it does not grant powers. /rank shows progress; /subscribe lists planned optional USD supporter prices.");
+    }
+    static List<String> subscriptions() {
+        return bounded("Planned optional supporter subscriptions (USD/month): Go $10; Plus $15; Pro $20; Ultra $25.",
+            "Checkout is unavailable until the owner sets up Tebex. /subscribe shows information only and cannot charge you.",
+            "All modes and permanent cosmetic ranks remain free. Earn ranks through three achievements or Survival item trades; powers have separate free unlocks. Admin and OP are never sold.");
     }
     static List<String> ranks() {
-        return bounded("Free has every game mode. Go, Plus, Pro, and Ultra are permanent cosmetic badges from three achievements per rank OR Survival item trades. There are no paid subscriptions.",
+        return bounded("Free has every game mode. Go, Plus, Pro, and Ultra are permanent cosmetic badges from three achievements per rank OR Survival item trades. Optional USD supporter plans are planned, but checkout is unavailable.",
             "Go: stone pickaxe, iron ingot, monster kill. Plus: iron pickaxe, diamond, enchanted item.",
             "Pro: Nether, blaze rod, End. Ultra: Ender Dragon, End gateway, End city. Complete all three in the chosen group; lower groups are not prerequisites.",
-            "/rank shows progress; /ranks lists goals; /trades lists item alternatives. Powers and particle cosmetics have their own unlocks. Admin is a separate limited moderation role.");
+            "/rank shows progress; /ranks lists goals; /trades lists item alternatives; /subscribe shows planned prices. Powers and particle cosmetics have their own unlocks. Admin is a separate limited moderation role.");
     }
     static List<String> trades(String q,Set<String> w) {
         for(var trade:RewardTrades.TRADES)if(w.contains(trade.id())||(trade.rank()!=null&&w.contains(trade.rank().name().toLowerCase(Locale.ROOT))))
             return bounded(trade.id()+" permanently unlocks "+trade.label()+" for "+trade.costText()+".",
                 "/trade "+trade.id()+" previews and spends nothing. /trade "+trade.id()+" confirm is the payment command; I do not run it for you.",
                 "Pay in Survival, outside combat and a pending mode change. Only ordinary main-inventory/hotbar stacks count; named items, armor, offhand, containers, and Ender Chest do not.",
-                "Missing ingredients or an already permanent unlock take no items. Ranks and powers are separate; there are no cash payments.");
+                "Missing ingredients or an already permanent unlock take no items. These trades use items, not USD; optional supporter checkout is unavailable.");
         return bounded("/trades lists ten offers: rank-go, rank-plus, rank-pro, rank-ultra, hacks, explorer, aquatic, nether, fireguard, and windstep.",
             "/trade <id> previews the exact items. /trade <id> confirm spends them in Survival. Ask /ai trade aquatic for one offer.",
-            "Trades permanently unlock cosmetic ranks or power presets, with no rank requirement for a power. Cosmetics use achievements. No real money or subscriptions are involved.");
+            "Trades permanently unlock cosmetic ranks or power presets, with no rank requirement for a power. Cosmetics use achievements. These trades never charge real money; /subscribe shows separate planned supporter prices.");
     }
     static List<String> modes(Set<String> w,boolean op) {
         if(w.contains("hardcore"))return bounded("/play hardcore enters a separate hard-difficulty Overworld with one life per player. Death leads to Spectator; /play survival lets you continue elsewhere.",

@@ -2,12 +2,13 @@
 
 import hashlib
 from pathlib import Path
+import re
 import shutil
 import sys
 import zipfile
 
 
-VERSION = "2.12.0-explore.1"
+VERSION = "2.12.0-explore.3"
 ROOT = Path(__file__).resolve().parent
 MAP = {
     "server.zip": f"dist/lobbies/Infinity_Armor_Lobbies_Server_v{VERSION}.zip",
@@ -16,16 +17,25 @@ MAP = {
     "hosting.md": "server/HOSTING.md",
     "lobbies.md": "server/LOBBIES.md",
     "memberships.md": "server/MEMBERSHIPS.md",
+    "subscriptions.md": "server/SUBSCRIPTIONS.md",
     "modes.md": "server/MODES.md",
     "rewards.md": "server/REWARDS.md",
     "trading.md": "server/TRADING.md",
     "exploration.md": "server/EXPLORATION.md",
+    "expansion.md": "server/EXPANSION.md",
+    "agents_guide.md": "server/AGENTS_GUIDE.md",
     "player_trading.md": "server/PLAYER_TRADING.md",
     "pinggy_joining.md": "server/PINGGY_JOINING.md",
     "third_party.md": "server/THIRD_PARTY.md",
     "validation.md": "server/VALIDATION.md",
     "texture_credits.md": "server/TEXTURE_CREDITS.md",
     "start_here.txt": "server/START_HERE.txt",
+}
+LINK = re.compile(r"\]\(([^)]+)\)")
+SOURCE_GUIDES = {
+    Path(relative).name: name
+    for name, relative in MAP.items()
+    if name.endswith(".md")
 }
 
 
@@ -35,6 +45,29 @@ def digest(path):
         for chunk in iter(lambda: stream.read(1024 * 1024), b""):
             value.update(chunk)
     return value.hexdigest()
+
+
+def rewrite_guide_links(content):
+    """Point source-document links at the case-sensitive download filenames."""
+    def replace(match):
+        destination, separator, fragment = match.group(1).partition("#")
+        published = SOURCE_GUIDES.get(destination, destination)
+        return "](" + published + (separator + fragment if separator else "") + ")"
+
+    return LINK.sub(replace, content)
+
+
+def validate_guide_links(target):
+    """Check exact filenames, even on a case-insensitive local filesystem."""
+    published = {path.name for path in target.iterdir()}
+    missing = set(MAP) - published
+    if missing:
+        raise ValueError(f"Missing published files: {', '.join(sorted(missing))}")
+    for guide in target.glob("*.md"):
+        for match in LINK.finditer(guide.read_text()):
+            destination = match.group(1).split("#", 1)[0]
+            if destination.endswith((".md", ".txt")) and destination not in published:
+                raise ValueError(f"Broken download guide link: {guide.name} -> {destination}")
 
 
 def sync(source):
@@ -54,6 +87,9 @@ def sync(source):
     target.mkdir(parents=True, exist_ok=True)
     for name, relative in MAP.items():
         shutil.copy2(source / relative, target / name)
+        if name.endswith(".md"):
+            (target / name).write_text(rewrite_guide_links((target / name).read_text()))
+    validate_guide_links(target)
     (target / "SHA256SUMS.txt").write_text("\n".join(
         f"{digest(target / name)}  {name}" for name in sorted(MAP)
     ) + "\n")

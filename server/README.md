@@ -1,4 +1,4 @@
-# Infinity Armor Exploration Server — 2.12.0-explore.1
+# Infinity Armor Exploration Server — 2.12.0-explore.3
 
 Multi-mode build based on Infinity Armor 2.3.0 and the crossplay preview. Updated September 27, 2026.
 
@@ -76,7 +76,7 @@ The highest permanent rank wins; lower groups are not prerequisites. `/rank` sho
 
 Use `/rewards` for **six power presets and eight particle cosmetics**. Rewards have their own unlocks, independent of ranks. **How Did We Get Here?** unlocks `/power hacks` for flight, Night Vision, and Resistance II. **Withering Heights** unlocks `/cosmetic wither`. The other presets cover fire protection, a timed movement boost, exploration, underwater movement, and Nether travel. One preset can be active at a time and powers work only in Survival. Use `/power off` or `/cosmetic off` to stop the selected effect. See [REWARDS.md](REWARDS.md) for every command and achievement.
 
-`/trades` lists **ten permanent item trades**: four rank offers and one for each power. `/trade <id>` previews a cost without spending; `/trade <id> confirm` pays only in Survival, outside combat. Payment counts ordinary main-inventory/hotbar stacks. An insufficient or already unlocked offer takes no items. There are no paid subscriptions. See [TRADING.md](TRADING.md) for exact prices and save behavior.
+`/trades` lists **ten permanent item trades**: four rank offers and one for each power. `/trade <id>` previews a cost without spending; `/trade <id> confirm` pays only in Survival, outside combat. Payment counts ordinary main-inventory/hotbar stacks. An insufficient or already unlocked offer takes no items. The earned ranks remain free and permanent. Optional USD supporter subscriptions are planned, with no checkout or paid grants active yet. See [TRADING.md](TRADING.md) for item costs and [SUBSCRIPTIONS.md](SUBSCRIPTIONS.md) for the proposed monthly prices.
 
 Upgrading an existing community server: Save & Stop, close the old launcher, and make a full private backup first. Preserve `fabric/world` (or your selected world), `fabric/config`, EULA, keys, and `settings.json`. Replace launcher files with this release and replace the old `Infinity-Armor-*.jar` with the new JAR in `fabric/mods`; do not leave both versions installed. Use the same folder to retain your world. The new mod creates the hub and its extra dimension on startup. Keep using this mod to load those dimensions and player profiles.
 

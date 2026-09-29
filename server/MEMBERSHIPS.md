@@ -1,6 +1,6 @@
-# Permanent free ranks — 2.9.0-rewards.1
+# Permanent free ranks
 
-Every player starts at **Free** and can enter every game mode. Go, Plus, Pro, and Ultra are permanent cosmetic ranks, earned through Minecraft advancements or Survival item trades. **Complete all three achievements listed for a rank**, or confirm that rank's item trade, to unlock it. Ranks change only the badge and color beside a player's name. Powers and particle cosmetics have their own unlocks in [REWARDS.md](REWARDS.md). There are no payments or subscriptions.
+Every player starts at **Free** and can enter every game mode. Go, Plus, Pro, and Ultra are permanent cosmetic ranks, earned through Minecraft advancements or Survival item trades. **Complete all three achievements listed for a rank**, or confirm that rank's item trade, to unlock it. Ranks change only the badge and color beside a player's name. Powers and particle cosmetics have their own unlocks in [REWARDS.md](REWARDS.md). No purchase is required. Optional supporter subscriptions with the same tier names and USD monthly prices are planned, but checkout and paid grants are not active; see [SUBSCRIPTIONS.md](SUBSCRIPTIONS.md).
 
 | Rank | Complete all three achievements | Badge color |
 |---|---|---|

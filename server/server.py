@@ -14,6 +14,7 @@ import threading
 import time
 import urllib.request
 import socket
+import stat
 
 from runtime import install_java, java_in
 import community
@@ -310,14 +311,50 @@ def join_addresses(args):
             "local_only": args.bind == "127.0.0.1"}
 
 
+def acquire_launcher_lock(args, root):
+    """Recover a crashed POSIX launcher only when its PID is gone and ports are free."""
+    path = root / "launcher.lock"
+    try:
+        return os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+    except FileExistsError:
+        if os.name != "posix":
+            raise RuntimeError("launcher.lock exists. Close the other launcher before starting this world.")
+
+    import fcntl
+    previous = None
+    try:
+        previous = os.open(path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0))
+        fcntl.flock(previous, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        info = os.fstat(previous)
+        if not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid() or not 0 < info.st_size <= 32:
+            raise RuntimeError("launcher.lock is not a valid lock owned by this user.")
+        value = os.read(previous, 33).decode("ascii").strip()
+        if not value.isdecimal() or int(value) < 1:
+            raise RuntimeError("launcher.lock does not contain a valid process ID.")
+        try:
+            os.kill(int(value), 0)
+        except ProcessLookupError:
+            pass
+        else:
+            raise RuntimeError("launcher.lock belongs to a process that may still be running.")
+        check_ports(args)
+        current = path.lstat()
+        if (current.st_dev, current.st_ino) != (info.st_dev, info.st_ino):
+            raise RuntimeError("launcher.lock changed during recovery.")
+        path.unlink()
+        return os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+    except (OSError, UnicodeError, ValueError) as error:
+        raise RuntimeError("launcher.lock could not be safely recovered. Close the other launcher and check the game ports.") from error
+    finally:
+        if previous is not None:
+            os.close(previous)
+
+
 def run_server(args, stop_requested=None, on_ready=None, root=ROOT, console=True, on_console_ready=None):
     stop_requested = stop_requested or threading.Event()
     # An exclusive lock prevents two launchers from changing files under a running world.
     lock_path = root / "launcher.lock"
-    try:
-        lock_fd = os.open(lock_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
-    except FileExistsError:
-        raise RuntimeError("launcher.lock exists. Close the other launcher; remove this file only if it crashed and both Java processes are stopped.")
+    lock_fd = acquire_launcher_lock(args, root)
     services = []
     try:
         with os.fdopen(lock_fd, "w") as file:

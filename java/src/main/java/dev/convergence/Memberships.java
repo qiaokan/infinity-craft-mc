@@ -151,7 +151,10 @@ final class Memberships {
                 return CommunityServer.info(ctx.getSource(),"ADMIN requires a private code and grants limited /staff tools. /rank shows your progress.");
             }));
             dispatcher.register(CommandManager.literal("rank").executes(ctx->get(ctx.getSource().getServer()).rank(ctx.getSource().getPlayerOrThrow())));
-            dispatcher.register(CommandManager.literal("subscribe").executes(ctx->CommunityServer.info(ctx.getSource(),"No subscription is needed. Go, Plus, Pro, and Ultra unlock permanently through their three server advancements or Survival item trades. Use /ranks or /trades.")));
+            dispatcher.register(CommandManager.literal("subscribe").executes(ctx->{
+                CommunityServer.info(ctx.getSource(),"Planned optional supporter subscriptions (USD/month): Go $10, Plus $15, Pro $20, Ultra $25.");
+                return CommunityServer.info(ctx.getSource(),"Checkout is unavailable until the owner sets up Tebex; this command cannot charge you. Permanent cosmetic ranks remain free through achievements or Survival item trades. No game modes, powers, Admin, or OP require a purchase.");
+            }));
             dispatcher.register(CommandManager.literal("admincode").then(CommandManager.argument("code",StringArgumentType.greedyString()).executes(ctx->{var p=ctx.getSource().getPlayerOrThrow();var s=get(ctx.getSource().getServer());boolean ok=s.redeem(p.getUuid(),StringArgumentType.getString(ctx,"code"),System.currentTimeMillis());if(ok)s.badge(p);return CommunityServer.say(p,ok?"Free Admin rank unlocked. /staff kick, mute, unmute. This does not grant operator commands.":"Code rejected or temporarily locked. Retry later or ask the owner.");})));
             var staff=CommandManager.literal("staff").requires(Memberships::admin);
             for(String action:List.of("kick","mute","unmute"))staff.then(CommandManager.literal(action).then(CommandManager.argument("player",EntityArgumentType.player()).executes(ctx->moderate(ctx.getSource(),EntityArgumentType.getPlayer(ctx,"player"),action))));
