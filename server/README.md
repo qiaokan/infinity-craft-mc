@@ -1,18 +1,18 @@
-# Infinity Armor Exploration Server — 2.12.0-explore.4
+# Infinity Armor Exploration Server — 2.12.0-explore.5
 
-Multi-mode build based on Infinity Armor 2.3.0 and the crossplay preview. Updated September 27, 2026.
+Multi-mode build based on Infinity Armor 2.3.0 and the crossplay preview. Updated September 29, 2026.
 
 This server build lets Java and Bedrock players share **one Fabric server with shared game worlds** with Infinity Armor's Java powers. It is a crossplay preview based on your 2.3.0 source. Read VALIDATION.md for the checks and remaining play-test limits.
 
-Start with `/guide` in Minecraft to find the Main Hub, the current mode, and the commands that work there. `/best` shows your personal times; `/leaderboard <map>` shows the fastest saved times for each minigame. See [EXPLORATION.md](EXPLORATION.md) for the new navigation and score features.
+Start with `/guide` in Minecraft to find the Main Hub and the current mode. Tap or right-click the Minigames or Adventure entry sign in the hub to open a chest-like course menu. `/best` shows your personal times; `/leaderboard <map>` shows the fastest saved times for each minigame. See [EXPLORATION.md](EXPLORATION.md) for navigation and scores.
 
 ## New blocks, tools, wardrobe and player trading
 
-Six new building textures, two Creative building wands, two wearable cosmetic armor sets and three backpack looks join this release. `/convergence kit building` gives Creative players/operators a compact building kit. `/wardrobe` lists achievements for wearable looks, and `/backpack` opens personal 27-slot storage with a separate inventory in each mode. `/ptrade <player>` starts an item exchange requiring both players to review and confirm. Four minigames now include Dropper and Red Light. See [EXPANSION.md](EXPANSION.md) and [PLAYER_TRADING.md](PLAYER_TRADING.md) for controls, unlocks and crossplay appearance limits.
+Six new building textures, two Creative building wands, two wearable cosmetic armor sets and three backpack looks join this release. Creative players receive an Infinity sword and a compass that opens the gear picker automatically. `/convergence kit building` remains an optional compact building kit. `/wardrobe` lists achievements for wearable looks, and `/backpack` opens personal 27-slot storage with a separate inventory in each mode. `/ptrade <player>` starts an item exchange requiring both players to review and confirm. Six minigames include Dropper, Red Light, Crystal Hunt, and Color Rush. See [EXPANSION.md](EXPANSION.md) and [PLAYER_TRADING.md](PLAYER_TRADING.md) for controls, unlocks and crossplay appearance limits.
 
 ## Helpers and operator controls
 
-Use `/ai <question>` for built-in server help. Optional OpenAI chat is configured in **Owner: AI chat** while the world is stopped; a fresh download contains no API key. Operators at level 4 can create in-world helpers with `/agent spawn <name>` and control them with `/agent follow`, `/agent guard`, `/agent stay`, `/agent dismiss`, and `/agent list`. See [AGENTS_GUIDE.md](AGENTS_GUIDE.md) for commands, operator overrides, and the difference between Minecraft AI and model chat.
+Use `/ai <question>` for built-in server help. Optional OpenAI chat is configured in **Owner: AI chat** while the world is stopped; a fresh download contains no API key. Operators at level 4 can create in-world helpers with `/agent spawn <name>` and control them with `/agent follow`, `/agent guard`, `/agent stay`, `/agent dismiss`, and `/agent list`. Separately, OP4 owners can propose one of six fixed helper actions, such as setting daytime or saving the world. A proposal never runs automatically: the OP4 owner approves its ID, then a live Codex session must review it and dispatch the fixed command from the local console before it expires. See [AGENTS_GUIDE.md](AGENTS_GUIDE.md) for the steps and limits.
 
 ## Three steps to play
 
@@ -37,7 +37,7 @@ Automatic setup supports Mac Apple silicon/Intel, Windows x64, and Linux x64/arm
 - **Setup download fails:** read the error, check the internet connection, then start again. Completed verified downloads are reused.
 - **The launcher was forcibly closed:** make sure both Java processes have stopped before removing `launcher.lock`. A leftover `.runtime/bootstrap.lock` can be removed only after the Python setup process has stopped. Ordinary Save & Stop cleans up automatically.
 - **The panel was closed:** the world keeps running. Open the launcher again to return to the panel and stop it safely.
-- **Infinity weapon will not move from the Creative menu to your hotbar:** enter `/play creative`, then run `/convergence hold sword` (or `mace`, `spear`, `pickaxe`, `axe`, `shovel`, or `hoe`). The server equips the item directly. This works on Java and Bedrock; Bedrock's Creative menu cannot reliably supply these custom items through the current bridge.
+- **Creative Infinity picker did not open:** switch to another hotbar slot and back to the named compass, or use `/convergence gear`. Tap an icon in the picker to equip that Infinity item. If the picker is unavailable, `/convergence hold sword` still equips the sword directly. The custom items remain hidden from Bedrock's built-in Creative catalogue because the current bridge cannot reliably move them into the hotbar from there.
 
 ### Optional terminal controls
 
@@ -58,11 +58,11 @@ python3 server.py --console --java /path/to/java --memory 4G
 
 ## Main Hub and mode lobbies
 
-New players arrive at the Main Hub. Use `/hub` to return there, `/lobbies` to list all five mode lobbies, and `/lobby <mode>` to visit one. Every hall has a sign and a bridge from the central plaza. `/play <mode>` enters that mode's world. The hub uses a separate empty inventory; mode inventories are saved and restored on each visit. Existing players stay where they were until they choose the hub. See **LOBBIES.md** for details.
+New players arrive at the Main Hub. Follow the bridges to five mode lobbies, then tap or right-click a hall's entry sign. The Minigames and Adventure signs open course menus; the other signs enter their worlds. `/hub`, `/lobbies`, `/lobby <mode>`, and `/play <mode>` remain available. The hub uses a separate empty inventory; mode inventories are saved and restored on each visit. Existing players stay where they were until they choose the hub. See **LOBBIES.md** for details.
 
 ## Game modes and memberships
 
-In Minecraft, use **`/play`** for Survival, Creative, Hardcore, Minigames, and Adventure. Inventories and Ender Chests stay separate. Hardcore is one life per player on its own Overworld. Four timed minigames and two starter adventure maps generate automatically. See **MODES.md** for commands and rules.
+In Minecraft, use the hub signs or **`/play`** for Survival, Creative, Hardcore, Minigames, and Adventure. `/play minigames` and `/play adventure` open vanilla chest menus so you can tap a course icon. Inventories and Ender Chests stay separate. Hardcore is one life per player on its own Overworld. Six minigames and two starter adventure maps generate automatically. Your chosen course is restored if you reconnect; an unfinished run starts over. See **MODES.md** for commands and rules.
 
 Ranks are **Free, Go, Plus, Pro, Ultra, and Admin**. Every mode is available on Free. Go through Ultra unlock permanently through **all three** of the rank's achievements, or through its Survival item trade. The achievement route is:
 
@@ -115,9 +115,9 @@ The launcher uses Geyser **2.11.3 build 1245**, reporting support for Bedrock 26
 
 ## Get and use Infinity gear
 
-In the panel, expand **Setup progress & host commands** and grant your trusted player operator rights with `op YourJavaName`. Bedrock names normally have a leading period, such as `.BedrockName` (spaces become underscores). Then use `/convergence kit` in chat. Survival players can also craft the gear using the original recipes.
+Enter the shared Creative world through its lobby or `/play creative`. The server puts an Infinity sword in your hand, adds a named compass to the hotbar, and opens an Infinity gear picker. Tap a familiar vanilla icon in that chest-like menu to equip the real Infinity weapon, tool, or building wand. To reopen it, switch to another hotbar slot and back to the compass. This requires no operator access or extra gear command; real Java and Bedrock client playtests are still needed. The server-only Java mod does not add a client Creative tab, and Bedrock's built-in Creative catalogue cannot reliably supply these custom items through the current Geyser bridge.
 
-For one weapon or tool in the shared Creative world, run `/play creative` and then `/convergence hold sword`. Replace `sword` with `mace`, `spear`, `pickaxe`, `axe`, `shovel`, or `hoe` to equip that item in your selected hotbar slot. `/convergence hold <item>` is available to Creative players and operators with level 2 or higher, matching `/convergence kit`. `/convergence kit` still gives the full set. Bedrock players should use the command instead of dragging a custom Infinity item from the Creative catalogue; the current Geyser bridge rejects that menu action. Java players can use the same command with an ordinary, unmodded client. Accept the server resource pack to see the Infinity textures.
+If the picker does not open, use `/convergence gear`. `/convergence hold sword` still equips one item directly; replace `sword` with `mace`, `spear`, `pickaxe`, `axe`, `shovel`, `hoe`, `builder_wand`, or `sculptor_wand`. `/convergence kit` gives the full set in Creative or to an operator with level 2 or higher. Survival players can craft the gear using the original recipes. Accept the server resource pack to see Infinity textures. Grant operator access only to trusted players; the host panel's **Setup progress & host commands** section accepts `op YourJavaName`, and Bedrock names normally have a leading period, such as `.BedrockName` (spaces become underscores).
 
 These commands work for ordinary players holding the corresponding gear; they do not give items or bypass cooldowns:
 
@@ -127,13 +127,13 @@ These commands work for ordinary players holding the corresponding gear; they do
 - `/convergence server` — show connection defaults and these controls.
 - `/convergence help` — show the original gear controls.
 
-The commands are useful on touch devices whose controls do not show a Use button for a custom item. Java right-click controls remain available. For the assisted spear/mace combo, put the spear in the offhand, hold the mace, and use `/convergence power` to arm; the original airborne targeting/timing checks still apply. The kit remains restricted to Creative players/operators. A real iPad and Java client still need to verify Creative inventory handling and weapon controls after this change; automated server tests cannot prove the on-screen experience.
+The power commands are useful on touch devices whose controls do not show a Use button for a custom item. Java right-click controls remain available. For the assisted spear/mace combo, put the spear in the offhand, hold the mace, and use `/convergence power` to arm; the original airborne targeting/timing checks still apply. A real iPad and Java client still need to verify the picker, Creative inventory handling, and weapon controls after this change; automated server tests cannot prove the on-screen experience.
 
 ## Crossplay differences
 
 The **Java implementation** runs the world and controls everyone's gear, crafting, damage, cooldowns, inventory and terrain changes. Its custom totem activates on eligible lethal damage; the shield has native blocking. Bedrock's separate Sanctuary and scripted bow/crossbow implementations are not used in this world.
 
-All 40 custom item/block IDs are retained on the server. Twenty-three item appearances and ten placed block appearances have explicit Bedrock mappings. Bedrock uses native appearances for the chestplate's elytra form, shield, totem, bow, crossbow and three arrows to retain native flight, blocking, death-protection and ranged controls. Cosmetic armor and backpacks also use dyed native leather equipment on Bedrock. Their Infinity names and server-side powers remain. Java receives the original item textures through the generated resource pack. The original 24 supplied texture files are unchanged. Bedrock's custom Infinity entries are omitted from its Creative catalogue until the bridge can handle picking them up; `/convergence hold <item>` and `/convergence kit` provide server-granted gear instead. Geyser also ties custom-output recipe-book entries to that Creative category, so some Infinity recipes may be hidden from Bedrock's recipe book; authenticated Bedrock crafting still needs a device test.
+All 40 custom item/block IDs are retained on the server. Twenty-three item appearances and ten placed block appearances have explicit Bedrock mappings. Bedrock uses native appearances for the chestplate's elytra form, shield, totem, bow, crossbow and three arrows to retain native flight, blocking, death-protection and ranged controls. Cosmetic armor and backpacks also use dyed native leather equipment on Bedrock. Their Infinity names and server-side powers remain. Java receives the original item textures through the generated resource pack. The original 24 supplied texture files are unchanged. Bedrock's custom Infinity entries are omitted from its built-in Creative catalogue until the bridge can handle picking them up; the server's Infinity gear picker uses familiar vanilla icons to equip the actual items. `/convergence gear`, `/convergence hold <item>`, and `/convergence kit` remain available. Geyser also ties custom-output recipe-book entries to that Creative category, so some Infinity recipes may be hidden from Bedrock's recipe book; authenticated Bedrock crafting still needs a device test.
 
 This is a preview, not a claim that every original visual and control behaves identically between editions. Actual Bedrock flight, shield blocking, shooting/reloading, offhand interaction, crafting, inventory movement, and multiplayer combat need an authenticated device play-test. A Java GameTest or Bedrock server ping does not establish those behaviors. See VALIDATION.md for exactly what was tested.
 

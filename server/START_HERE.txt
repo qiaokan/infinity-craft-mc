@@ -1,4 +1,4 @@
-INFINITY ARMOR — EXPLORATION SERVER 2.12.0
+INFINITY ARMOR — EXPLORATION SERVER 2.12.0-explore.5
 
 1. Extract the entire ZIP into a folder you will keep.
 2. Double-click Start-Mac.command (Mac) or start.bat (Windows).
@@ -31,12 +31,14 @@ IN MINECRAFT
 New players start in the Main Hub. Existing players can use /hub.
 /lobbies — list mode lobbies; /lobby <mode> — visit one.
 /play — Survival, Creative, Hardcore, Minigames, Adventure
-/minigame parkour, sprint, dropper, or redlight
+Tap or right-click the Minigames or Adventure hub entry sign, or use /play minigames or /play adventure, for a chest-like course menu. Tap a course icon. SELECT COURSE signs at course starts reopen the menu.
+/minigame parkour, sprint, dropper, redlight, crystalhunt, or colorrush
 /adventure ruins or /adventure maze
 /guide — directions for your current place; /best — personal minigame times
-/leaderboard <map> — fastest saved times on that minigame
+/leaderboard <map> — fastest saved times on any of the six minigames
+Crystal Hunt: touch five amethyst pads once each, in any order. Color Rush: reach the named color before each five-second pulse expires. Your chosen map stays selected after reconnecting, but an unfinished run starts over. Menus and signs still need a real iPad playtest.
 /ranks — all achievement rank requirements; /rank — your progress and missing achievements
-/play creative, then /convergence hold sword — put one Infinity weapon directly in hand on Java or Bedrock. Replace sword with mace, spear, or a tool name.
+Enter Creative from its lobby or with /play creative. An Infinity sword appears in your hand and a named compass opens the gear picker. Tap a vanilla icon to equip a real Infinity weapon or tool; switch away from and back to the compass slot to reopen it. If the picker does not open, use /convergence gear or /convergence hold sword. The picker still needs an iPad playtest.
 
 Every game mode and rank is free. Complete all three achievements in a group, or exchange Survival items with /trades:
 Go — stone pickaxe, iron ingot, Monster Hunter (kill a hostile mob).
@@ -58,7 +60,8 @@ Details: LOBBIES.md, MODES.md, MEMBERSHIPS.md, REWARDS.md and TRADING.md.
 HELPERS AND FULL OPERATOR ACCESS
 /ai <question> — built-in server help, no API key needed.
 Level-4 operators: /agent spawn buddy, /agent follow buddy, /agent guard buddy, /agent stay buddy, /agent dismiss buddy, /agent list.
+Separate OP4 helper action queue: /agent suggest set day; /agent pending; /agent approve <id>. No action runs until a live Codex session reviews and approves the exact proposal from the local console. The six fixed requests are day, night, clear weather, rain, list players, and save world. See AGENTS_GUIDE.md.
 Operators can use any power/cosmetic without earning it and switch modes immediately.
 More details: AGENTS_GUIDE.md.
 
-New: /convergence kit building, /wardrobe, /backpack, /ptrade <player>, /minigame dropper and /minigame redlight. Read EXPANSION.md and EXPLORATION.md.
+Also: /convergence kit building, /wardrobe, /backpack, /ptrade <player>, Crystal Hunt and Color Rush. Read EXPANSION.md and EXPLORATION.md.

@@ -13,9 +13,9 @@ Use the same short commands on Java and Bedrock:
 | `/lobby hardcore` | Visit the Hardcore lobby. |
 | `/lobby minigames` | Visit the Minigames lobby. |
 | `/lobby adventure` | Visit the Adventure lobby. |
-| `/play <mode>` | Enter a gameplay world from its lobby or anywhere else. |
+| `/play <mode>` | Enter Survival, Creative or Hardcore; open a course menu for Minigames or Adventure. |
 
-`/lobby` by itself returns to the Main Hub. `/spawn` in the hub returns to the Main Hub; in a gameplay world, it returns to that mode's spawn. Each lobby has a sign for entry and the Main Hub has a row of signs for the five halls. You can also walk the bridges between halls. Typing the commands is the dependable way to navigate on either edition; clickable chat buttons are an extra convenience for Java.
+`/lobby` by itself returns to the Main Hub. `/spawn` in the hub returns to the Main Hub; in a gameplay world, it returns to that mode's spawn. Each lobby has an entry sign and the Main Hub has a row of signs for the five halls. Walk the bridges, then tap or right-click an entry sign. The Minigames sign opens a chest-like menu of six courses; the Adventure sign opens a menu of two maps. Tap a vanilla icon to choose. At a course start, its **SELECT COURSE** sign reopens the menu. `/play minigames`, `/play adventure`, and direct `/minigame <map>` or `/adventure <map>` commands are fallback paths on either edition. The selected map survives reconnecting, but a timed run starts over. The sign and menu interactions still need a real iPad playtest.
 
 Changing from a gameplay world into the hub, or from the hub into another gameplay world, takes three seconds. Stay still. Damage cancels the transfer and starts a ten-second wait. Moving between areas within the hub is immediate.
 

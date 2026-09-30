@@ -14,11 +14,13 @@ The local owner panel controls the server; it is not a public website. Back up a
 
 ## Explore the world
 
-The Main Hub leads to Survival, Creative, Hardcore, Minigames, and Adventure. Use `/guide` for directions where you are, `/play` to choose a mode, and `/hub` to return. Four timed minigames have `/best` and `/leaderboard <map>` commands; two starter adventure maps are included. Inventories are separated between modes.
+The Main Hub leads to Survival, Creative, Hardcore, Minigames, and Adventure. Use `/guide` for directions where you are, `/play` to choose a mode, and `/hub` to return. The Minigames and Adventure hall signs open course menus; `/play minigames` and `/play adventure` open them too. Six timed minigames have `/best` and `/leaderboard <map>` commands; two starter adventure maps are included. Inventories are separated between modes.
 
 Infinity gear includes custom blocks and building tools, armor looks, and backpacks with personal storage. `/ptrade <player>` opens a trade that both players review and confirm. Free, Go, Plus, Pro, and Ultra are earned through achievements or Survival item trades; Admin is owner-controlled. Powers and cosmetics can be earned separately. Optional supporter subscriptions are **planned at $10–$25 USD per month**, but checkout is not open. The earned ranks remain free and permanent. Read [`server/SUBSCRIPTIONS.md`](server/SUBSCRIPTIONS.md) for prices and status, and [`server/MODES.md`](server/MODES.md), [`server/EXPANSION.md`](server/EXPANSION.md), and [`server/REWARDS.md`](server/REWARDS.md) for play and unlocks.
 
-In Creative on Java or Bedrock, run `/convergence hold sword` to put an Infinity weapon directly in your hand. You can replace `sword` with `mace`, `spear`, a tool name, or `builder_wand`; `/convergence kit` grants the full set. The server-only Java mod does not add a client Creative tab, and the current Bedrock bridge cannot reliably move custom Infinity items from the Creative catalogue into the hotbar. Use the server commands to equip them.
+Entering Creative gives you an Infinity sword and a named compass that opens a chest-style Infinity gear picker. Tap an icon to equip a weapon or tool, or switch away from and back to the compass to reopen it. `/convergence gear` and `/convergence hold sword` remain fallback commands. The server-only Java mod does not add a client Creative tab, and the current Bedrock bridge cannot reliably move custom Infinity items from the built-in Creative catalogue into the hotbar. The new picker still needs a live Java and iPad playtest.
+
+OP4 owners can create in-world helpers and propose six fixed server actions, such as changing the time or saving the world. A proposed action waits for the owner's in-game approval and a separate live Codex review through the host's local console; it never runs from AI chat alone. See [`server/AGENTS_GUIDE.md`](server/AGENTS_GUIDE.md).
 
 ## Source layout
 

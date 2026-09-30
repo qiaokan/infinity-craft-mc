@@ -66,7 +66,8 @@ public class ModeGameTests {
         var p=player(c,"world-switch");var start=CommunityServer.Place.of(p);p.getInventory().setStack(0,new ItemStack(Items.DIAMOND,3));
         GameModes.switchNow(p,GameModes.Mode.CREATIVE,null);
         c.assertEquals(GameModes.current(p),GameModes.Mode.CREATIVE,"Mode switched");c.assertEquals(GameModes.of(p.getEntityWorld()),GameModes.Mode.CREATIVE,"Dimension switched");
-        c.assertEquals(p.getGameMode(),GameMode.CREATIVE,"Creative ability enabled");c.assertTrue(p.getInventory().isEmpty(),"Survival inventory hidden");
+        c.assertEquals(p.getGameMode(),GameMode.CREATIVE,"Creative ability enabled");
+        c.assertFalse(p.getInventory().contains(new ItemStack(Items.DIAMOND)),"Survival inventory stays hidden behind the Creative starter gear");
         p.getInventory().setStack(0,new ItemStack(Items.NETHERITE_BLOCK,64));p.getEnderChestInventory().setStack(0,new ItemStack(Items.DIAMOND_BLOCK,64));
         GameModes.switchNow(p,GameModes.Mode.SURVIVAL,null);
         c.assertTrue(p.getInventory().getStack(0).isOf(Items.DIAMOND),"Creative items do not enter survival");c.assertEquals(p.getInventory().getStack(0).getCount(),3,"Original count preserved");
@@ -103,7 +104,7 @@ public class ModeGameTests {
         c.assertFalse(GameModes.PENDING.containsKey(p.getUuid()),"Eliminated players cannot re-enter");
         c.assertEquals(GameModes.current(p),GameModes.Mode.SURVIVAL,"Other modes remain playable");c.complete();
     }
-    @GameTest public void hardcoreRealDeathAndRespawnCannotReturnToLife(TestContext c) {
+    @GameTest public void hardcoreRealDeathAndRespawnCannotReturnToLife(TestContext c) throws com.mojang.brigadier.exceptions.CommandSyntaxException {
         var p=player(c,"real-hardcore");GameModes.switchNow(p,GameModes.Mode.HARDCORE,null);
         p.onTeleportationDone();p.networkHandler.onPlayerLoaded(new net.minecraft.network.packet.c2s.play.PlayerLoadedC2SPacket());
         p.damage(p.getEntityWorld(),p.getDamageSources().genericKill(),Float.MAX_VALUE);
@@ -113,6 +114,13 @@ public class ModeGameTests {
         c.assertEquals(GameModes.current(next),GameModes.Mode.HARDCORE,"Respawn copies active mode");
         c.assertEquals(GameModes.of(next.getEntityWorld()),GameModes.Mode.HARDCORE,"Respawn stays in Hardcore world");
         c.assertEquals(next.getGameMode(),GameMode.SPECTATOR,"Respawn only allows spectating");
+        var commands=c.getWorld().getServer().getCommandManager().getDispatcher();
+        c.assertEquals(commands.execute("play minigames",next.getCommandSource()),1,"Eliminated Hardcore spectator can open a minigame menu");
+        c.assertTrue(next.currentScreenHandler instanceof CourseSelector.Handler,"Spectator sees the vanilla course menu");
+        var menu=(CourseSelector.Handler)next.currentScreenHandler;
+        ((net.minecraft.screen.ScreenHandler)menu).onSlotClick(CourseSelector.slot(0,CourseSelector.courses(GameModes.Mode.MINIGAMES).size()),0,net.minecraft.screen.slot.SlotActionType.PICKUP,next);
+        c.assertTrue(GameModes.PENDING.containsKey(next.getUuid()),"Spectator can choose a course after Hardcore elimination");
+        GameModes.PENDING.remove(next.getUuid());
         GameModes.switchNow(next,GameModes.Mode.SURVIVAL,null);
         c.assertEquals(next.getGameMode(),GameMode.SURVIVAL,"Can continue Survival after losing Hardcore");c.complete();
     }

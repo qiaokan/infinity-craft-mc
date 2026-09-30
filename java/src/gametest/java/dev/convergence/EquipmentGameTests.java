@@ -13,6 +13,7 @@ import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
 import net.minecraft.registry.Registries;
 import net.minecraft.server.network.ServerPlayerEntity;
+import net.minecraft.screen.slot.SlotActionType;
 import net.minecraft.test.TestContext;
 import net.minecraft.util.Hand;
 import net.minecraft.util.math.BlockPos;
@@ -139,6 +140,75 @@ public class EquipmentGameTests {
         c.assertTrue(ItemStack.areItemsAndComponentsEqual(p.getMainHandStack(),treasured),"Unique held item is unchanged");
         c.assertFalse(p.getInventory().contains(gear("sword")),"Denied command creates no weapon");
         c.complete();
+    }
+    @GameTest public void creativePickerOpensAutomaticallyAndEquipsFromVanillaIcons(TestContext c){
+        var p=creative(c,"creative-picker");
+        c.assertEquals(p.getMainHandStack().getItem(),Convergence.ITEMS.get("convergence:sword"),
+            "New Creative profile begins with a sword already held");
+        c.assertTrue(CreativeGearPicker.isPicker(p.getInventory().getStack(8)),"Named vanilla compass is in the hotbar");
+        c.waitAndRun(4,()->{
+            c.assertTrue(p.currentScreenHandler instanceof CreativeGearPicker.PickerHandler,
+                "Picker opens after the Creative mode transition");
+            var handler=(CreativeGearPicker.PickerHandler)p.currentScreenHandler;
+            int spear=handler.paths.indexOf("convergence:spear");
+            c.assertTrue(spear>=0,"Spear appears in the picker");
+            c.assertEquals(((net.minecraft.screen.ScreenHandler)handler).getSlot(spear).getStack().getItem(),Items.NETHERITE_SPEAR,
+                "Picker shows a vanilla Bedrock-safe icon");
+            ((net.minecraft.screen.ScreenHandler)handler).onSlotClick(spear,0,SlotActionType.PICKUP,p);
+            c.assertEquals(p.getMainHandStack().getItem(),Convergence.ITEMS.get("convergence:spear"),
+                "Tapping the icon equips the real Infinity spear");
+            c.assertTrue(CreativeGearPicker.isPicker(p.getInventory().getStack(8)),
+                "Compass stays in the hotbar for another pick");
+            c.assertTrue(p.currentScreenHandler.getCursorStack().isEmpty(),"No preview icon reaches the cursor");
+            c.complete();
+        });
+    }
+    @GameTest public void creativePickerBlocksFakeItemMovesAndFullInventoryLoss(TestContext c){
+        var p=creative(c,"creative-picker-safe");
+        var old=new ItemStack(Items.DIAMOND_PICKAXE);
+        old.set(DataComponentTypes.CUSTOM_NAME,net.minecraft.text.Text.literal("Keep my tool"));
+        p.getInventory().setStack(0,old);
+        for(int slot=1;slot<36;slot++)if(slot!=8)p.getInventory().setStack(slot,new ItemStack(Items.DIRT,64));
+        c.assertEquals(CreativeGearPicker.open(p),1,"Creative can open the vanilla picker");
+        var handler=(CreativeGearPicker.PickerHandler)p.currentScreenHandler;
+        int sword=handler.paths.indexOf("convergence:sword");
+        var icon=((net.minecraft.screen.ScreenHandler)handler).getSlot(sword).getStack().copy();
+        ((net.minecraft.screen.ScreenHandler)handler).onSlotClick(sword,0,SlotActionType.THROW,p);
+        ((net.minecraft.screen.ScreenHandler)handler).onSlotClick(sword,0,SlotActionType.PICKUP_ALL,p);
+        ((net.minecraft.screen.ScreenHandler)handler).onSlotClick(54,0,SlotActionType.PICKUP,p);
+        c.assertTrue(ItemStack.areItemsAndComponentsEqual(icon,((net.minecraft.screen.ScreenHandler)handler).getSlot(sword).getStack()),
+            "Fake preview icons cannot be thrown, collected, or moved");
+        c.assertTrue(((net.minecraft.screen.ScreenHandler)handler).getCursorStack().isEmpty(),"Picker never puts a fake item on the cursor");
+        ((net.minecraft.screen.ScreenHandler)handler).onSlotClick(sword,0,SlotActionType.QUICK_MOVE,p);
+        c.assertTrue(ItemStack.areItemsAndComponentsEqual(p.getInventory().getStack(0),old),
+            "Full inventory keeps the unique held tool instead of dropping it");
+        c.assertFalse(p.getInventory().contains(gear("sword")),"Failed selection creates no weapon");
+        c.complete();
+    }
+    @GameTest(maxTicks=20) public void creativePickerRecoversWithoutACommandAfterInventoryFills(TestContext c){
+        var p=creative(c,"creative-picker-recovery");
+        for(int slot=0;slot<36;slot++)p.getInventory().setStack(slot,new ItemStack(Items.DIRT,64));
+        c.waitAndRun(4,()->{
+            c.assertFalse(CreativeGearPicker.isPicker(p.getInventory().getStack(8)),
+                "A full inventory is never overwritten to add the compass");
+            p.closeHandledScreen();
+            p.getInventory().setStack(8,ItemStack.EMPTY);
+            c.waitAndRun(2,()->{
+                c.assertTrue(CreativeGearPicker.isPicker(p.getInventory().getStack(8)),
+                    "The picker returns when the player clears one slot");
+                p.getInventory().setSelectedSlot(8);
+                c.waitAndRun(2,()->{
+                    c.assertTrue(p.currentScreenHandler instanceof CreativeGearPicker.PickerHandler,
+                        "Selecting the restored compass opens the menu without a command");
+                    p.getInventory().setStack(0,ItemStack.EMPTY);
+                    var handler=(CreativeGearPicker.PickerHandler)p.currentScreenHandler;
+                    ((net.minecraft.screen.ScreenHandler)handler).onSlotClick(handler.paths.indexOf("convergence:sword"),0,SlotActionType.PICKUP,p);
+                    c.assertEquals(p.getMainHandStack().getItem(),Convergence.ITEMS.get("convergence:sword"),
+                        "After clearing a hotbar slot, the picker equips a real weapon");
+                    c.complete();
+                });
+            });
+        });
     }
     @GameTest public void creativeInfinityPickaxeUsesActualBlockActionWithoutDrops(TestContext c){
         var p=creative(c,"creative-excavation");var at=target(c);var world=p.getEntityWorld();wall(p,at);aim(p,at);

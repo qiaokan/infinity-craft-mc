@@ -2,6 +2,12 @@ package dev.convergence;
 
 import dev.convergence.mixin.AgentGoalAccess;
 import java.nio.file.Files;
+import java.nio.file.Path;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.Set;
 import java.util.UUID;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
@@ -12,6 +18,7 @@ import net.minecraft.entity.EntityType;
 import net.minecraft.entity.SpawnReason;
 import net.minecraft.entity.passive.IronGolemEntity;
 import net.minecraft.server.network.ServerPlayerEntity;
+import net.minecraft.server.command.CommandOutput;
 import net.minecraft.storage.NbtReadView;
 import net.minecraft.storage.NbtWriteView;
 import net.minecraft.test.TestContext;
@@ -47,6 +54,18 @@ public class AgentGameTests {
         for (String name : names) s.dismiss(p, name);
         s.server.getPlayerManager().removeFromOperators(new net.minecraft.server.PlayerConfigEntry(p.getGameProfile()));
         s.server.getPlayerManager().remove(p);
+    }
+    private void removeDirectory(Path dir) throws java.io.IOException {
+        try (var paths = Files.walk(dir)) {
+            for (var path : paths.sorted(Comparator.reverseOrder()).toList()) Files.deleteIfExists(path);
+        }
+    }
+    static final class ActionClock extends Clock {
+        Instant now = Instant.parse("2026-09-29T12:00:00Z");
+        public ZoneId getZone() { return ZoneId.of("UTC"); }
+        public Clock withZone(ZoneId zone) { return this; }
+        public Instant instant() { return now; }
+        void advance(long millis) { now = now.plusMillis(millis); }
     }
     @GameTest public void helpersRequirePermissionLevelFour(TestContext c) {
         var root = c.getWorld().getServer().getCommandManager().getDispatcher().getRoot().getChild("agent");
@@ -143,14 +162,35 @@ public class AgentGameTests {
         } finally { wolf.discard(); zombie.discard(); cleanup(s, p); }
         c.complete();
     }
-    @GameTest public void helpersPauseForLogoutDeathAndDifferentDimensions(TestContext c) {
+    @GameTest public void followingHelpersPrioritizeThreatsToOwner(TestContext c) {
+        var p = player(c, "helper-protect"); var s = AgentCompanions.get(c.getWorld().getServer());
+        var nearby = EntityType.ZOMBIE.create(c.getWorld(), SpawnReason.COMMAND);
+        var threat = EntityType.ZOMBIE.create(c.getWorld(), SpawnReason.COMMAND);
+        try {
+            var golem = golem(s, p, "protector");
+            golem.setPosition(p.getEntityPos().add(1, 0, 0));
+            nearby.setPosition(p.getEntityPos().add(3, 0, 0)); nearby.setAiDisabled(true); c.getWorld().spawnEntity(nearby);
+            threat.setPosition(p.getEntityPos().add(6, 0, 0)); threat.setAiDisabled(true); c.getWorld().spawnEntity(threat);
+            threat.setTarget(p);
+            s.control(golem, s.owned(p, "protector").getValue(), 20);
+            c.assertTrue(golem.getTarget() == threat, "Follow protects its owner before pursuing a closer bystander");
+            s.mode(p, "protector", AgentCompanions.Mode.GUARD);
+            s.control(golem, s.owned(p, "protector").getValue(), 25);
+            c.assertTrue(golem.getTarget() == nearby, "Guard keeps choosing the nearest hostile near its anchor");
+        } finally { nearby.discard(); threat.discard(); cleanup(s, p); }
+        c.complete();
+    }
+    @GameTest(maxTicks = 60) public void helpersPauseForLogoutDeathAndDifferentDimensions(TestContext c) {
         var p = player(c, "helper-lifecycle"); var s = AgentCompanions.get(c.getWorld().getServer());
         var golem = golem(s, p, "patient");
         golem.setPosition(p.getX() - 5, p.getY(), p.getZ());
         boolean[] checked={false};
         c.runAtEveryTick(() -> {
-          if(checked[0] || !golem.isOnGround())return;
+          if(checked[0])return;
           checked[0]=true;
+          // Mock clients can leave the spawned golem mid-fall for the whole test.
+          // The behavior under test is helper control on a known solid floor.
+          golem.setOnGround(true);
           try {
             var agent = s.owned(p, "patient").getValue();
             s.control(golem, agent, 20);
@@ -183,6 +223,78 @@ public class AgentGameTests {
             c.assertTrue(failed, "Corrupt roster fails visibly rather than losing ownership");
             c.assertEquals(Files.readString(file), "{broken-json", "Original data retained for recovery");
         } catch (java.io.IOException e) { throw new RuntimeException(e); }
+        c.complete();
+    }
+    @GameTest public void helperActionsRequireBothLiveApprovalsAndNeverReplay(TestContext c) throws Exception {
+        var p = player(c, "action-owner"); var companions = AgentCompanions.get(c.getWorld().getServer());
+        Path dir = Files.createTempDirectory("infinity-action-test-");
+        var dispatched = new ArrayList<String>(); var clock = new ActionClock();
+        try {
+            var queue = new AgentActions(companions.server, dir.resolve("actions.json"), clock, dispatched::add);
+            queue.suggest(p, "make it day");
+            String id = queue.data.proposals.keySet().iterator().next();
+            c.assertTrue(dispatched.isEmpty(), "Proposing cannot dispatch a command");
+            queue.codexApprove(companions.server.getCommandSource(), id);
+            c.assertTrue(dispatched.isEmpty(), "Console review alone cannot dispatch without owner approval");
+            queue.ownerApprove(p, id);
+            c.assertTrue(dispatched.isEmpty(), "Owner approval alone cannot dispatch a command");
+            c.assertEquals(queue.data.proposals.get(id).state, AgentActions.State.OWNER_APPROVED, "Owner approval is durable without automatic execution");
+            var reloaded = new AgentActions(companions.server, queue.file, clock, dispatched::add);
+            c.assertTrue(dispatched.isEmpty(), "Restart does not execute a stored owner approval");
+            reloaded.codexApprove(companions.server.getCommandSource(), id);
+            c.assertEquals(dispatched, java.util.List.of("time set day"), "Live console review dispatches exactly the stored allowlisted command");
+            reloaded.codexApprove(companions.server.getCommandSource(), id);
+            c.assertEquals(dispatched.size(), 1, "Consumed approval cannot replay");
+            var afterRestart = new AgentActions(companions.server, queue.file, clock, dispatched::add);
+            afterRestart.codexApprove(companions.server.getCommandSource(), id);
+            c.assertEquals(dispatched.size(), 1, "Consumed approval remains terminal after restart");
+        } finally { cleanup(companions, p); removeDirectory(dir); }
+        c.complete();
+    }
+    @GameTest public void helperActionsExpireAndRejectOtherOwnersAndArbitraryCommands(TestContext c) throws Exception {
+        var p = player(c, "action-first"); var other = player(c, "action-other");
+        var companions = AgentCompanions.get(c.getWorld().getServer());
+        Path dir = Files.createTempDirectory("infinity-action-expiry-");
+        var dispatched = new ArrayList<String>(); var clock = new ActionClock();
+        try {
+            var queue = new AgentActions(companions.server, dir.resolve("actions.json"), clock, dispatched::add);
+            queue.suggest(p, "set night");
+            String id = queue.data.proposals.keySet().iterator().next();
+            queue.ownerApprove(other, id); queue.cancel(other, id);
+            c.assertEquals(queue.data.proposals.get(id).state, AgentActions.State.PENDING, "Another OP4 cannot approve or cancel an owner's proposal");
+            c.assertTrue(AgentActions.Action.fromRequest("set day; op attacker") == null, "Prompt text cannot become arbitrary commands");
+            queue.suggest(p, "set day; op attacker");
+            c.assertEquals(queue.data.proposals.size(), 1, "Unsupported action does not enter the queue");
+            clock.advance(AgentActions.LIFETIME_MS);
+            queue.ownerApprove(p, id);
+            c.assertEquals(queue.data.proposals.get(id).state, AgentActions.State.EXPIRED, "Expired proposal cannot gain owner approval");
+            queue.codexApprove(companions.server.getCommandSource(), id);
+            c.assertTrue(dispatched.isEmpty(), "Expired proposal cannot dispatch");
+        } finally { cleanup(companions, p); cleanup(companions, other); removeDirectory(dir); }
+        c.complete();
+    }
+    @GameTest public void helperActionsCodexGateAcceptsOnlyLocalConsole(TestContext c) throws Exception {
+        var p = player(c, "action-console"); var companions = AgentCompanions.get(c.getWorld().getServer());
+        Path dir = Files.createTempDirectory("infinity-action-console-");
+        var dispatched = new ArrayList<String>();
+        try {
+            var queue = new AgentActions(companions.server, dir.resolve("actions.json"), new ActionClock(), dispatched::add);
+            queue.suggest(p, "clear weather"); String id = queue.data.proposals.keySet().iterator().next(); queue.ownerApprove(p, id);
+            var root = companions.server.getCommandManager().getDispatcher().getRoot().getChild("agent-codex-approve");
+            var console = companions.server.getCommandSource();
+            var otherOutput = console.withOutput(CommandOutput.DUMMY);
+            c.assertTrue(root.canUse(console), "Real local server console can enter final review");
+            c.assertFalse(root.canUse(p.getCommandSource()), "Even OP4 players cannot enter Codex review command");
+            c.assertFalse(root.canUse(otherOutput), "RCON and command-block style outputs cannot enter local-console review");
+            var scheduledFunction = console.withPermissions(LeveledPermissionPredicate.GAMEMASTERS).withSilent();
+            c.assertFalse(root.canUse(scheduledFunction), "Scheduled datapack functions cannot impersonate the console");
+            c.assertFalse(root.canUse(console.withSilent()), "A silent derived source cannot impersonate a direct console line");
+            c.assertFalse(root.canUse(companions.server.getCommandFunctionManager().getScheduledCommandSource()),
+                "The actual scheduled function source cannot enter Codex review");
+            queue.codexApprove(p.getCommandSource(), id); queue.codexApprove(otherOutput, id); queue.codexApprove(scheduledFunction, id);
+            c.assertTrue(dispatched.isEmpty(), "Non-console sources cannot dispatch despite owner approval");
+            c.assertEquals(queue.data.proposals.get(id).state, AgentActions.State.OWNER_APPROVED, "Rejected sources cannot consume approval");
+        } finally { cleanup(companions, p); removeDirectory(dir); }
         c.complete();
     }
 }

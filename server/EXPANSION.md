@@ -6,7 +6,7 @@ Use the existing launcher and world. Your iPad can join the same server using th
 
 Six new original building styles join the four Infinity blocks: Aurora Tiles, Obsidian Lattice, Copper Circuit, Moonstone, Sunstone Lamp and Verdant Mosaic. The lamp emits light level 15. Each has its own Java texture and exported Geyser block state.
 
-The **Builder Wand** places a 3×3 plane using the block held in your offhand. The **Sculptor Wand** clears a 3×3 plane with no drops. Both require actual Creative mode; ordinary players use the Creative world, and OP4 can use them elsewhere while in Creative. They protect containers, unbreakable blocks and occupied placement cells. Normal Infinity tools retain their powers in Creative. On Java or iPad, run `/play creative`, then `/convergence hold builder_wand` or `/convergence hold sculptor_wand` to equip a wand directly. The same command equips a single weapon or normal tool, for example `/convergence hold sword` or `/convergence hold pickaxe`. On iPad, use `/convergence power` for a held tool's Use power; `/convergence swap` moves the selected block to offhand. `/convergence kit building` gives Creative players or OP4 the blocks and wands. The shared server supplies Infinity items through these commands because the Bedrock Creative catalogue cannot reliably move them into a hotbar on the current bridge; the server-only Java mod does not add a client Creative tab.
+The **Builder Wand** places a 3×3 plane using the block held in your offhand. The **Sculptor Wand** clears a 3×3 plane with no drops. Both require actual Creative mode; ordinary players use the Creative world, and OP4 can use them elsewhere while in Creative. They protect containers, unbreakable blocks and occupied placement cells. Normal Infinity tools retain their powers in Creative. On Java or iPad, enter Creative through its lobby or `/play creative`. The server gives you an Infinity sword and a named compass, then opens a chest-like gear picker. Tap a vanilla icon for the wand, weapon, or tool you want; the server equips the real Infinity item. Switch away from and back to the compass slot to reopen the picker. If needed, `/convergence gear` reopens it and `/convergence hold builder_wand`, `/convergence hold sculptor_wand`, or another item name equips one directly. On iPad, use `/convergence power` for a held tool's Use power; `/convergence swap` moves the selected block to offhand. `/convergence kit building` gives Creative players or OP4 the blocks and wands. The Bedrock built-in Creative catalogue cannot reliably move custom items into a hotbar on the current bridge; the server-only Java mod does not add a client Creative tab. The picker still needs a real iPad playtest.
 
 ## Earnable wardrobe and backpacks
 
@@ -28,12 +28,16 @@ Equip the backpack in your chest armor slot, or equip costume armor in normal ar
 
 Use `/ptrade <player>` and have the other player `/ptrade accept`. Both must be nearby and playing Survival. Offers stay in your inventory until both players confirm the same revision. The review chest cannot be used as storage. See [PLAYER_TRADING.md](PLAYER_TRADING.md) for slots, confirmation and crash recovery. Existing `/trade` commands still buy rank or power unlocks from the server using items.
 
-## Four minigames
+## Six minigames
+
+Tap or right-click the Minigames entry sign in the hub, or use `/play minigames`, to open the chest-like course menu. Tap a vanilla icon to start. A **SELECT COURSE** sign at each course start reopens the menu; the direct commands below remain available. Your selected map is restored when you reconnect, while an unfinished run starts over. The menu and sign controls still need a real iPad playtest.
 
 - `/minigame parkour` — Sky Steps checkpoint parkour.
 - `/minigame sprint` — Switchback Sprint checkpoint race.
 - `/minigame dropper` — steer through obstacles into the landing water.
 - `/minigame redlight` — advance on green, stop on red. Text labels accompany colors; a short transition grace period accommodates touch controls.
+- `/minigame crystalhunt` — touch five glowing amethyst pads once each, in any order.
+- `/minigame colorrush` — reach the color named in the action bar within five seconds for each of five pulses.
 
 `/retry <map>` restarts a run. Existing adventure maps remain `/adventure ruins` and `/adventure maze`. Games have independent run state and saved personal scores, with separate mode inventories. Adding the new courses retains old maps and progress.
 

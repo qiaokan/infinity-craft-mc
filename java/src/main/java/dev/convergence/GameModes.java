@@ -54,6 +54,7 @@ public final class GameModes {
         var s=state(p);var mode=of(p.getEntityWorld());var profiles=s.getCompoundOrEmpty("profiles");
         var next=profiles.getCompoundOrEmpty(mode.name());profiles.put(transfer.previous().name(),transfer.profile());
         s.putString("active",mode.name());restore(p,next);profiles.remove(mode.name());s.put("profiles",profiles);
+        if(mode==Mode.CREATIVE) CreativeGearPicker.onEnter(p);
         PENDING.remove(p.getUuid());ModeMaps.RUNS.remove(p.getUuid());
         var community=CommunityServer.get(p.getEntityWorld().getServer());community.pending.remove(p.getUuid());
         community.server.getPlayerManager().saveAllPlayerData();
@@ -85,10 +86,7 @@ public final class GameModes {
     static CommunityServer.Place defaultPlace(MinecraftServer server, Mode mode) {
         var w=world(server,mode);
         if(mode==Mode.HUB) return LobbyServer.place(server,"main");
-        if(mode==Mode.MINIGAMES || mode==Mode.ADVENTURE) {
-            var pos=ModeMaps.start(ModeMaps.defaultMap(mode));
-            return new CommunityServer.Place(w.getRegistryKey().getValue().toString(),pos.getX()+.5,pos.getY(),pos.getZ()+.5,0,0);
-        }
+        if(mode==Mode.MINIGAMES || mode==Mode.ADVENTURE) return mapPlace(server,mode,ModeMaps.defaultMap(mode));
         if(mode==Mode.SURVIVAL) {
             var c=CommunityServer.get(server); if(c.data.spawn!=null && c.world(c.data.spawn)!=null && of(c.world(c.data.spawn))==Mode.SURVIVAL) return c.data.spawn;
             var s=server.getSpawnPoint(); var pos=s.getPos();
@@ -101,10 +99,19 @@ public final class GameModes {
         }
         throw new IllegalStateException("No safe spawn in "+mode+". Ask the host to choose a dry spawn.");
     }
+    static CommunityServer.Place mapPlace(MinecraftServer server, Mode mode, String id) {
+        var spec=ModeMaps.MAPS.get(id);
+        if(spec==null || spec.mode()!=mode || !ModeMaps.available(id))id=ModeMaps.defaultMap(mode);
+        if(id==null)throw new IllegalStateException("No verified built-in course is available in "+mode+". Check the map preservation warnings in the server log.");
+        var world=world(server,mode);var pos=ModeMaps.start(id);
+        return new CommunityServer.Place(world.getRegistryKey().getValue().toString(),pos.getX()+.5,pos.getY(),pos.getZ()+.5,0,0);
+    }
     public static TeleportTarget respawnTarget(ServerPlayerEntity p, TeleportTarget vanilla, TeleportTarget.PostDimensionTransition callback) {
         var mode=current(p);
         if(mode==Mode.SURVIVAL || (of(vanilla.world())==mode && mode!=Mode.MINIGAMES && mode!=Mode.ADVENTURE && mode!=Mode.HUB)) return vanilla;
-        var place=defaultPlace(p.getEntityWorld().getServer(),mode);
+        var place=mode==Mode.MINIGAMES || mode==Mode.ADVENTURE
+            ? mapPlace(p.getEntityWorld().getServer(),mode,ModeMaps.selectedMap(p,mode))
+            : defaultPlace(p.getEntityWorld().getServer(),mode);
         return new TeleportTarget(world(p.getEntityWorld().getServer(),mode),new Vec3d(place.x(),place.y(),place.z()),Vec3d.ZERO,place.yaw(),place.pitch(),callback);
     }
     static NbtCompound capture(ServerPlayerEntity p) {
@@ -141,6 +148,8 @@ public final class GameModes {
         p.playerScreenHandler.syncState();p.markHealthDirty();
     }
     static int request(ServerPlayerEntity p, Mode mode, String map) {
+        if(CourseSelector.supports(mode) && (ModeMaps.defaultMap(mode)==null || map!=null && !ModeMaps.available(map)))
+            return CommunityServer.say(p,"This course is unavailable because its map region could not be verified. Ask the host to check the server log.");
         if(!operator(p)&&mode==Mode.HARDCORE && state(p).getBoolean("eliminated",false)) return CommunityServer.say(p,"Your Hardcore life has ended. Choose another mode with /play.");
         if(!p.getLeftShoulderNbt().isEmpty() || !p.getRightShoulderNbt().isEmpty()) return CommunityServer.say(p,"Let your shoulder pets dismount before changing modes.");
         if(!p.isAlive() || p.hasVehicle() || p.isSleeping()) return CommunityServer.say(p,"Respawn, wake up, and leave your vehicle first.");
@@ -151,7 +160,10 @@ public final class GameModes {
             else switchNow(p,mode,map);
             return CommunityServer.say(p,"OP mode access: "+mode+". /gamemode can change your abilities in any world.");
         }
-        if(c.combat.getOrDefault(p.getUuid(),0)>c.server.getTicks()) return CommunityServer.say(p,"Wait 10 seconds after damage before changing modes.");
+        boolean leavingEliminatedHardcore=current(p)==Mode.HARDCORE && p.isSpectator()
+            && state(p).getBoolean("eliminated",false) && mode!=Mode.HARDCORE;
+        if(!leavingEliminatedHardcore && c.combat.getOrDefault(p.getUuid(),0)>c.server.getTicks())
+            return CommunityServer.say(p,"Wait 10 seconds after damage before changing modes.");
         if(PENDING.containsKey(p.getUuid())) return CommunityServer.say(p,"A mode change is already counting down.");
         if(current(p)==mode) {
             if(mode==Mode.HUB) return LobbyServer.arrive(p,map==null?"main":map);
@@ -164,12 +176,16 @@ public final class GameModes {
     }
     static void switchNow(ServerPlayerEntity p, Mode mode, String map) {
         var server=p.getEntityWorld().getServer();var current=current(p); if(current==mode)return;
+        if(CourseSelector.supports(mode) && (ModeMaps.defaultMap(mode)==null || map!=null && !ModeMaps.available(map))) {
+            CommunityServer.say(p,"This course is unavailable because its map region could not be verified. Ask the host to check the server log.");return;
+        }
         if(!p.getLeftShoulderNbt().isEmpty() || !p.getRightShoulderNbt().isEmpty() || p.hasVehicle()) { CommunityServer.say(p,"Dismount and let shoulder pets down first.");return; }
         var s=state(p); if(!operator(p)&&mode==Mode.HARDCORE && s.getBoolean("eliminated",false)) return;
         var profiles=s.getCompoundOrEmpty("profiles"); var next=profiles.getCompoundOrEmpty(mode.name());
         CommunityServer.Place place=null;
         if(mode!=Mode.MINIGAMES && mode!=Mode.ADVENTURE && mode!=Mode.HUB && next.contains("place")) place=CommunityServer.GSON.fromJson(next.getString("place", ""),CommunityServer.Place.class);
         var c=CommunityServer.get(server);
+        if(mode==Mode.MINIGAMES || mode==Mode.ADVENTURE) place=mapPlace(server,mode,map==null?ModeMaps.selectedMap(p,mode):map);
         if(place==null || c.world(place)==null || of(c.world(place))!=mode || !CommunityServer.safe(c.world(place),place)) place=defaultPlace(server,mode);
         // Return the carried cursor stack in the old world before capturing its profile.
         // Vanilla can leave that stack on playerScreenHandler when no container is open.
@@ -183,9 +199,10 @@ public final class GameModes {
         try {
             if(!p.teleport(c.world(place),place.x(),place.y(),place.z(),Set.of(),place.yaw(),place.pitch(),true)) { CommunityServer.say(p,"Mode change could not teleport. Your inventory is unchanged.");return; }
             s.putString("active",mode.name());restore(p,mode==Mode.HUB&&!operator(p)?new NbtCompound():next);p.changeGameMode(gameMode(p));
+            if(mode==Mode.CREATIVE) CreativeGearPicker.onEnter(p);
             profiles.remove(mode.name());c.pending.remove(p.getUuid());c.requests.remove(p.getUuid());c.requests.values().removeIf(r->r.sender().equals(p.getUuid()));
             ModeMaps.RUNS.remove(p.getUuid());
-            if(mode==Mode.MINIGAMES || mode==Mode.ADVENTURE) ModeMaps.begin(p,map==null?ModeMaps.defaultMap(mode):map);
+            if(mode==Mode.MINIGAMES || mode==Mode.ADVENTURE) ModeMaps.begin(p,map==null?ModeMaps.selectedMap(p,mode):map);
             if(mode==Mode.HUB) LobbyServer.arrive(p,map==null?"main":map);
             server.getPlayerManager().saveAllPlayerData();
             CommunityServer.say(p,"Now playing "+mode+". Your "+current+" inventory is saved.");
@@ -203,7 +220,7 @@ public final class GameModes {
         return true;
     }
     static int menu(ServerPlayerEntity p) {
-        CommunityServer.say(p,"Choose a world: /play survival, creative, hardcore, minigames, adventure. /minigame parkour, sprint, dropper or redlight; /adventure ruins or maze. /ranks shows free achievement ranks.");
+        CommunityServer.say(p,"Choose a world: /play survival, creative, hardcore, minigames, adventure. /play minigames and /play adventure open course menus. /ranks shows free achievement ranks.");
         for(var mode:Mode.values()) if(mode!=Mode.HUB) p.sendMessage(Text.literal("[ "+mode+" ]").formatted(Formatting.AQUA).styled(style->style.withClickEvent(new ClickEvent.RunCommand("/play "+mode.name().toLowerCase(Locale.ROOT)))),false);
         return 1;
     }
@@ -219,31 +236,33 @@ public final class GameModes {
                 if(distance>14*14 || closest.id().equals("main"))
                     yield "Main Hub: follow the lit paths or use /lobbies for five halls; /lobby <mode> visits a hall, /play <mode> enters a world.";
                 yield switch(closest.id()) {
-                    case "minigames" -> "Minigames Lobby: /play minigames enters Sky Steps; /minigame parkour, sprint, dropper or redlight picks a course. /best shows your times; /hub returns.";
-                    case "adventure" -> "Adventure Lobby: /play adventure enters Five Seals; /adventure ruins or maze picks a map. /hub returns.";
+                    case "minigames" -> "Minigames Lobby: right-click the entry sign or use /play minigames to choose a course. /best shows your times; /hub returns.";
+                    case "adventure" -> "Adventure Lobby: right-click the entry sign or use /play adventure to choose a map. /hub returns.";
                     default -> closest.label()+": /play "+closest.id()+" enters that world. /lobbies lists other halls; /hub returns to Main Hub.";
                 };
             }
             case SURVIVAL -> "Survival: craft and explore; /sethome, /home, /backpack, /trades and /rewards are available. /hub returns to the lobby hub.";
-            case CREATIVE -> "Creative: build freely here; /convergence hold sword equips one Infinity item (also mace, spear or tools). /convergence kit building gives blocks and wands. /play survival switches profiles; /hub returns.";
+            case CREATIVE -> "Creative: select the named compass to pick Infinity weapons and tools. A starter sword is added when there is hotbar room. /convergence gear reopens the picker if needed; /hub returns.";
             case HARDCORE -> state(p).getBoolean("eliminated",false)
                 ? "Hardcore life ended: spectate here, or /play survival to continue in another world. /hub visits the lobbies."
                 : "Hardcore: one life in this world. /play survival or /hub leaves while keeping other world progress separate.";
-            case MINIGAMES -> "Minigames: /minigame parkour, sprint, dropper or redlight; /retry <map> replays. /best shows your records; /leaderboard <map> shows top times. /hub leaves.";
-            case ADVENTURE -> "Adventure maps: /adventure ruins or maze; /retry <map> restarts your route. /hub returns to the lobbies.";
+            case MINIGAMES -> "Minigames: tap the course-start sign or use /play minigames to choose a course; /retry <map> replays. /best shows your records; /leaderboard <map> shows top times. /hub leaves.";
+            case ADVENTURE -> "Adventure maps: tap the course-start sign or use /play adventure to choose a map; /retry <map> restarts your route. /hub returns to the lobbies.";
         };
     }
     static int guide(ServerPlayerEntity p) { return CommunityServer.say(p,guideText(p)); }
     static void register() {
         MinigameRecords.register();
-        ServerLifecycleEvents.SERVER_STARTED.register(server->{ModeMaps.build(server);LobbyServer.build(server);System.out.println("[Infinity] Community and crossplay ready.");});
+        CourseSelector.register();
+        ServerLifecycleEvents.SERVER_STARTED.register(server->{ModeMaps.build(server);LobbyServer.build(server);CourseSelector.installSigns(server);System.out.println("[Infinity] Community and crossplay ready.");});
         ServerLifecycleEvents.SERVER_STOPPED.register(server->{PENDING.clear();TRANSITIONS.clear();FIRST_VISITS.clear();OPERATOR_TRANSFERS.clear();ModeMaps.RUNS.clear();});
         ServerPlayConnectionEvents.JOIN.register((handler,sender,server)->{
             var p=handler.player;
             if(!operator(p)&&current(p)!=Mode.SURVIVAL) p.changeGameMode(gameMode(p));
             if(of(p.getEntityWorld())!=current(p)) throw new IllegalStateException("Player mode and dimension disagree: "+p.getUuid()+". Restore a matching world/player backup.");
-            if(current(p)==Mode.MINIGAMES || current(p)==Mode.ADVENTURE) ModeMaps.begin(p,ModeMaps.defaultMap(current(p)));
+            if(current(p)==Mode.MINIGAMES || current(p)==Mode.ADVENTURE) ModeMaps.begin(p,ModeMaps.selectedMap(p,current(p)));
             if(!operator(p)&&current(p)==Mode.HUB) restore(p,new NbtCompound());
+            if(current(p)==Mode.CREATIVE) CreativeGearPicker.onEnter(p);
             var savedPlayer = server.getSavePath(net.minecraft.util.WorldSavePath.ROOT).resolve("playerdata").resolve(p.getUuidAsString()+".dat");
             // The headless TestServer's mock players are spawned for combat tests;
             // their first-login routing is exercised explicitly in LobbyGameTests.
@@ -253,7 +272,7 @@ public final class GameModes {
         });
         ServerPlayConnectionEvents.DISCONNECT.register((handler,server)->{PENDING.remove(handler.player.getUuid());FIRST_VISITS.remove(handler.player.getUuid());ModeMaps.RUNS.remove(handler.player.getUuid());});
         ServerLivingEntityEvents.AFTER_DEATH.register((entity,damage)->{if(entity instanceof ServerPlayerEntity p)death(p);});
-        ServerPlayerEvents.AFTER_RESPAWN.register((old,p,alive)->{if(!operator(p)&&current(p)!=Mode.SURVIVAL)p.changeGameMode(gameMode(p));if(current(p)==Mode.MINIGAMES||current(p)==Mode.ADVENTURE)ModeMaps.begin(p,ModeMaps.defaultMap(current(p)));});
+        ServerPlayerEvents.AFTER_RESPAWN.register((old,p,alive)->{if(!operator(p)&&current(p)!=Mode.SURVIVAL)p.changeGameMode(gameMode(p));if(current(p)==Mode.MINIGAMES||current(p)==Mode.ADVENTURE)ModeMaps.begin(p,ModeMaps.selectedMap(p,current(p)));if(current(p)==Mode.CREATIVE)CreativeGearPicker.onEnter(p);});
         ServerLivingEntityEvents.ALLOW_DAMAGE.register((entity,source,amount)->{
             if(entity instanceof ServerPlayerEntity p) {
                 if(amount>0 && PENDING.remove(p.getUuid())!=null)CommunityServer.say(p,"Mode change cancelled by damage.");
@@ -278,10 +297,10 @@ public final class GameModes {
         CommandRegistrationCallback.EVENT.register((dispatcher,access,environment)->{
             dispatcher.register(CommandManager.literal("guide").executes(ctx->guide(ctx.getSource().getPlayerOrThrow())));
             var play=CommandManager.literal("play").executes(ctx->menu(ctx.getSource().getPlayerOrThrow()));
-            for(var mode:Mode.values())if(mode!=Mode.HUB)play.then(CommandManager.literal(mode.name().toLowerCase(Locale.ROOT)).executes(ctx->request(ctx.getSource().getPlayerOrThrow(),mode,null)));
+            for(var mode:Mode.values())if(mode!=Mode.HUB)play.then(CommandManager.literal(mode.name().toLowerCase(Locale.ROOT)).executes(ctx->{var p=ctx.getSource().getPlayerOrThrow();return CourseSelector.supports(mode)?CourseSelector.open(p,mode):request(p,mode,null);}));
             dispatcher.register(play);
             for(String root:List.of("minigame","adventure","retry")) {
-                var command=CommandManager.literal(root).executes(ctx->{var p=ctx.getSource().getPlayerOrThrow();return CommunityServer.say(p,root.equals("adventure")?"/adventure ruins or /adventure maze":"/minigame parkour, sprint, dropper or redlight; /retry <map>");});
+                var command=CommandManager.literal(root).executes(ctx->{var p=ctx.getSource().getPlayerOrThrow();return root.equals("retry")?CommunityServer.say(p,"/retry <map> restarts a course."):CourseSelector.open(p,root.equals("adventure")?Mode.ADVENTURE:Mode.MINIGAMES);});
                 for(var map:ModeMaps.MAPS.values()) if(root.equals("retry") || (root.equals("adventure")== (map.mode()==Mode.ADVENTURE)))command.then(CommandManager.literal(map.id()).executes(ctx->request(ctx.getSource().getPlayerOrThrow(),map.mode(),map.id())));
                 dispatcher.register(command);
             }

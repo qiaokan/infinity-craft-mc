@@ -85,6 +85,17 @@ public class AssistantGameTests {
         c.assertTrue(allowed.contains("/agent guard <name>")&&allowed.contains("at most three"),"Owner receives real helper syntax and limits");
         c.assertTrue(allowed.contains("do not run these commands"),"Guide does not claim to execute an agent command");c.complete();
     }
+    @GameTest public void minigameGuideListsEveryMapAndRecordCommands(TestContext c) {
+        var guide=answer(normal(c),"How do minigames work?");
+        for(var map:List.of("parkour","sprint","dropper","redlight","Crystal Hunt","Color Rush"))
+            c.assertTrue(guide.contains(map),"Minigame guide includes "+map);
+        c.assertTrue(guide.contains("/retry <map>")&&guide.contains("/best")&&guide.contains("/leaderboard <map>"),
+            "Minigame guide includes replay and record commands");
+        var overview=answer(normal(c),"Which game modes are there?");
+        c.assertTrue(overview.contains("six courses")&&overview.contains("Crystal Hunt")&&overview.contains("Color Rush"),
+            "Mode overview includes the expanded six-course selection");
+        c.complete();
+    }
     @GameTest public void guideAdmitsUnknownAndCannotExecuteSuggestedCommands(TestContext c) {
         var p=new ModeGameTests().player(c,"helper-readonly");
         var before=GameModes.state(p).copy();var inventory=p.getInventory().getMainStacks().stream().map(net.minecraft.item.ItemStack::copy).toList();

@@ -72,7 +72,7 @@ public class OperatorGameTests {
             var creative=GameModes.world(server,GameModes.Mode.CREATIVE);
             c.assertTrue(p.teleport(creative,0,100,0,Set.of(),0,0,true),"OP4 can use direct cross-mode teleport");
             c.assertEquals(GameModes.current(p),GameModes.Mode.CREATIVE,"Teleport updates saved active mode immediately");
-            c.assertTrue(p.getInventory().isEmpty(),"Operator teleport restores target inventory");
+            c.assertFalse(p.getInventory().contains(new ItemStack(Items.DIAMOND)),"Operator teleport restores the separate Creative inventory");
             p.getInventory().setStack(0,new ItemStack(Items.NETHERITE_BLOCK,7));
             var target=new TeleportTarget(server.getOverworld(),new Vec3d(0,100,0),Vec3d.ZERO,0,0,TeleportTarget.NO_OP);
             c.assertTrue(p.teleportTo(target)!=null,"OP4 can use cross-mode portal transfer");

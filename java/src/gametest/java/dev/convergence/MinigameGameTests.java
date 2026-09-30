@@ -1,7 +1,12 @@
 package dev.convergence;
 
 import java.nio.file.Files;
+import java.util.HashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import net.minecraft.block.BlockState;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.block.Blocks;
 import net.minecraft.entity.MovementType;
@@ -54,6 +59,91 @@ public class MinigameGameTests {
             c.assertTrue(root.getChild("minigame").getChild("dropper")!=null,"Dropper command registered");
             c.assertTrue(root.getChild("minigame").getChild("redlight")!=null,"Red Light Run command registered");
             c.assertTrue(root.getChild("retry").getChild("redlight")!=null,"Replay command registered");
+            ModeMaps.begin(p,"crystalhunt");
+            c.assertTrue(CommunityServer.safe(world,CommunityServer.Place.of(p)),"Crystal Hunt starts on dry solid ground");
+            c.assertEquals(ModeMaps.MAPS.get("crystalhunt").kind(),ModeMaps.Kind.CRYSTAL_HUNT,"Crystal Hunt has unordered collection mechanics");
+            c.assertTrue(world.getBlockState(ModeMaps.start("crystalhunt").down()).isOf(Blocks.SEA_LANTERN),"Crystal Hunt start opens selector");
+            c.assertTrue(world.getBlockState(ModeMaps.MAPS.get("crystalhunt").points().get(1).down().west()).isOf(Blocks.AMETHYST_BLOCK),"Crystal pads have visible amethyst surrounds");
+            ModeMaps.begin(p,"colorrush");
+            c.assertTrue(CommunityServer.safe(world,CommunityServer.Place.of(p)),"Color Rush starts on dry solid ground");
+            c.assertEquals(ModeMaps.MAPS.get("colorrush").kind(),ModeMaps.Kind.COLOR_RUSH,"Color Rush has timed pad mechanics");
+            c.assertTrue(world.getBlockState(ModeMaps.start("colorrush").down()).isOf(Blocks.SEA_LANTERN),"Color Rush start opens selector");
+            c.assertTrue(world.getBlockState(ModeMaps.MAPS.get("colorrush").points().get(1).down().west()).isOf(Blocks.RED_CONCRETE),"Red pad has visible floor color");
+            c.assertTrue(root.getChild("minigame").getChild("crystalhunt")!=null,"Crystal Hunt command registered");
+            c.assertTrue(root.getChild("minigame").getChild("colorrush")!=null,"Color Rush command registered");
+            c.assertTrue(root.getChild("retry").getChild("colorrush")!=null,"Color Rush replay registered");
+        } finally {cleanup(p);}c.complete();
+    }
+    @GameTest public void crystalHuntCollectsAnyOrderAndEachPadOnlyOnce(TestContext c) {
+        var p=player(c,"crystal-score","crystalhunt");
+        try {
+            var points=ModeMaps.MAPS.get("crystalhunt").points();var run=ModeMaps.RUNS.get(p.getUuid());
+            var first=points.get(4);
+            p.setPosition(first.getX()+1.9,first.getY(),first.getZ()+1.9);p.setOnGround(true);ModeMaps.tick(p,run.startedTick+1);
+            c.assertEquals(Integer.bitCount(run.foundMask),1,"The edge of any amethyst pad can be collected first");
+            ModeMaps.tick(p,run.startedTick+2);
+            c.assertEquals(Integer.bitCount(run.foundMask),1,"Standing on one crystal cannot collect it twice");
+            int elapsed=3;
+            for(int i:new int[]{2,5,1}) {p.setPosition(Vec3d.ofBottomCenter(points.get(i)));p.setOnGround(true);ModeMaps.tick(p,run.startedTick+elapsed++);}
+            c.assertEquals(Integer.bitCount(run.foundMask),4,"Four distinct crystals remain a live run");
+            c.assertTrue(ModeMaps.RUNS.containsKey(p.getUuid()),"Last crystal is still required");
+            p.setPosition(Vec3d.ofBottomCenter(points.get(3)));p.setOnGround(true);ModeMaps.tick(p,run.startedTick+20);
+            c.assertFalse(ModeMaps.RUNS.containsKey(p.getUuid()),"All five pads complete the hunt");
+            c.assertEquals(GameModes.state(p).getCompoundOrEmpty("scores").getLong("crystalhunt",-1),1000L,"Hunt saves elapsed ticks");
+            ModeMaps.begin(p,"crystalhunt");run=ModeMaps.RUNS.get(p.getUuid());
+            c.assertEquals(run.foundMask,0,"Replay clears collected crystals");
+            p.setPosition(320,81,0);ModeMaps.tick(p,run.startedTick+1);
+            c.assertEquals(ModeMaps.RUNS.get(p.getUuid()).foundMask,0,"Leaving the arena restarts the hunt");
+            c.assertEquals(GameModes.state(p).getCompoundOrEmpty("scores").getLong("crystalhunt",-1),1000L,"A failed replay preserves the best");
+        } finally {cleanup(p);}c.complete();
+    }
+    @GameTest public void colorRushRewardsFastMatchingPadsAndEnforcesPulseDeadline(TestContext c) {
+        var p=player(c,"color-score","colorrush");
+        try {
+            var points=ModeMaps.MAPS.get("colorrush").points();var run=ModeMaps.RUNS.get(p.getUuid());
+            c.assertEquals(run.colorDeadline-run.startedTick,ModeMaps.COLOR_ROUND_TICKS,"First pulse gives five seconds");
+            for(int i=1;i<ModeMaps.COLOR_ROUNDS;i++)c.assertTrue(run.colors[i]!=run.colors[i-1],"Consecutive pulse colors differ");
+            p.setOnGround(true);
+            int wrong=(run.colors[0]+1)%4;
+            p.setPosition(Vec3d.ofBottomCenter(points.get(wrong+1)));ModeMaps.tick(p,run.colorDeadline);
+            c.assertTrue(ModeMaps.RUNS.get(p.getUuid())!=run,"Missing the right pad at deadline restarts the run");
+            c.assertFalse(GameModes.state(p).getCompoundOrEmpty("scores").contains("colorrush"),"Wrong pad gives no score");
+            run=ModeMaps.RUNS.get(p.getUuid());
+            p.setPosition(Vec3d.ofBottomCenter(points.get(run.colors[0]+1)));p.setOnGround(true);
+            ModeMaps.tick(p,run.colorDeadline+1);
+            c.assertTrue(ModeMaps.RUNS.get(p.getUuid())!=run,"A correct pad reached after the deadline is too late");
+            run=ModeMaps.RUNS.get(p.getUuid());int pulseTick=run.startedTick;
+            for(int i=0;i<ModeMaps.COLOR_ROUNDS;i++) {
+                var pad=points.get(run.colors[i]+1);
+                p.setPosition(i==0?new Vec3d(pad.getX()+2.9,pad.getY(),pad.getZ()+2.9):Vec3d.ofBottomCenter(pad));
+                p.setOnGround(true);
+                pulseTick+=60;ModeMaps.tick(p,pulseTick);
+                if(i<ModeMaps.COLOR_ROUNDS-1) {
+                    c.assertEquals(run.next,i+2,"The whole colored floor, including its edge, advances one pulse");
+                    c.assertEquals(run.colorDeadline-pulseTick,ModeMaps.COLOR_ROUND_TICKS,"Each match starts a fresh five-second limit");
+                }
+            }
+            c.assertFalse(ModeMaps.RUNS.containsKey(p.getUuid()),"Five successful pulses complete Color Rush");
+            c.assertEquals(GameModes.state(p).getCompoundOrEmpty("scores").getLong("colorrush",-1),15000L,"Color Rush stores the player's reaction and travel time");
+            ModeMaps.begin(p,"colorrush");run=ModeMaps.RUNS.get(p.getUuid());
+            p.setPosition(380,81,0);ModeMaps.tick(p,run.startedTick+1);
+            c.assertEquals(ModeMaps.RUNS.get(p.getUuid()).next,1,"Leaving Color Rush resets to pulse one");
+            c.assertEquals(GameModes.state(p).getCompoundOrEmpty("scores").getLong("colorrush",-1),15000L,"Failed replay preserves the best");
+        } finally {cleanup(p);}c.complete();
+    }
+    @GameTest public void selectedMinigameSurvivesPlayerReloadAndInvalidSelectionsFallBack(TestContext c) {
+        var p=player(c,"selected-course","colorrush");
+        try {
+            c.assertEquals(ModeMaps.selectedMap(p,GameModes.Mode.MINIGAMES),"colorrush","Entering a course saves selection");
+            var write=NbtWriteView.create(ErrorReporter.EMPTY,p.getRegistryManager());p.writeData(write);
+            var profile=new com.mojang.authlib.GameProfile(UUID.randomUUID(),"selected-reload");
+            var restored=new ServerPlayerEntity(c.getWorld().getServer(),p.getEntityWorld(),profile,p.getClientOptions());
+            restored.readData(NbtReadView.create(ErrorReporter.EMPTY,p.getRegistryManager(),write.getNbt()));
+            c.assertEquals(ModeMaps.selectedMap(restored,GameModes.Mode.MINIGAMES),"colorrush","Chosen course survives player NBT reload");
+            GameModes.state(restored).putString("selected_minigames_map","maze");
+            c.assertEquals(ModeMaps.selectedMap(restored,GameModes.Mode.MINIGAMES),"parkour","A map from another mode falls back safely");
+            GameModes.state(restored).remove("selected_minigames_map");
+            c.assertEquals(ModeMaps.selectedMap(restored,GameModes.Mode.MINIGAMES),"parkour","Old profiles without a selection use the default");
         } finally {cleanup(p);}c.complete();
     }
     @GameTest public void dropperRequiresAllHolesThenWaterAndKeepsBestOnReplay(TestContext c) {
@@ -84,6 +174,17 @@ public class MinigameGameTests {
             p.setPosition(180,30,0);ModeMaps.tick(p);
             c.assertTrue(p.getEntityPos().squaredDistanceTo(Vec3d.ofBottomCenter(ModeMaps.start("dropper")))<.01,"Leaving the shaft returns to launch deck");
             c.assertFalse(GameModes.state(p).getCompoundOrEmpty("scores").contains("dropper"),"Failed drops cannot award a score");
+        } finally {cleanup(p);}c.complete();
+    }
+    @GameTest public void dropperCornerOpeningCountsAsCheckpoint(TestContext c) {
+        var p=player(c,"dropper-corner","dropper");
+        try {
+            var gate=ModeMaps.MAPS.get("dropper").points().get(1);
+            var run=ModeMaps.RUNS.get(p.getUuid());
+            double x=gate.getX()+2.6,z=gate.getZ()+2.6;
+            p.setOnGround(false);p.setPosition(x,gate.getY()+1,z);ModeMaps.tick(p,run.startedTick+1);
+            p.setPosition(x,gate.getY()-1,z);ModeMaps.tick(p,run.startedTick+2);
+            c.assertEquals(run.next,2,"A fall through the square opening near its corner counts");
         } finally {cleanup(p);}c.complete();
     }
     @GameTest(maxTicks=110) public void dropperNativeCollisionFallPassesHolesAndLandsInWater(TestContext c) {
@@ -167,15 +268,93 @@ public class MinigameGameTests {
             c.assertEquals(built.size(),4,"Legacy marker reads all original courses");
             c.assertFalse(built.contains("dropper"),"Legacy marker leaves new dropper eligible for generation");
             c.assertFalse(built.contains("redlight"),"Legacy marker leaves new race eligible for generation");
+            c.assertFalse(built.contains("crystalhunt"),"Legacy marker leaves Crystal Hunt eligible for generation");
+            c.assertFalse(built.contains("colorrush"),"Legacy marker leaves Color Rush eligible for generation");
             var world=GameModes.world(c.getWorld().getServer(),GameModes.Mode.MINIGAMES);var at=ModeMaps.start("parkour").down();var old=world.getBlockState(at);
-            try {world.setBlockState(at,Blocks.DIAMOND_BLOCK.getDefaultState());ModeMaps.build(c.getWorld().getServer());c.assertTrue(world.getBlockState(at).isOf(Blocks.DIAMOND_BLOCK),"Repeated generation does not rebuild existing courses");}
-            finally {world.setBlockState(at,old);}
+            try {
+                world.setBlockState(at,Blocks.DIAMOND_BLOCK.getDefaultState());
+                ModeMaps.build(c.getWorld().getServer());
+                c.assertTrue(world.getBlockState(at).isOf(Blocks.DIAMOND_BLOCK),"Repeated generation does not overwrite an edited course");
+                c.assertFalse(ModeMaps.available("parkour"),"Conflicted course is not offered to new players");
+            } finally {world.setBlockState(at,old);ModeMaps.build(c.getWorld().getServer());}
             var occupied=c.getAbsolutePos(new BlockPos(2,5,2));c.getWorld().setBlockState(occupied,Blocks.CHEST.getDefaultState());boolean refused=false;
             try {ModeMaps.requireEmpty(c.getWorld(),occupied,occupied);}catch(IllegalStateException expected){refused=true;}
             c.assertTrue(refused,"New course preflight refuses occupied terrain");c.assertTrue(c.getWorld().getBlockState(occupied).isOf(Blocks.CHEST),"Occupied block is preserved");
             Files.writeString(file,"{corrupt");boolean invalid=false;try{ModeMaps.builtMaps(file);}catch(IllegalStateException expected){invalid=true;}
             c.assertTrue(invalid,"Corrupt generation marker is reported");c.assertEquals(Files.readString(file),"{corrupt","Corrupt marker remains available for recovery");
         } catch(java.io.IOException e){throw new RuntimeException(e);}c.complete();
+    }
+    @GameTest public void interruptedMapIntentResumesOnlyKnownBlocksAndMissingLegacyMarkerSkipsAmbiguity(TestContext c) {
+        var world=GameModes.world(c.getWorld().getServer(),GameModes.Mode.MINIGAMES);
+        var spec=new ModeMaps.MapSpec("parkour",GameModes.Mode.MINIGAMES,"Recovery fixture",List.of(
+            new BlockPos(4096,81,4096),new BlockPos(4102,81,4096)));
+        var plan=ModeMaps.plan(spec);
+        Map<BlockPos,BlockState> original=new HashMap<>();
+        for(BlockPos cursor:BlockPos.iterate(plan.min(),plan.max())) {
+            var at=cursor.toImmutable();original.put(at,world.getBlockState(at));
+        }
+        var absent=new ModeMaps.MapMarker(new LinkedHashSet<>(),new LinkedHashSet<>());
+        var pending=new ModeMaps.MapMarker(new LinkedHashSet<>(),new LinkedHashSet<>(List.of("parkour")));
+        var built=new ModeMaps.MapMarker(new LinkedHashSet<>(List.of("parkour")),new LinkedHashSet<>());
+        try {
+            var empty=ModeMaps.inspect(world,spec,plan);
+            c.assertTrue(empty.empty(),"Untouched map volume is eligible for a new install");
+            c.assertTrue(ModeMaps.mayReconcile(absent,spec,empty),"An empty missing-marker map may be installed");
+            var floor=spec.points().getFirst().down();
+            world.setBlockState(floor,plan.blocks.get(floor));
+            var partial=ModeMaps.inspect(world,spec,plan);
+            c.assertTrue(partial.conflict()==null && partial.missing()>0 && partial.occupied(),"Interrupted build has known blocks plus missing cells");
+            c.assertFalse(ModeMaps.mayReconcile(absent,spec,partial),"An unmarked partial map is ambiguous and must be preserved");
+            c.assertTrue(ModeMaps.mayReconcile(pending,spec,partial),"A saved install intent allows the known partial map to resume");
+            c.assertTrue(ModeMaps.apply(world,plan),"Recovery fills only missing air cells");
+            c.assertTrue(ModeMaps.inspect(world,spec,plan).complete(),"Resumed course matches the final plan");
+            c.assertFalse(ModeMaps.apply(world,plan),"Completed course is idempotent");
+            world.setBlockState(floor,Blocks.AIR.getDefaultState());
+            c.assertTrue(ModeMaps.mayReconcile(built,spec,ModeMaps.inspect(world,spec,plan)),"Marker-listed course can repair a missing saved chunk cell");
+            ModeMaps.apply(world,plan);
+            c.assertTrue(world.getBlockState(floor).isOf(Blocks.SEA_LANTERN),"Missing course lantern is restored");
+            var occupied=spec.points().getLast().up();
+            world.setBlockState(occupied,Blocks.CHEST.getDefaultState());
+            c.assertEquals(ModeMaps.inspect(world,spec,plan).conflict(),occupied,"Unknown host block stops recovery, even with install intent");
+            c.assertFalse(ModeMaps.mayReconcile(pending,spec,ModeMaps.inspect(world,spec,plan)),"Host block cannot be overwritten by a pending install");
+        } finally {original.forEach((at,state)->world.setBlockState(at,state,3));}
+        c.complete();
+    }
+    @GameTest public void mapMarkerTracksInterruptedInstallWithoutLosingLegacyIds(TestContext c) {
+        try {
+            var file=Files.createTempDirectory("infinity-map-intent-").resolve("maps.json");
+            ModeMaps.writeMarker(file,new LinkedHashSet<>(List.of("parkour","sprint")),new LinkedHashSet<>(List.of("dropper")));
+            var restored=ModeMaps.readMarker(file);
+            c.assertTrue(restored.built().containsAll(List.of("parkour","sprint")),"Completed legacy maps stay marked");
+            c.assertTrue(restored.installing().contains("dropper"),"Unfinished map intent survives restart");
+            c.assertFalse(ModeMaps.builtMaps(file).contains("dropper"),"Pending course cannot masquerade as completed");
+            Files.writeString(file,"{\"version\":3,\"maps\":[\"parkour\"],\"installing\":[\"parkour\"]}");
+            boolean rejected=false;try{ModeMaps.readMarker(file);}catch(IllegalStateException expected){rejected=true;}
+            c.assertTrue(rejected,"Contradictory marker is rejected without modifying it");
+        } catch(java.io.IOException error) {throw new RuntimeException(error);}
+        c.complete();
+    }
+    @GameTest public void bothNewArenaPreflightsRefuseOccupiedBlocksWithoutChangingMarkers(TestContext c) {
+        try {
+            var server=c.getWorld().getServer();
+            var world=GameModes.world(server,GameModes.Mode.MINIGAMES);
+            var marker=server.getSavePath(net.minecraft.util.WorldSavePath.ROOT).resolve("infinity-built-in-maps.json");
+            String saved=Files.readString(marker);
+            var oldCourse=ModeMaps.MAPS.get("parkour").points().getLast().down();var oldBlock=world.getBlockState(oldCourse);
+            for(var entry:java.util.Map.of("crystalhunt",new BlockPos(284,80,-12),"colorrush",new BlockPos(340,80,-13)).entrySet()) {
+                var at=entry.getValue();var original=world.getBlockState(at);
+                try {
+                    world.setBlockState(at,Blocks.CHEST.getDefaultState());
+                    boolean refused=false;
+                    try {ModeMaps.requireNewMapEmpty(server,ModeMaps.MAPS.get(entry.getKey()));}
+                    catch(IllegalStateException expected) {refused=expected.getMessage().contains("would replace existing blocks");}
+                    c.assertTrue(refused,"Preflight refuses an occupied "+entry.getKey()+" build volume");
+                    c.assertTrue(world.getBlockState(at).isOf(Blocks.CHEST),"Preflight leaves occupied block intact");
+                    c.assertEquals(world.getBlockState(oldCourse),oldBlock,"Preflight does not rebuild the old parkour course");
+                    c.assertEquals(Files.readString(marker),saved,"Preflight cannot change the generation marker");
+                } finally {world.setBlockState(at,original);}
+            }
+        } catch(java.io.IOException e) {throw new RuntimeException(e);}c.complete();
     }
     @GameTest public void publicRecordsBackfillPersonalNbtAndPersistPerMap(TestContext c) {
         var p=player(c,"records-owner","parkour");

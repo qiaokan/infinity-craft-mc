@@ -130,7 +130,12 @@ final class LobbyServer {
         var hall=MAIN_SIGNS.get(pos);
         if (hall!=null) {arrive(p,hall);return ActionResult.SUCCESS;}
         hall=ENTRY_SIGNS.get(pos);
-        if (hall!=null) {GameModes.request(p,LOBBIES.get(hall).mode,null);return ActionResult.SUCCESS;}
+        if (hall!=null) {
+            var mode=LOBBIES.get(hall).mode;
+            if (CourseSelector.supports(mode)) CourseSelector.open(p,mode);
+            else GameModes.request(p,mode,null);
+            return ActionResult.SUCCESS;
+        }
         return ActionResult.PASS;
     }
     static void tick(ServerPlayerEntity p) {

@@ -36,7 +36,7 @@ import net.minecraft.util.math.Vec3d;
 public final class AgentCompanions {
     static final String TAG = "infinity_agent";
     static final int LIMIT = 3;
-    static final String HELP = "Helpers: /agent spawn <name>, /agent follow <name>, /agent guard <name>, /agent stay <name>, /agent dismiss <name>, /agent list. Names: 1–24 lowercase letters/numbers, - or _. 3 per OP4 owner. Follow pauses beyond 48 blocks; return nearby to resume. Helpers pause while you are offline, dead, without OP4, or in another dimension; they never teleport or load chunks.";
+    static final String HELP = "Helpers: /agent spawn <name>, /agent follow <name>, /agent guard <name>, /agent stay <name>, /agent dismiss <name>, /agent list. Names: 1–24 lowercase letters/numbers, - or _. 3 per OP4 owner. Follow pauses beyond 48 blocks; return nearby to resume. Helpers pause while you are offline, dead, without OP4, or in another dimension; they never teleport or load chunks. Safe server actions: /agent suggest <request>, /agent pending, /agent approve <id>, /agent cancel <id>. An action runs only after your approval and live Codex review.";
     static final Map<MinecraftServer, AgentCompanions> INSTANCES = new WeakHashMap<>();
     final MinecraftServer server;
     final Path file;
@@ -208,7 +208,8 @@ public final class AgentCompanions {
         }
         LivingEntity target = world.getEntitiesByClass(MobEntity.class, new Box(center, center).expand(10), mob -> hostile(mob)
             && mob.getEntityPos().squaredDistanceTo(center) <= 100 && mob.squaredDistanceTo(golem) <= 24 * 24 && golem.getVisibilityCache().canSee(mob))
-            .stream().min(Comparator.comparingDouble(mob -> mob.squaredDistanceTo(golem))).orElse(null);
+            .stream().min(Comparator.comparing((MobEntity mob) -> agent.mode != Mode.FOLLOW || mob.getTarget() != owner)
+                .thenComparingDouble(mob -> mob.squaredDistanceTo(golem))).orElse(null);
         golem.setTarget(target);
         if (target != null) {
             golem.lookAtEntity(target, 30, 30);
@@ -221,6 +222,7 @@ public final class AgentCompanions {
         } else { golem.getNavigation().stop(); golem.stopMovement(); }
     }
     public static void initialize() {
+        AgentActions.initialize();
         ServerLifecycleEvents.SERVER_STARTED.register(server -> {
             var helpers = get(server);
             for (ServerWorld world : server.getWorlds()) for (Entity entity : world.iterateEntities()) helpers.load(entity);
@@ -247,7 +249,9 @@ public final class AgentCompanions {
             for (Mode mode : Mode.values()) root.then(CommandManager.literal(mode.name().toLowerCase(Locale.ROOT)).then(CommandManager.argument("name", StringArgumentType.word()).executes(c -> get(c.getSource().getServer()).mode(c.getSource().getPlayerOrThrow(), StringArgumentType.getString(c, "name"), mode))));
             root.then(CommandManager.literal("dismiss").then(CommandManager.argument("name", StringArgumentType.word()).executes(c -> get(c.getSource().getServer()).dismiss(c.getSource().getPlayerOrThrow(), StringArgumentType.getString(c, "name")))));
             root.then(CommandManager.literal("list").executes(c -> get(c.getSource().getServer()).list(c.getSource().getPlayerOrThrow())));
+            AgentActions.attach(root);
             dispatcher.register(root);
+            AgentActions.registerConsole(dispatcher);
         });
     }
 }

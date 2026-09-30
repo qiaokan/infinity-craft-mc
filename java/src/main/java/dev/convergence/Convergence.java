@@ -263,6 +263,7 @@ public class Convergence implements ModInitializer {
       CommunityServer.register();
       Memberships.register();
       GameModes.register();
+      CreativeGearPicker.register();
       LobbyServer.register();
       AchievementRewards.register();
       RewardTrades.register();
@@ -297,6 +298,7 @@ public class Convergence implements ModInitializer {
                         }
                      }).then(CommandManager.literal("building").executes(c -> giveBuildingKit(c.getSource().getPlayerOrThrow())))))
                      .then(holdCommand())
+                     .then(CommandManager.literal("gear").executes(c -> CreativeGearPicker.open(c.getSource().getPlayerOrThrow())))
                      .then(
                         CommandManager.literal("help")
                            .executes(
@@ -304,7 +306,7 @@ public class Convergence implements ModInitializer {
                                  ((ServerCommandSource)c.getSource())
                                     .sendFeedback(
                                        () -> Text.literal(
-                                             "One set: sword sneak+Use cycles Storm/Blink/Heal; Use casts. Mace+offhand spear: Use arms combo. Mace sneak+Use launches/dives. Spear sneak+Use dashes. Tools: Use excavates/fells/digs/farms; sneak+Use pulls/cleaves/repels/heals. Shield blocks normally; sneak+Use casts Ward. Totem saves lethal damage when held. Bows fire Infinity, Void, and Starfire arrows. Radiant block glows. Full armor enables all buffs. No Slow Falling. In Creative use /convergence hold sword (or mace, spear, pickaxe) to put one item directly in hand on Java or Bedrock. /convergence kit building gives blocks and wands; /wardrobe and /backpack show wearables and storage; /ptrade exchanges items with another player."
+                                             "One set: sword sneak+Use cycles Storm/Blink/Heal; Use casts. Mace+offhand spear: Use arms combo. Mace sneak+Use launches/dives. Spear sneak+Use dashes. Tools: Use excavates/fells/digs/farms; sneak+Use pulls/cleaves/repels/heals. Shield blocks normally; sneak+Use casts Ward. Totem saves lethal damage when held. Bows fire Infinity, Void, and Starfire arrows. Radiant block glows. Full armor enables all buffs. No Slow Falling. Creative gives a sword and named compass; select the compass for a Java/Bedrock gear menu. /convergence gear reopens it; /convergence hold <item> is a fallback. /convergence kit building gives blocks and wands; /wardrobe and /backpack show wearables and storage; /ptrade exchanges items with another player."
                                           ),
                                        false
                                     );

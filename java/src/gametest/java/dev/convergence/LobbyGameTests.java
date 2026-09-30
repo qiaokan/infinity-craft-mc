@@ -7,6 +7,7 @@ import net.minecraft.block.Blocks;
 import net.minecraft.block.entity.SignBlockEntity;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
+import net.minecraft.screen.slot.SlotActionType;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.test.TestContext;
 import net.minecraft.util.ActionResult;
@@ -26,6 +27,32 @@ public class LobbyGameTests {
                 c.assertTrue(world.getBlockEntity(lobby.center().add(0,0,-4)) instanceof SignBlockEntity,"Native sign at "+lobby.id());
         }
         c.assertTrue(Files.exists(server.getSavePath(net.minecraft.util.WorldSavePath.ROOT).resolve("infinity-built-in-lobbies.json")),"Generation marker saved");
+        c.assertTrue(Files.exists(server.getSavePath(net.minecraft.util.WorldSavePath.ROOT).resolve("infinity-course-selector-signs.json")),"Course selector upgrade marker saved");
+        for(var spec:ModeMaps.MAPS.values()) {
+            var mapWorld=GameModes.world(server,spec.mode());
+            c.assertTrue(CourseSelector.selectorSign(mapWorld,CourseSelector.signPos(spec)),"Course selector sign is available at "+spec.id());
+        }
+        c.complete();
+    }
+    @GameTest public void courseSelectorUpgradeRecognizesExistingSignsAndRejectsOccupiedSites(TestContext c) {
+        var server=c.getWorld().getServer();var world=c.getWorld();
+        var occupied=c.getAbsolutePos(new BlockPos(2,5,2));
+        var original=world.getBlockState(occupied);
+        try {
+            var marker=Files.createTempDirectory("selector-upgrade-").resolve("signs.json");
+            CourseSelector.installSigns(server,marker);
+            c.assertEquals(CourseSelector.installed(marker).size(),ModeMaps.MAPS.size(),"Upgrade records existing selector signs without rebuilding maps");
+            var spec=ModeMaps.MAPS.get("parkour");
+            var courseWorld=GameModes.world(server,spec.mode());
+            var lostSign=CourseSelector.signPos(spec);
+            courseWorld.setBlockState(lostSign,Blocks.AIR.getDefaultState());
+            CourseSelector.installSigns(server,marker);
+            c.assertTrue(CourseSelector.selectorSign(courseWorld,lostSign),"Marker-listed sign is restored after its chunk loses the sign");
+            world.setBlockState(occupied,Blocks.CHEST.getDefaultState());
+            c.assertFalse(CourseSelector.canPlaceSign(world,occupied),"Occupied selector site is refused");
+            c.assertTrue(world.getBlockState(occupied).isOf(Blocks.CHEST),"Occupied block is preserved");
+        } catch(java.io.IOException error) {throw new RuntimeException(error);}
+        finally {world.setBlockState(occupied,original);}
         c.complete();
     }
     @GameTest public void lobbyRebuildNeverOverwritesExistingBlocks(TestContext c) {
@@ -60,7 +87,7 @@ public class LobbyGameTests {
         c.assertFalse(CommunityServer.moved(LobbyServer.place(p.getEntityWorld().getServer(),"creative"),p),"Player arrived in selected hall");
         p.getInventory().setStack(0,new ItemStack(Items.NETHERITE_BLOCK,64));
         GameModes.switchNow(p,GameModes.Mode.CREATIVE,null);
-        c.assertTrue(p.getInventory().isEmpty(),"Hub items cannot enter Creative");
+        c.assertFalse(p.getInventory().contains(new ItemStack(Items.NETHERITE_BLOCK)),"Hub items cannot enter Creative");
         p.getInventory().setStack(0,new ItemStack(Items.GOLD_BLOCK,12));
         GameModes.switchNow(p,GameModes.Mode.HUB,"main");
         c.assertTrue(p.getInventory().isEmpty(),"Hub inventory resets on every visit");
@@ -89,6 +116,72 @@ public class LobbyGameTests {
         c.assertTrue(GameModes.PENDING.containsKey(p.getUuid()),"Entering Hardcore still needs a 3-second countdown");
         c.assertEquals(GameModes.current(p),GameModes.Mode.HUB,"Sign did not skip profile transfer");
         GameModes.PENDING.remove(p.getUuid());c.complete();
+    }
+    @GameTest public void courseMenusStartEveryMapAndKeepInventoriesSeparate(TestContext c) {
+        var p=player(c,"course-selector");GameModes.FIRST_VISITS.remove(p.getUuid());
+        p.getInventory().setStack(0,new ItemStack(Items.DIAMOND,5));
+        try {
+            for(var mode:new GameModes.Mode[]{GameModes.Mode.MINIGAMES,GameModes.Mode.ADVENTURE}) {
+                var choices=CourseSelector.courses(mode);
+                c.assertEquals(choices.size(),mode==GameModes.Mode.MINIGAMES?6:2,"Every course appears in the native menu");
+                for(int index=0;index<choices.size();index++) {
+                    var spec=choices.get(index);
+                    String hall=mode==GameModes.Mode.MINIGAMES?"minigames":"adventure";
+                    GameModes.switchNow(p,GameModes.Mode.HUB,hall);
+                    var sign=LobbyServer.ENTRY_SIGNS.entrySet().stream().filter(e->e.getValue().equals(hall)).findFirst().orElseThrow();
+                    c.assertEquals(LobbyServer.useSign(p,sign.getKey()),ActionResult.SUCCESS,"Entry sign opens "+hall+" selector");
+                    c.assertTrue(p.currentScreenHandler instanceof CourseSelector.Handler,"Vanilla chest selector is open");
+                    var menu=(CourseSelector.Handler)p.currentScreenHandler;
+                    int slot=CourseSelector.slot(index,choices.size());
+                    c.assertEquals(((net.minecraft.screen.ScreenHandler)menu).getSlot(slot).getStack().getName().getString(),spec.title(),"Named course option is visible: "+spec.id());
+                    ((net.minecraft.screen.ScreenHandler)menu).onSlotClick(slot,0,SlotActionType.PICKUP,p);
+                    var pending=GameModes.PENDING.get(p.getUuid());
+                    c.assertTrue(pending!=null && pending.mode()==mode && spec.id().equals(pending.map()),"Selecting "+spec.id()+" keeps the three-second route");
+                    c.assertEquals(GameModes.current(p),GameModes.Mode.HUB,"Selection has not teleported before warmup");
+                    GameModes.PENDING.remove(p.getUuid());GameModes.switchNow(p,mode,spec.id());
+                    c.assertEquals(ModeMaps.RUNS.get(p.getUuid()).map,spec.id(),"Selected course starts: "+spec.id());
+                    c.assertTrue(p.getEntityPos().squaredDistanceTo(net.minecraft.util.math.Vec3d.ofBottomCenter(ModeMaps.start(spec.id())))<.01,"Player reaches selected start");
+                    c.assertEquals(CourseSelector.useLantern(p,CourseSelector.signPos(spec)),ActionResult.SUCCESS,"Selector sign reopens menu: "+spec.id());
+                    c.assertTrue(p.currentScreenHandler instanceof CourseSelector.Handler,"Selector sign uses native chest menu");
+                    p.closeHandledScreen();
+                    c.assertEquals(CourseSelector.useLantern(p,ModeMaps.start(spec.id()).down()),ActionResult.SUCCESS,"Glowing start reopens menu: "+spec.id());
+                    c.assertTrue(p.currentScreenHandler instanceof CourseSelector.Handler,"Selector can reopen inside course");
+                    var inCourse=(CourseSelector.Handler)p.currentScreenHandler;
+                    int next=(index+1)%choices.size();
+                    ((net.minecraft.screen.ScreenHandler)inCourse).onSlotClick(CourseSelector.slot(next,choices.size()),0,SlotActionType.PICKUP,p);
+                    c.assertEquals(ModeMaps.RUNS.get(p.getUuid()).map,choices.get(next).id(),"In-course menu starts another map in the same mode");
+                }
+            }
+            GameModes.switchNow(p,GameModes.Mode.SURVIVAL,null);
+            c.assertTrue(p.getInventory().getStack(0).isOf(Items.DIAMOND),"Survival inventory returns after course selection");
+            c.assertEquals(p.getInventory().getStack(0).getCount(),5,"Course icons did not duplicate into inventory");
+        } finally {
+            GameModes.PENDING.remove(p.getUuid());p.closeHandledScreen();
+            if(GameModes.current(p)!=GameModes.Mode.SURVIVAL)GameModes.switchNow(p,GameModes.Mode.SURVIVAL,null);
+            p.getEntityWorld().getServer().getPlayerManager().remove(p);
+        }
+        c.complete();
+    }
+    @GameTest public void playCommandsOpenReadOnlyCourseMenus(TestContext c) {
+        var p=player(c,"play-menu");GameModes.FIRST_VISITS.remove(p.getUuid());
+        try {
+            var commands=c.getWorld().getServer().getCommandManager().getDispatcher();
+            c.assertEquals(commands.execute("play minigames",p.getCommandSource()),1,"/play minigames opens a course menu");
+            c.assertTrue(p.currentScreenHandler instanceof CourseSelector.Handler,"Minigame menu uses vanilla chest screen");
+            var menu=(CourseSelector.Handler)p.currentScreenHandler;
+            c.assertEquals(menu.choices.size(),6,"All six minigames are shown");
+            var icon=((net.minecraft.screen.ScreenHandler)menu).getSlot(CourseSelector.slot(1,menu.choices.size())).getStack().copy();
+            ((net.minecraft.screen.ScreenHandler)menu).onSlotClick(CourseSelector.slot(1,menu.choices.size()),0,SlotActionType.THROW,p);
+            ((net.minecraft.screen.ScreenHandler)menu).onSlotClick(CourseSelector.slot(1,menu.choices.size()),0,SlotActionType.PICKUP_ALL,p);
+            c.assertTrue(ItemStack.areItemsAndComponentsEqual(icon,((net.minecraft.screen.ScreenHandler)menu).getSlot(CourseSelector.slot(1,menu.choices.size())).getStack()),"Menu icon cannot be taken");
+            c.assertTrue(((net.minecraft.screen.ScreenHandler)menu).getCursorStack().isEmpty() && p.getInventory().isEmpty(),"Invalid clicks create no items");
+            p.closeHandledScreen();
+            c.assertEquals(commands.execute("play adventure",p.getCommandSource()),1,"/play adventure opens the other menu");
+            c.assertTrue(p.currentScreenHandler instanceof CourseSelector.Handler,"Adventure menu uses vanilla chest screen");
+            c.assertEquals(((CourseSelector.Handler)p.currentScreenHandler).choices.size(),2,"Both adventure maps are shown");
+        } catch(com.mojang.brigadier.exceptions.CommandSyntaxException error) {throw new RuntimeException(error);}
+        finally {p.closeHandledScreen();p.getEntityWorld().getServer().getPlayerManager().remove(p);}
+        c.complete();
     }
     @GameTest public void lobbyVoidFallReturnsToSelectedSafeHall(TestContext c) {
         var p=player(c,"hub-rescue");GameModes.FIRST_VISITS.remove(p.getUuid());
@@ -121,9 +214,9 @@ public class LobbyGameTests {
             GameModes.switchNow(p,GameModes.Mode.MINIGAMES,"parkour");
             c.assertTrue(GameModes.guideText(p).contains("/leaderboard <map>"),"Minigame guide teaches records");
             GameModes.switchNow(p,GameModes.Mode.ADVENTURE,"ruins");
-            c.assertTrue(GameModes.guideText(p).contains("/adventure ruins or maze"),"Adventure guide lists both maps");
+            c.assertTrue(GameModes.guideText(p).contains("/play adventure"),"Adventure guide opens the map selector");
             GameModes.switchNow(p,GameModes.Mode.CREATIVE,null);
-            c.assertTrue(GameModes.guideText(p).contains("/convergence hold sword"),"Creative guide explains how to equip Infinity weapons");
+            c.assertTrue(GameModes.guideText(p).contains("named compass"),"Creative guide explains the Infinity gear picker");
             GameModes.switchNow(p,GameModes.Mode.SURVIVAL,null);
             c.assertTrue(GameModes.guideText(p).contains("/backpack"),"Survival guide names a usable player feature");
             var root=c.getWorld().getServer().getCommandManager().getDispatcher().getRoot();

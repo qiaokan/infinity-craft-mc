@@ -6,7 +6,8 @@
     "ModePlayerMixin",
     "ModeEntityMixin",
     "ModeDifficultyMixin",
-    "AgentGoalAccess"
+    "AgentGoalAccess",
+    "AgentConsoleSourceAccess"
   ],
   "injectors": {
     "defaultRequire": 1

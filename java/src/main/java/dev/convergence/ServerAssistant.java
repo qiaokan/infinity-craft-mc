@@ -127,7 +127,7 @@ public final class ServerAssistant {
             "/hub returns to Main Hub; /lobbies lists all five halls; /lobby survival, creative, hardcore, minigames, or adventure visits a hall.",
             "Use /play <mode> to enter its game world. /spawn returns to your current mode's spawn. Mode inventories stay separate; the hub uses an empty temporary inventory.",
             op?"OP4 mode and lobby changes are immediate.":"Game-world changes take three seconds. Stay still; damage cancels the change and starts a ten-second wait.");
-        if(any(w,"mode","modes","world","worlds","survival","creative","hardcore","minigame","minigames","adventure","parkour","sprint","ruins","maze","dropper","redlight"))return modes(w,op);
+        if(any(w,"mode","modes","world","worlds","survival","creative","hardcore","minigame","minigames","adventure","parkour","sprint","ruins","maze","dropper","redlight","crystalhunt","colorrush"))return modes(w,op);
         if(any(w,"home","homes","base","warp","warps","tpa","tpaccept","tpdeny","teleport"))return bounded(
             "/sethome [name] saves a base; /home [name] returns; /homes lists yours; /delhome <name> removes one. /warps and /warp <name> use shared destinations.",
             "/tpa <player> requests a visit. They use /tpaccept or /tpdeny within 30 seconds. Players must be in the same mode.",
@@ -195,16 +195,16 @@ public final class ServerAssistant {
         if(w.contains("hardcore"))return bounded("/play hardcore enters a separate hard-difficulty Overworld with one life per player. Death leads to Spectator; /play survival lets you continue elsewhere.",
             "Hardcore has no Nether or End in this build. Ranks and earned Survival presets give no extra life.",
             op?"OP4 can enter despite elimination and use vanilla /gamemode; normal one-life restrictions still apply to other players.":"The elimination flag remains when visiting a lobby or another world. Your Hardcore inventory stays separate.");
-        if(w.contains("creative"))return bounded("/play creative enters a separate flat building world with ordinary Creative flight and unlimited blocks.",
+        if(w.contains("creative"))return bounded("/play creative enters a separate flat building world with ordinary Creative flight, unlimited blocks, and a vanilla-icon Infinity gear picker. Select its named compass to reopen it.",
             "Items, Ender Chest, XP, and other mode profiles stay separate. Use /play survival to restore your Survival items; Creative items do not transfer.",
             "Creative inventory items can trigger some vanilla item achievements. Cosmetic ranks are not proof of Survival-only play.");
-        if(any(w,"minigame","minigames","parkour","sprint","adventure","ruins","maze","dropper","redlight"))return bounded(
-            "/minigame parkour or sprint starts a race; /minigame dropper or redlight starts the new falling or stop/go challenges. /adventure ruins or maze starts an adventure map.",
-            "Follow checkpoints in order. /retry <map> restarts the run; /play survival leaves. These are shared starter maps with personal checkpoints and best times, not match queues.",
+        if(any(w,"minigame","minigames","parkour","sprint","adventure","ruins","maze","dropper","redlight","crystalhunt","colorrush"))return bounded(
+            "/play minigames opens a menu for parkour, sprint, dropper, redlight, Crystal Hunt, and Color Rush. /play adventure opens a menu for ruins and maze.",
+            "Tap a course icon or its in-world start sign. /retry <map> restarts; /best shows your times; /leaderboard <map> shows fastest times. /play survival leaves.",
             "Maps use Adventure mode with damage disabled for regular play. Earned Survival powers do not apply there.");
         return bounded("/play survival, creative, hardcore, minigames, or adventure selects a game world. /hub and /lobby <mode> visit the separate hub halls.",
             "Survival keeps the main world, Nether, End, crafting, gear, and earned presets. Creative has its own flat world. Hardcore is a separate one-life Overworld.",
-            "Minigames has parkour and sprint; Adventure has ruins and maze. Each mode has separate inventory, Ender Chest, XP, potion effects, and return position.");
+            "Minigames has six courses, including Crystal Hunt and Color Rush; Adventure has ruins and maze. Each mode has separate inventory, Ender Chest, XP, and potion effects.");
     }
     static List<String> agents(boolean op) {
         if(!op)return bounded("Golem helpers are managed by the server owner or an operator with level 4. They are ordinary server-controlled iron golems, not language-model agents.",
@@ -212,7 +212,7 @@ public final class ServerAssistant {
         return bounded("OP4 helper commands: /agent spawn <name>, /agent follow <name>, /agent guard <name>, /agent stay <name>, /agent dismiss <name>, and /agent list.",
             "Use 1–24 lowercase letters, digits, _ or -; for example /agent spawn guide. Each owner has at most three helpers, including unloaded helpers.",
             "Follow moves behind the owner; Guard defends near the chosen location; Stay halts movement and combat. Helpers attack nearby hostile mobs, not players or pets.",
-            "They pause if the owner is offline, dead, Spectator, or in another dimension. They do not force chunks or teleport between dimensions. I only give advice and do not run these commands.");
+            "They pause if the owner is offline, dead, Spectator, or in another dimension. /agent suggest <request> proposes a fixed safe server command; /agent approve <id> and live Codex review are both required. I only give advice and do not run these commands.");
     }
     static List<String> operator(String q,Set<String> w,boolean op) {
         if(!op)return bounded("Owner controls require operator level 4. A rank badge or the private-code Admin role does not grant operator permissions.",

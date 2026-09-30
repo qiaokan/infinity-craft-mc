@@ -21,7 +21,7 @@ import net.minecraft.util.WorldSavePath;
 
 /** Public records index; each player's saved mode NBT remains the source of their best time. */
 final class MinigameRecords {
-    static final List<String> MAP_IDS=List.of("parkour","sprint","dropper","redlight");
+    static final List<String> MAP_IDS=List.of("parkour","sprint","dropper","redlight","crystalhunt","colorrush");
     static final Map<MinecraftServer, MinigameRecords> INSTANCES=new WeakHashMap<>();
     record Score(UUID player, String name, long millis) {}
     final Path file;
@@ -99,7 +99,7 @@ final class MinigameRecords {
         return 1;
     }
     static int leaderboard(ServerPlayerEntity player,String id) {
-        if(id==null)return CommunityServer.say(player,"Choose a map: /leaderboard parkour, sprint, dropper or redlight. /best shows your own times.");
+        if(id==null)return CommunityServer.say(player,"Choose a map: /leaderboard parkour, sprint, dropper, redlight, crystalhunt or colorrush. /best shows your own times.");
         try {sync(player);}catch(IllegalStateException e) {return CommunityServer.say(player,"Leaderboard is temporarily unavailable. Your personal best is still available with /best.");}
         var scores=get(player.getEntityWorld().getServer()).ordered(id);
         if(scores.isEmpty())return CommunityServer.say(player,ModeMaps.MAPS.get(id).title()+": no finishes yet. /minigame "+id+" to set a time.");
