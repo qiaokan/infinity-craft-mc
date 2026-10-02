@@ -1,4 +1,4 @@
-INFINITY ARMOR — EXPLORATION SERVER 2.12.0-explore.6
+INFINITY ARMOR — EXPLORATION SERVER 2.12.0-explore.7
 
 1. Extract the entire ZIP into a folder you will keep.
 2. Double-click Start-Mac.command (Mac) or start.bat (Windows).
@@ -26,6 +26,8 @@ Host panel: set your server name, rules, player slots and allowlist.
 32 slots is the default limit; real capacity depends on your hardware.
 
 For outside-network friends on an Apple Silicon Mac, open Start-Pinggy-Mac.command after the world starts. It installs the verified free helper on first use, then shows separate temporary Java and Bedrock addresses in the panel. No account sign-in is needed. See PINGGY_JOINING.md. For always-on hosting, read HOSTING.md.
+
+For a fixed joining name on Mac, follow DYNU_JOINING.md: reserve your own free Dynu hostname, save its private API key locally, and forward Java TCP 25565 plus Bedrock UDP 19132 in your router. Start-Dynu-Mac.command keeps that name's IPv4 current while open. Keep the Mac awake and test both editions from another Internet connection. DNS alone does not make the games reachable or guarantee a name forever.
 
 IN MINECRAFT
 New players start in the Main Hub. Existing players can use /hub.

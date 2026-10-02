@@ -8,7 +8,7 @@ import sys
 import zipfile
 
 
-VERSION = "2.12.0-explore.6"
+VERSION = "2.12.0-explore.7"
 ROOT = Path(__file__).resolve().parent
 MAP = {
     "server.zip": f"dist/lobbies/Infinity_Armor_Lobbies_Server_v{VERSION}.zip",
@@ -26,6 +26,7 @@ MAP = {
     "agents_guide.md": "server/AGENTS_GUIDE.md",
     "player_trading.md": "server/PLAYER_TRADING.md",
     "pinggy_joining.md": "server/PINGGY_JOINING.md",
+    "dynu_joining.md": "server/DYNU_JOINING.md",
     "third_party.md": "server/THIRD_PARTY.md",
     "validation.md": "server/VALIDATION.md",
     "texture_credits.md": "server/TEXTURE_CREDITS.md",

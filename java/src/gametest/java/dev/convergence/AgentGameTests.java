@@ -16,6 +16,7 @@ import net.minecraft.command.permission.LeveledPermissionPredicate;
 import net.minecraft.command.permission.PermissionPredicate;
 import net.minecraft.entity.EntityType;
 import net.minecraft.entity.SpawnReason;
+import net.minecraft.entity.attribute.EntityAttributes;
 import net.minecraft.entity.passive.IronGolemEntity;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.command.CommandOutput;
@@ -27,8 +28,24 @@ import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.GameMode;
 import net.minecraft.world.World;
+import net.minecraft.world.rule.GameRules;
 
 public class AgentGameTests {
+    private void acknowledgeLoadedPlayer(ServerPlayerEntity player) {
+        // Embedded clients do not acknowledge world transfers or respawn packets themselves.
+        player.onTeleportationDone();
+        player.networkHandler.onPlayerLoaded(new net.minecraft.network.packet.c2s.play.PlayerLoadedC2SPacket());
+    }
+    private ServerPlayerEntity respawnLoadedPlayer(ServerPlayerEntity player) {
+        // The actual packet handler also rebinds networkHandler.player to the new life.
+        // Calling PlayerManager.respawnPlayer alone omits that essential client-session step.
+        var handler = player.networkHandler;
+        handler.onClientStatus(new net.minecraft.network.packet.c2s.play.ClientStatusC2SPacket(
+            net.minecraft.network.packet.c2s.play.ClientStatusC2SPacket.Mode.PERFORM_RESPAWN));
+        if (handler.player == player) throw new IllegalStateException("The mock client did not respawn its dead player");
+        acknowledgeLoadedPlayer(handler.player);
+        return handler.player;
+    }
     private ServerPlayerEntity player(TestContext c, String name) {
         var profile = new com.mojang.authlib.GameProfile(UUID.randomUUID(), name);
         var data = net.minecraft.server.network.ConnectedClientData.createDefault(profile, false);
@@ -50,6 +67,7 @@ public class AgentGameTests {
         return s.loaded.get(UUID.fromString(entry.getKey()));
     }
     private void cleanup(AgentCompanions s, ServerPlayerEntity p) {
+        s.ceasefire(p);
         var names = s.data.agents.values().stream().filter(a -> a.owner().equals(p.getUuidAsString())).map(AgentCompanions.Agent::name).toList();
         for (String name : names) s.dismiss(p, name);
         s.server.getPlayerManager().removeFromOperators(new net.minecraft.server.PlayerConfigEntry(p.getGameProfile()));
@@ -375,6 +393,233 @@ public class AgentGameTests {
             c.assertTrue(first.getTarget() == closer && second.getTarget() == closer, "Owner threat overrides prior shared focus");
             c.assertFalse(AgentCompanions.allowDamage(p, p.getDamageSources().mobAttack(first)), "Aggressive hive still cannot attack a player");
         } finally { focus.discard(); closer.discard(); cleanup(s, p); }
+        c.complete();
+    }
+    @GameTest public void approvedPlayerTargetCoordinatesAggressiveProfilesAndKeepsRegularUnchanged(TestContext c) {
+        var owner = player(c, "hive-owner"); var target = player(c, "hive-target"); var bystander = player(c, "hive-bystander");
+        var s = AgentCompanions.get(c.getWorld().getServer()); var zombie = EntityType.ZOMBIE.create(c.getWorld(), SpawnReason.COMMAND);
+        boolean pvp = c.getWorld().getGameRules().getValue(GameRules.PVP);
+        try {
+            c.getWorld().getGameRules().setValue(GameRules.PVP, true, s.server);
+            var first = golem(s, owner, "alpha"); var second = golem(s, owner, "beta"); var regular = golem(s, owner, "regular");
+            first.setPosition(owner.getEntityPos().add(-2, 0, 0)); second.setPosition(owner.getEntityPos().add(2, 0, 0)); regular.setPosition(owner.getEntityPos().add(5, 0, 0));
+            target.setPosition(owner.getEntityPos().add(0, 0, 5)); bystander.setPosition(owner.getEntityPos().add(0, 0, 2));
+            target.getAttributeInstance(EntityAttributes.MAX_HEALTH).setBaseValue(100); target.setHealth(100);
+            zombie.setPosition(owner.getEntityPos().add(5, 0, 3)); zombie.setAiDisabled(true); c.getWorld().spawnEntity(zombie);
+            s.profile(owner, "alpha", AgentCompanions.Profile.PRIMITIVE); s.profile(owner, "beta", AgentCompanions.Profile.ULTIMATE_FINALS);
+            c.assertFalse(AgentCompanions.allowDamage(target, target.getDamageSources().mobAttack(first)), "No player damage before exact reviewed assignment");
+            c.assertTrue(s.assignPlayerTarget(owner, target), "Core accepts a valid exact player target after action review");
+            s.control(first, s.owned(owner, "alpha").getValue(), 20); s.control(second, s.owned(owner, "beta").getValue(), 20); s.control(regular, s.owned(owner, "regular").getValue(), 20);
+            c.assertTrue(first.getTarget() == target && second.getTarget() == target, "Primitive and Ultimate Finals share the same explicitly named player");
+            c.assertTrue(regular.getTarget() == zombie, "Regular keeps hostile-mob behavior during a player order");
+            c.assertFalse(AgentCompanions.allowDamage(target, target.getDamageSources().mobAttack(regular)), "Regular cannot gain player damage from a squad order");
+            c.assertFalse(AgentCompanions.allowDamage(bystander, bystander.getDamageSources().mobAttack(first)), "A nearer unnamed player is never authorized");
+            c.assertFalse(AgentCompanions.allowDamage(owner, owner.getDamageSources().mobAttack(first)), "Owner is never authorized");
+            c.assertTrue(AgentCompanions.allowDamage(target, target.getDamageSources().mobAttack(first)), "Independent gate accepts only the exact current target");
+            target.setPosition(first.getEntityPos().add(1, 0, 0)); float health = target.getHealth();
+            c.assertTrue(first.tryAttack(c.getWorld(), target), "Real golem melee attack is permitted for the approved player");
+            c.assertTrue(target.getHealth() < health, "Approved melee causes real player damage");
+        } finally { c.getWorld().getGameRules().setValue(GameRules.PVP, pvp, s.server); zombie.discard(); cleanup(s, owner); cleanup(s, target); cleanup(s, bystander); }
+        c.complete();
+    }
+    @GameTest public void playerTargetHonorsWorldPvpFriendlyFireModesAndSelfProtection(TestContext c) {
+        var owner = player(c, "hive-rules-owner"); var target = player(c, "hive-rules-target"); var s = AgentCompanions.get(c.getWorld().getServer());
+        boolean pvp = c.getWorld().getGameRules().getValue(GameRules.PVP); var scoreboard = s.server.getScoreboard();
+        var team = scoreboard.addTeam("hive-" + UUID.randomUUID().toString().substring(0, 8));
+        try {
+            c.getWorld().getGameRules().setValue(GameRules.PVP, true, s.server); var helper = golem(s, owner, "fighter");
+            s.profile(owner, "fighter", AgentCompanions.Profile.PRIMITIVE); target.setPosition(owner.getEntityPos().add(0, 0, 5));
+            c.assertFalse(s.assignPlayerTarget(owner, owner), "An owner cannot order an attack on themself");
+            for (var mode : new GameMode[]{GameMode.CREATIVE, GameMode.SPECTATOR}) {
+                target.changeGameMode(mode); c.assertFalse(s.assignPlayerTarget(owner, target), "Player mode protected: " + mode);
+            }
+            target.changeGameMode(GameMode.ADVENTURE); c.assertTrue(s.assignPlayerTarget(owner, target), "Adventure players can be explicitly targeted");
+            c.getWorld().getGameRules().setValue(GameRules.PVP, false, s.server);
+            c.assertFalse(AgentCompanions.allowDamage(target, target.getDamageSources().mobAttack(helper)), "Disabling world PvP immediately blocks forced helper damage");
+            c.assertTrue(s.playerTargets.isEmpty(), "PvP change clears the order");
+            c.getWorld().getGameRules().setValue(GameRules.PVP, true, s.server);
+            scoreboard.addScoreHolderToTeam(owner.getNameForScoreboard(), team); scoreboard.addScoreHolderToTeam(target.getNameForScoreboard(), team); team.setFriendlyFireAllowed(false);
+            c.assertFalse(s.assignPlayerTarget(owner, target), "Team friendly-fire protection is respected");
+            team.setFriendlyFireAllowed(true); c.assertTrue(s.assignPlayerTarget(owner, target), "An explicit order is eligible when team PvP is allowed");
+            team.setFriendlyFireAllowed(false); s.tick(); c.assertTrue(s.playerTargets.isEmpty(), "Changing friendly fire clears an already active order");
+            scoreboard.clearTeam(owner.getNameForScoreboard()); scoreboard.clearTeam(target.getNameForScoreboard());
+            target.setHealth(0); c.assertFalse(s.assignPlayerTarget(owner, target), "A dead target is protected"); target.setHealth(target.getMaxHealth());
+            owner.changeGameMode(GameMode.SPECTATOR); c.assertFalse(s.assignPlayerTarget(owner, target), "Spectator owner cannot activate an attack"); owner.changeGameMode(GameMode.SURVIVAL);
+            s.server.getPlayerManager().removeFromOperators(new net.minecraft.server.PlayerConfigEntry(owner.getGameProfile()));
+            c.assertFalse(s.assignPlayerTarget(owner, target), "Revoked owner permissions prevent direct activation");
+        } finally {
+            c.getWorld().getGameRules().setValue(GameRules.PVP, pvp, s.server); scoreboard.removeTeam(team);
+            s.server.getPlayerManager().addToOperators(new net.minecraft.server.PlayerConfigEntry(owner.getGameProfile()), java.util.Optional.of(LeveledPermissionPredicate.OWNERS), java.util.Optional.of(false));
+            cleanup(s, owner); cleanup(s, target);
+        }
+        c.complete();
+    }
+    @GameTest public void playerTargetExpiresWithoutPersistenceOrAutomaticResume(TestContext c) throws Exception {
+        var owner = player(c, "hive-expiry-owner"); var target = player(c, "hive-expiry-target"); var s = AgentCompanions.get(c.getWorld().getServer());
+        var dir = Files.createTempDirectory("infinity-hive-expiry-"); var clock = new ActionClock(); boolean pvp = c.getWorld().getGameRules().getValue(GameRules.PVP);
+        try {
+            c.getWorld().getGameRules().setValue(GameRules.PVP, true, s.server); var helper = golem(s, owner, "fighter"); s.profile(owner, "fighter", AgentCompanions.Profile.PRIMITIVE);
+            helper.setPosition(owner.getEntityPos().add(1, 0, 0)); target.setPosition(owner.getEntityPos().add(0, 0, 5));
+            var isolated = new AgentCompanions(s.server, dir.resolve("roster.json"), clock); var record = s.owned(owner, "fighter");
+            isolated.data.agents.put(record.getKey(), record.getValue()); isolated.loaded.put(helper.getUuid(), helper); isolated.save();
+            c.assertTrue(isolated.assignPlayerTarget(owner, target), "Runtime order is active before expiry");
+            isolated.control(helper, record.getValue(), 20); c.assertTrue(helper.getTarget() == target, "Order selects the player before expiry");
+            c.assertFalse(Files.readString(isolated.file).contains(target.getUuidAsString()), "Player attack order is not written to the roster");
+            c.assertTrue(new AgentCompanions(s.server, isolated.file, clock).playerTargets.isEmpty(), "Reload cannot replay a prior player order");
+            clock.advance(AgentCompanions.PLAYER_TARGET_LIFETIME_MS); isolated.control(helper, record.getValue(), 25);
+            c.assertTrue(isolated.playerTargets.isEmpty() && helper.getTarget() == null, "Five-minute deadline clears target and movement");
+            isolated.control(helper, record.getValue(), 30); c.assertTrue(helper.getTarget() == null, "An expired order does not resume on later ticks");
+            c.assertTrue(isolated.assignPlayerTarget(owner, target), "A new reviewed activation can begin after expiry");
+            clock.advance(-1); isolated.control(helper, record.getValue(), 35);
+            c.assertTrue(isolated.playerTargets.isEmpty() && helper.getTarget() == null, "Clock rollback clears an order instead of extending its lifetime");
+        } finally { c.getWorld().getGameRules().setValue(GameRules.PVP, pvp, s.server); cleanup(s, owner); cleanup(s, target); removeDirectory(dir); }
+        c.complete();
+    }
+    @GameTest public void playerCeasefireAndStayImmediatelyClearCombatOrders(TestContext c) {
+        var owner = player(c, "hive-stop-owner"); var target = player(c, "hive-stop-target"); var s = AgentCompanions.get(c.getWorld().getServer());
+        boolean pvp = c.getWorld().getGameRules().getValue(GameRules.PVP);
+        try {
+            c.getWorld().getGameRules().setValue(GameRules.PVP, true, s.server); var helper = golem(s, owner, "fighter"); s.profile(owner, "fighter", AgentCompanions.Profile.ULTIMATE_FINALS);
+            helper.setPosition(owner.getEntityPos().add(1, 0, 0)); target.setPosition(owner.getEntityPos().add(0, 0, 5));
+            c.assertTrue(s.assignPlayerTarget(owner, target), "Starts a reviewed target"); s.control(helper, s.owned(owner, "fighter").getValue(), 20);
+            c.assertTrue(helper.getTarget() == target, "Order is selected before ceasefire"); s.ceasefire(owner);
+            c.assertTrue(helper.getTarget() == null && helper.getNavigation().isIdle(), "Ceasefire immediately clears targeting and navigation");
+            c.assertTrue(s.playerTargetStatus(owner).equals("Player target: none."), "Status confirms no active player order");
+            helper.setTarget(target); c.assertFalse(helper.tryAttack(c.getWorld(), target), "Forced attacks cannot bypass ceasefire");
+            c.assertTrue(s.assignPlayerTarget(owner, target), "Another attack needs another reviewed activation"); s.mode(owner, "fighter", AgentCompanions.Mode.STAY);
+            c.assertTrue(s.playerTargets.isEmpty() && helper.getTarget() == null, "Stopping the only aggressive helper clears its order");
+            s.mode(owner, "fighter", AgentCompanions.Mode.FOLLOW); s.control(helper, s.owned(owner, "fighter").getValue(), 25);
+            c.assertTrue(helper.getTarget() == null, "Leaving Stay cannot revive an old order");
+            c.assertTrue(s.assignPlayerTarget(owner, target), "New explicit activation succeeds after Stay"); s.profile(owner, "fighter", AgentCompanions.Profile.API);
+            c.assertTrue(s.playerTargets.isEmpty(), "Changing the only aggressive helper to a passive profile clears the order");
+        } finally { c.getWorld().getGameRules().setValue(GameRules.PVP, pvp, s.server); cleanup(s, owner); cleanup(s, target); }
+        c.complete();
+    }
+    @GameTest public void playerTargetDeathRespawnAndLogoutRequireANewOrder(TestContext c) {
+        var owner = player(c, "hive-life-owner"); var target = player(c, "hive-life-target"); var s = AgentCompanions.get(c.getWorld().getServer());
+        boolean pvp = c.getWorld().getGameRules().getValue(GameRules.PVP);
+        try {
+            c.getWorld().getGameRules().setValue(GameRules.PVP, true, s.server); var helper = golem(s, owner, "fighter"); s.profile(owner, "fighter", AgentCompanions.Profile.PRIMITIVE);
+            helper.setPosition(owner.getEntityPos().add(1, 0, 0)); target.setPosition(owner.getEntityPos().add(0, 0, 5));
+            c.assertTrue(s.assignPlayerTarget(owner, target), "Player order begins for current life"); s.control(helper, s.owned(owner, "fighter").getValue(), 20);
+            target.damage(c.getWorld(), target.getDamageSources().genericKill(), Float.MAX_VALUE);
+            c.assertTrue(s.playerTargets.isEmpty() && helper.getTarget() == null, "Actual target death immediately halts the whole order");
+            UUID oldUuid = target.getUuid(); target = respawnLoadedPlayer(target);
+            target.changeGameMode(GameMode.SURVIVAL); target.teleport(c.getWorld(), owner.getX(), owner.getY(), owner.getZ() + 5, Set.of(), 0, 0, true);
+            acknowledgeLoadedPlayer(target);
+            c.assertEquals(target.getUuid(), oldUuid, "Respawn retains account UUID but creates a new life");
+            s.control(helper, s.owned(owner, "fighter").getValue(), 25); c.assertTrue(helper.getTarget() == null, "A respawned player never inherits the previous-life order");
+            c.assertTrue(s.assignPlayerTarget(owner, target), "Respawn requires a fresh explicit reviewed assignment; eligibility=" + s.targetEligibility(owner, target)
+                + "; targetAlive=" + target.isAlive() + "; targetRemoved=" + target.isRemoved() + "; targetConnected=" + !target.isDisconnected());
+            s.control(helper, s.owned(owner, "fighter").getValue(), 30);
+            s.server.getPlayerManager().remove(target); c.assertTrue(s.playerTargets.isEmpty() && helper.getTarget() == null, "Target logout immediately clears the order");
+        } finally { c.getWorld().getGameRules().setValue(GameRules.PVP, pvp, s.server); cleanup(s, owner); if (s.server.getPlayerManager().getPlayer(target.getUuid()) == target) cleanup(s, target); }
+        c.complete();
+    }
+    @GameTest public void playerTargetCannotResumeAfterPermissionDimensionOrLeashChanges(TestContext c) {
+        var owner = player(c, "hive-range-owner"); var target = player(c, "hive-range-target"); var s = AgentCompanions.get(c.getWorld().getServer());
+        boolean pvp = c.getWorld().getGameRules().getValue(GameRules.PVP);
+        try {
+            c.getWorld().getGameRules().setValue(GameRules.PVP, true, s.server); var helper = golem(s, owner, "fighter"); s.profile(owner, "fighter", AgentCompanions.Profile.PRIMITIVE);
+            helper.setPosition(owner.getEntityPos().add(1, 0, 0)); Vec3d targetPosition = owner.getEntityPos().add(0, 0, 5); target.setPosition(targetPosition);
+            c.assertTrue(s.assignPlayerTarget(owner, target), "Current owner permissions allow exact activation");
+            s.server.getPlayerManager().removeFromOperators(new net.minecraft.server.PlayerConfigEntry(owner.getGameProfile()));
+            c.assertFalse(AgentCompanions.allowDamage(target, target.getDamageSources().mobAttack(helper)), "Permission loss blocks damage before the next control tick");
+            c.assertTrue(s.playerTargets.isEmpty(), "Permission loss consumes the order");
+            s.server.getPlayerManager().addToOperators(new net.minecraft.server.PlayerConfigEntry(owner.getGameProfile()), java.util.Optional.of(LeveledPermissionPredicate.OWNERS), java.util.Optional.of(false));
+            s.control(helper, s.owned(owner, "fighter").getValue(), 20); c.assertTrue(helper.getTarget() == null, "Restored OP4 does not revive a prior order");
+            c.assertTrue(s.assignPlayerTarget(owner, target), "Fresh activation before dimension change");
+            target.teleport(s.server.getWorld(World.NETHER), 0, 100, 0, Set.of(), 0, 0, true);
+            c.assertTrue(s.playerTargets.isEmpty() && helper.getTarget() == null, "Target changing dimension immediately clears the shared order");
+            target.teleport(c.getWorld(), targetPosition.x, targetPosition.y, targetPosition.z, Set.of(), 0, 0, true);
+            acknowledgeLoadedPlayer(target);
+            c.assertTrue(s.assignPlayerTarget(owner, target), "Fresh activation after target returns");
+            Vec3d ownerPosition = owner.getEntityPos(); owner.teleport(s.server.getWorld(World.NETHER), 0, 100, 0, Set.of(), 0, 0, true);
+            c.assertTrue(s.playerTargets.isEmpty(), "Owner dimension change clears the order"); owner.teleport(c.getWorld(), ownerPosition.x, ownerPosition.y, ownerPosition.z, Set.of(), 0, 0, true);
+            acknowledgeLoadedPlayer(owner);
+            c.assertTrue(s.assignPlayerTarget(owner, target), "Fresh activation before target moves beyond the owner leash"); target.setPosition(owner.getEntityPos().add(49, 0, 0)); s.tick();
+            c.assertTrue(s.playerTargets.isEmpty(), "Owner-target separation beyond 48 blocks clears the order"); target.setPosition(targetPosition);
+            s.control(helper, s.owned(owner, "fighter").getValue(), 25); c.assertTrue(helper.getTarget() == null, "A target returning within range cannot revive a consumed order");
+            c.assertTrue(s.assignPlayerTarget(owner, target), "Fresh activation before owner death"); owner.damage(c.getWorld(), owner.getDamageSources().genericKill(), Float.MAX_VALUE);
+            c.assertFalse(owner.isAlive(), "The loaded owner actually died from server damage");
+            c.assertTrue(s.playerTargets.isEmpty(), "Actual owner death immediately clears the order");
+            owner = respawnLoadedPlayer(owner);
+            owner.changeGameMode(GameMode.SURVIVAL); owner.teleport(c.getWorld(), ownerPosition.x, ownerPosition.y, ownerPosition.z, Set.of(), 0, 0, true);
+            acknowledgeLoadedPlayer(owner);
+            s.control(helper, s.owned(owner, "fighter").getValue(), 30); c.assertTrue(helper.getTarget() == null, "Respawned owner cannot restore the previous-life combat order");
+        } finally { c.getWorld().getGameRules().setValue(GameRules.PVP, pvp, s.server); cleanup(s, owner); cleanup(s, target); }
+        c.complete();
+    }
+    @GameTest public void playerOrdersKeepPursuitBeyondSwingRangeAndGuardsWaitInsideTheirLeash(TestContext c) {
+        var owner = player(c, "hive-pursuit-owner"); var target = player(c, "hive-pursuit-target"); var s = AgentCompanions.get(c.getWorld().getServer());
+        boolean pvp = c.getWorld().getGameRules().getValue(GameRules.PVP);
+        try {
+            c.getWorld().getGameRules().setValue(GameRules.PVP, true, s.server); var helper = golem(s, owner, "fighter"); s.profile(owner, "fighter", AgentCompanions.Profile.PRIMITIVE);
+            helper.setPosition(owner.getEntityPos().add(1, 0, 0)); target.setPosition(owner.getEntityPos().add(0, 0, 5));
+            c.assertTrue(s.assignPlayerTarget(owner, target), "Reviewed pursuit begins nearby");
+            target.setPosition(owner.getEntityPos().add(0, 0, 30)); s.control(helper, s.owned(owner, "fighter").getValue(), 20);
+            c.assertTrue(s.targetEligibility(owner, target) == null, "A pending proposal stays eligible beyond the helper's 24-block damage range");
+            c.assertTrue(s.validPlayerTarget(owner) != null && helper.getTarget() == target, "An active follow order keeps pursuing within the owner's 48-block range");
+            c.assertFalse(AgentCompanions.allowDamage(target, target.getDamageSources().mobAttack(helper)), "Pursuit never permits remote damage beyond 24 blocks");
+            float health = target.getHealth(); c.assertFalse(helper.tryAttack(c.getWorld(), target), "A forced ranged swing fails the independent damage gate");
+            c.assertEquals(target.getHealth(), health, "Distant pursuit causes no remote damage");
+            s.mode(owner, "fighter", AgentCompanions.Mode.GUARD); s.control(helper, s.owned(owner, "fighter").getValue(), 25);
+            c.assertTrue(s.validPlayerTarget(owner) != null && helper.getTarget() == null, "Guard retains its order while waiting for the approved player outside its 14-block anchor range");
+            c.assertTrue(helper.getNavigation().isIdle(), "A guard at its anchor does not chase beyond its guard leash");
+            target.setPosition(helper.getEntityPos().add(0, 0, 5)); s.control(helper, s.owned(owner, "fighter").getValue(), 30);
+            c.assertTrue(helper.getTarget() == target, "The same still-valid guard order resumes when the approved player returns inside the guard range");
+            helper.setPosition(helper.getEntityPos().add(15, 0, 0)); s.tick();
+            c.assertTrue(s.playerTargets.isEmpty(), "An order cancels when its only compatible helper leaves its own movement leash");
+        } finally { c.getWorld().getGameRules().setValue(GameRules.PVP, pvp, s.server); cleanup(s, owner); cleanup(s, target); }
+        c.complete();
+    }
+    @GameTest(maxTicks = 80) public void approvedPlayerPursuitNavigatesAroundWallsButCannotStrikeThroughThem(TestContext c) {
+        var owner = player(c, "hive-corner-owner"); var target = player(c, "hive-corner-target"); var s = AgentCompanions.get(c.getWorld().getServer());
+        boolean pvp = c.getWorld().getGameRules().getValue(GameRules.PVP); Vec3d center = owner.getEntityPos();
+        owner.setPosition(center.add(0, 0, -5)); target.setPosition(center.add(3, 0, 0));
+        target.getAttributeInstance(EntityAttributes.MAX_HEALTH).setBaseValue(100); target.setHealth(100);
+        c.getWorld().getGameRules().setValue(GameRules.PVP, true, s.server); var helper = golem(s, owner, "fighter"); s.profile(owner, "fighter", AgentCompanions.Profile.PRIMITIVE);
+        helper.setPosition(center.add(-3, 0, 0)); helper.setOnGround(true);
+        BlockPos wall = BlockPos.ofFloored(center);
+        for (BlockPos at : BlockPos.iterate(wall.add(0, 0, -1), wall.add(0, 3, 1))) c.getWorld().setBlockState(at, Blocks.STONE.getDefaultState());
+        double initialDistance = helper.squaredDistanceTo(target);
+        try {
+            c.assertFalse(helper.getVisibilityCache().canSee(target), "A solid wall actually blocks the golem's initial line of sight");
+            c.assertTrue(s.assignPlayerTarget(owner, target), "Exact reviewed identity authorizes pursuit around an obstruction");
+            s.control(helper, s.owned(owner, "fighter").getValue(), s.server.getTicks());
+            c.assertTrue(helper.getTarget() == target && !helper.getNavigation().isIdle(), "Approved pursuit retains its target and starts real navigation without line of sight");
+            float health = target.getHealth(); c.assertFalse(helper.tryAttack(c.getWorld(), target), "The independent damage gate rejects a forced swing through the wall");
+            c.assertEquals(target.getHealth(), health, "Occluded pursuit cannot damage the player through terrain");
+        } catch (RuntimeException failure) {
+            c.getWorld().getGameRules().setValue(GameRules.PVP, pvp, s.server); cleanup(s, owner); cleanup(s, target); throw failure;
+        }
+        c.runAtTick(65, () -> {
+            try {
+                c.assertTrue(s.validPlayerTarget(owner) != null, "Normal navigation around a wall does not consume the approved order");
+                c.assertTrue(helper.squaredDistanceTo(target) < initialDistance - 1, "Server ticks actually move the golem around the obstruction toward the approved player");
+                c.assertTrue(helper.getVisibilityCache().canSee(target), "The golem reaches a clear sight line after navigating around the corner");
+            } finally { c.getWorld().getGameRules().setValue(GameRules.PVP, pvp, s.server); cleanup(s, owner); cleanup(s, target); }
+            c.complete();
+        });
+    }
+    @GameTest public void flankSlotsOnlyCountNearbyPeersEngagingTheSameTarget(TestContext c) {
+        var owner = player(c, "hive-flank-owner"); var s = AgentCompanions.get(c.getWorld().getServer());
+        var focus = EntityType.ZOMBIE.create(c.getWorld(), SpawnReason.COMMAND); var alternative = EntityType.ZOMBIE.create(c.getWorld(), SpawnReason.COMMAND);
+        try {
+            var first = golem(s, owner, "alpha"); var second = golem(s, owner, "beta"); var distant = golem(s, owner, "distant"); var otherFight = golem(s, owner, "other");
+            for (String name : new String[]{"alpha", "beta", "distant", "other"}) s.profile(owner, name, AgentCompanions.Profile.ULTIMATE_FINALS);
+            first.setPosition(owner.getEntityPos().add(-3, 0, 0)); second.setPosition(owner.getEntityPos().add(3, 0, 0));
+            distant.setPosition(owner.getEntityPos().add(30, 0, 0)); distant.setNoGravity(true); s.mode(owner, "distant", AgentCompanions.Mode.GUARD);
+            otherFight.setPosition(owner.getEntityPos().add(4, 0, 5));
+            focus.setPosition(owner.getEntityPos().add(0, 0, 4)); focus.setAiDisabled(true); c.getWorld().spawnEntity(focus);
+            alternative.setPosition(owner.getEntityPos().add(5, 0, 5)); alternative.setAiDisabled(true); c.getWorld().spawnEntity(alternative);
+            first.setTarget(focus); second.setTarget(focus); distant.setTarget(focus); otherFight.setTarget(alternative);
+            var left = s.flankPoint(first, s.owned(owner, "alpha").getValue(), owner, focus); var right = s.flankPoint(second, s.owned(owner, "beta").getValue(), owner, focus);
+            c.assertTrue(left != null && right != null, "The two actual combat peers have clear flanking positions");
+            c.assertTrue(left.add(right).multiply(.5).squaredDistanceTo(focus.getEntityPos()) < .000001, "Two engaged peers receive opposite angles despite distant guards and another fight");
+            second.setTarget(alternative);
+            c.assertTrue(s.flankPoint(first, s.owned(owner, "alpha").getValue(), owner, focus) == null, "A lone engaged helper uses direct pursuit rather than a slot reserved for absent combat peers");
+        } finally { focus.discard(); alternative.discard(); cleanup(s, owner); }
         c.complete();
     }
     @GameTest public void helperActionsRequireBothLiveApprovalsAndNeverReplay(TestContext c) throws Exception {

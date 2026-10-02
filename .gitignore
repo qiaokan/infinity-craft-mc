@@ -8,6 +8,8 @@ server/.dashboard.json
 server/.runtime/
 server/.pinggy/
 server/.remote/
+**/.dynu/
+**/dynu-api-key.txt
 **/world/
 **/world_*/
 **/eula.txt

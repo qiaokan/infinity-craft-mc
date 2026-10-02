@@ -20,7 +20,8 @@
       "dev.convergence.EquipmentGameTests",
       "dev.convergence.MinigameGameTests",
       "dev.convergence.AgentMenuGameTests",
-      "dev.convergence.AgentCodeGameTests"
+      "dev.convergence.AgentCodeGameTests",
+      "dev.convergence.AgentActionsGameTests"
     ]
   },
   "depends": {

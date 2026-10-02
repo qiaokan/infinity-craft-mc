@@ -1,4 +1,4 @@
-# Infinity Armor Exploration Server — 2.12.0-explore.6
+# Infinity Armor Exploration Server — 2.12.0-explore.7
 
 Multi-mode build based on Infinity Armor 2.3.0 and the crossplay preview. Updated October 1, 2026.
 
@@ -34,6 +34,7 @@ Automatic setup supports Mac Apple silicon/Intel, Windows x64, and Linux x64/arm
 - **Port already in use:** stop the other Minecraft server or choose different ports in Settings.
 - **A friend on your Wi-Fi cannot connect:** allow Java through the private-network firewall and use the LAN address in the panel. Guest Wi-Fi may block device-to-device connections. A VPN or multiple network adapters may require using your Wi-Fi adapter's IPv4 address manually.
 - **A friend outside your home cannot connect:** on an Apple Silicon Mac, keep the world running and open `Start-Pinggy-Mac.command`. Share the latest separate Java and Bedrock addresses shown in the panel. These free addresses expire, so see [PINGGY_JOINING.md](PINGGY_JOINING.md) before sharing them.
+- **You want one fixed joining name:** use the optional [Dynu setup guide](DYNU_JOINING.md), reserve your own hostname, forward the two game ports, and open `Start-Dynu-Mac.command`. DNS updating requires an account and router setup; test both editions externally before sharing the name.
 - **Setup download fails:** read the error, check the internet connection, then start again. Completed verified downloads are reused.
 - **The launcher was forcibly closed:** make sure both Java processes have stopped before removing `launcher.lock`. A leftover `.runtime/bootstrap.lock` can be removed only after the Python setup process has stopped. Ordinary Save & Stop cleans up automatically.
 - **The panel was closed:** the world keeps running. Open the launcher again to return to the panel and stop it safely.
@@ -109,7 +110,7 @@ Java players can join using an ordinary Java 1.21.11 client; accept the offered 
 
 On Bedrock mobile/Windows, choose **Servers → Add Server** and enter the host's IP and port. Accept the required Infinity resource pack. Bedrock players sign in with their Microsoft/Xbox account; Floodgate lets them join without a separate Java license. Do not activate the separate Infinity `.mcaddon` in this Java-hosted world; its behavior scripts do not run through Geyser.
 
-Xbox, PlayStation and Switch do not expose the same Add Server UI; see [Geyser's console connection instructions](https://geysermc.org/wiki/geyser/using-geyser-with-consoles/). For players outside your home network, use the optional [Pinggy joining helper](PINGGY_JOINING.md) on an Apple Silicon Mac, or forward **TCP 25565** and **UDP 19132** to the host (or the ports you selected) and allow them through its firewall. Port forwarding is not performed by this launcher.
+Xbox, PlayStation and Switch do not expose the same Add Server UI; see [Geyser's console connection instructions](https://geysermc.org/wiki/geyser/using-geyser-with-consoles/). For players outside your home network, use the optional [Pinggy joining helper](PINGGY_JOINING.md) on an Apple Silicon Mac, or forward **TCP 25565** and **UDP 19132** to the host (or the ports you selected) and allow them through its firewall. The optional [Dynu companion](DYNU_JOINING.md) keeps an owner-reserved hostname pointed at your home's public IPv4. Port forwarding is not performed by either launcher.
 
 The launcher uses Geyser **2.11.3 build 1245**, reporting support for Bedrock 26.30–26.51 when checked on September 22, 2026. Bedrock updates may require a new bridge build; dependencies deliberately do not silently upgrade your world. See [Geyser supported versions](https://geysermc.org/wiki/geyser/supported-versions/).
 

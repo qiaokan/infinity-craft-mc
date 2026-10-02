@@ -1,4 +1,4 @@
-# Helper squads, AI modes, and full operator controls — 2.12.0-explore.6
+# Helper squads, AI modes, and full operator controls — 2.12.0-explore.7
 
 Helpers are vanilla iron golems controlled by this server. They work with Java and Bedrock without a client mod. **Only an operator with level 4 can create, change, dismiss, or ask a helper.** The free Admin-code role is separate.
 
@@ -23,12 +23,20 @@ Names use 1–24 lowercase letters, digits, `_` or `-`. Each helper has its own 
 | --- | --- |
 | `primitive` | Combat-ready: proactively seeks nearby hostile mobs within 12 blocks. Answers basic server questions locally; Follow, Guard and Stay remain available. |
 | `regular` | Standard follow/guard hostile-mob defense and local server help. |
-| `ultimate_finals` | Shares a focus target, prioritizes hostiles threatening the owner, and approaches from six flank positions when loaded terrain is clear. Uses ordinary golem stats; these are golems with deterministic tactics, not player bots or learned PvP models. Players, pets and animals are not enemies. |
+| `ultimate_finals` | Shares a focus target, prioritizes hostiles threatening the owner, and approaches from six flank positions when loaded terrain is clear. Primitive and Ultimate Finals can also share one explicitly named player target after both reviews below. Uses ordinary golem stats and deterministic tactics. Pets and ordinary animals remain protected. |
 | `debug` | Passive helper with read-only status: health, loaded state, position, movement and pause reason. Does not expose host files or secrets. |
 | `cli` | Saves source-change requests for owner approval and live Codex code review, edits and testing. Also previews six fixed Minecraft server actions. It does not launch a terminal, shell or apply model-generated code. |
 | `api` | Optional external AI text answers with a limited live Minecraft snapshot. `/agent data <name>` previews the data. Requires the owner's configured connection and shares the server's request budget with `/ai`. It has no tools and cannot run its suggestions. |
 
-AI profile and movement are separate controls. Follow moves toward the owner; Guard anchors a combat helper at its current location; Stay stops navigation and combat. Helpers never attack players, pets or ordinary animals. They pause while the owner is offline, dead, spectating, in another dimension, or no longer OP4. Follow pauses beyond 48 blocks; return nearby to resume. Helpers never teleport or load distant chunks.
+AI profile and movement are separate controls. Follow moves toward the owner; Guard anchors a combat helper at its current location; Stay stops navigation and combat. Player targeting requires a separate reviewed order. Helpers pause while the owner is offline, dead, spectating, in another dimension, or no longer OP4. Follow pauses beyond 48 blocks; return nearby to resume ordinary mob defense. Helpers never teleport or load distant chunks.
+
+## Shared player targets
+
+Your Primitive and Ultimate Finals helpers can share an exact player target. They never choose a player automatically. Use `/agent target <player>` to create a proposal, read its target name, UUID and dimension with `/agent pending`, and approve its exact ID with `/agent approve <id>`. Then ask Codex in this live chat to review it. Only the local-console `agent-codex-approve <id>` after that review can activate the order. Chat answers cannot activate it.
+
+An active player order lasts at most five minutes while the target stays within 48 blocks of the owner. Minecraft PvP and team rules apply. Helpers can pursue around obstacles; actual swings still require melee reach, line of sight and a target within 24 blocks. Guard helpers stay within their 14-block anchor area and wait if the player leaves it. Moving outside a helper's immediate attack range does not consume the order. The target must be an eligible living player nearby in the owner's dimension; Creative and Spectator players are excluded. Owner logout, death, dimension change or loss of OP4 clears the order, as do target logout, death, dimension change and other eligibility changes, or having no loaded compatible helper active inside its movement leash. A respawn or reused name does not inherit an order. Pending player orders are cancelled across server restarts. Regular, Debug, CLI and API helpers do not join this player hunt.
+
+Use `/agent ceasefire` or the **Ceasefire** button in `/agent menu` to clear your player order and queued target proposals immediately. This only affects your squad. The menu compass shows your current target status; Stay also pauses a helper's combat. Shared targeting is deterministic golem coordination. Codex participates by reviewing orders in this chat; there is no continuous background connection to Codex while the chat is closed.
 
 The roster is saved as format 2 in the world's `infinity-agents.json`. Existing format-1 helpers upgrade with the Regular profile. Restore the whole matching world backup, including ordinary entity data. Dismissing an unloaded helper frees its roster slot immediately and removes its entity when its chunk next loads.
 

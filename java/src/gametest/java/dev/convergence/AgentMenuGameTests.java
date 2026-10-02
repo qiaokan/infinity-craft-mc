@@ -117,18 +117,25 @@ public class AgentMenuGameTests {
             c.assertTrue(helpers.owned(owner, "helper-1") != null && helpers.owned(owner, "helper-2") != null,
                 "Numbered names stay unique as the screen refreshes");
             detail(owner, "helper-1");
+            ScreenHandler detailScreen = owner.currentScreenHandler;
             for (var profile : AgentCompanions.Profile.values()) {
                 click(owner, AgentMenu.profileSlot(profile.ordinal()));
+                c.assertTrue(owner.currentScreenHandler == detailScreen, "Profile selection updates the current container without closing it");
                 c.assertEquals(helpers.owned(owner, "helper-1").getValue().profile(), profile,
                     "A real menu click selects " + profile.label());
+                c.assertTrue(menu(owner).view.getStack(AgentMenu.profileSlot(profile.ordinal())).getName().getString().startsWith("Selected:"),
+                    "In-place refresh marks the newly selected profile");
                 c.assertEquals(helpers.owned(owner, "helper-2").getValue().profile(), AgentCompanions.Profile.REGULAR,
                     "Selecting one profile leaves the other helper unchanged");
             }
             click(owner, AgentMenu.GUARD);
+            c.assertTrue(owner.currentScreenHandler == detailScreen, "Detail movement keeps the same container and sync ID");
             c.assertEquals(helpers.owned(owner, "helper-1").getValue().mode(), AgentCompanions.Mode.GUARD,
                 "Detail movement controls the selected helper");
             click(owner, AgentMenu.BACK);
+            ScreenHandler rosterScreen = owner.currentScreenHandler;
             click(owner, AgentMenu.STAY);
+            c.assertTrue(owner.currentScreenHandler == rosterScreen, "Squad movement updates its current roster in place");
             c.assertTrue(helpers.data.agents.values().stream().filter(a -> a.owner().equals(owner.getUuidAsString()))
                 .allMatch(a -> a.mode() == AgentCompanions.Mode.STAY), "Squad stay pauses every owned loaded helper");
             c.assertEquals(AgentActions.get(helpers.server).data.proposals.size(), proposals,
@@ -249,6 +256,34 @@ public class AgentMenuGameTests {
             failure.printStackTrace();
             throw failure;
         } finally { cleanup(helpers, owner); }
+        c.complete();
+    }
+
+    @GameTest public void helperMenuCeasefireClearsOnlyItsOwnersPlayerOrder(TestContext c) {
+        var owner = player(c, "menu-hive");
+        var other = player(c, "menu-otherhive");
+        var target = player(c, "menu-target");
+        var helpers = AgentCompanions.get(c.getWorld().getServer());
+        try {
+            helpers.spawn(owner, "combat");
+            helpers.spawn(other, "combat");
+            helpers.profile(owner, "combat", AgentCompanions.Profile.PRIMITIVE);
+            helpers.profile(other, "combat", AgentCompanions.Profile.ULTIMATE_FINALS);
+            c.assertTrue(helpers.assignPlayerTarget(owner, target), "First owner's exact player order is eligible");
+            c.assertTrue(helpers.assignPlayerTarget(other, target), "Second owner's order stays independently scoped");
+            AgentMenu.open(owner);
+            ScreenHandler screen = owner.currentScreenHandler;
+            c.assertTrue(menu(owner).view.getStack(22).getName().getString().contains(target.getGameProfile().name()),
+                "Compass shows the approved target name");
+            click(owner, AgentMenu.CEASEFIRE);
+            c.assertTrue(owner.currentScreenHandler == screen, "Ceasefire refreshes the existing container without close/open packets");
+            c.assertTrue(menu(owner).view.getStack(22).getName().getString().contains("none"), "The refreshed compass immediately removes the stopped player target");
+            c.assertFalse(helpers.playerTargetStatus(owner).contains(target.getGameProfile().name()),
+                "The actual ceasefire menu click clears its owner's order");
+            c.assertTrue(helpers.playerTargetStatus(other).contains(target.getGameProfile().name()),
+                "Another owner's active order is preserved");
+            c.assertTrue(owner.currentScreenHandler.getCursorStack().isEmpty(), "Ceasefire banner never transfers");
+        } finally { helpers.ceasefire(owner); helpers.ceasefire(other); cleanup(helpers, owner); cleanup(helpers, other); cleanup(helpers, target); }
         c.complete();
     }
 }

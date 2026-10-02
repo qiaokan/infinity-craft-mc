@@ -89,7 +89,7 @@ public final class ServerAssistant {
         if(any(w,"chatgpt","llm","api","apikey","openai")||q.contains("are you ai")||q.contains("real ai")||q.contains("connect ai"))
             return bounded("This answer uses the built-in server guide. Other questions can use an optional OpenAI connection if the owner enables it. An owner can check /ai status.",
                 "I do not execute commands, build structures, or access accounts. An external answer is labeled OpenAI. Use /ai for supported server topics.");
-        if(any(w,"agent","agents","helper","helpers","golem","golems","npc"))return agents(op);
+        if(any(w,"agent","agents","helper","helpers","golem","golems","npc","hive","hivemind","ceasefire"))return agents(op);
         if(any(w,"operator","operators","op","admin","admincode","permissions","permission","ban","kick","mute","whitelist","allowlist","give","gamemode","execute","settings","memory","backup","backups","restore","restart","shutdown","logs","lag","performance"))return operator(q,w,op);
         if(any(w,"join","joining","bedrock","java","ip","address","localhost","port","ports","connection","connect")||q.contains("can't connect"))
             return bounded("Copy the actual join addresses from the host panel. Java uses the server's TCP port (default 25565); Bedrock uses its UDP port (default 19132).",
@@ -210,10 +210,10 @@ public final class ServerAssistant {
     static List<String> agents(boolean op) {
         if(!op)return bounded("Golem helpers are managed by the server owner or an operator with level 4. They are ordinary server-controlled iron golems, not language-model agents.",
             "They can follow, guard a location, or stay put. Ask the owner to create or manage one. /ai answers your server questions without spawning entities.");
-        return bounded("OP4 helpers: /agent menu opens the menu. /agent spawn <name>, /agent follow <name>, /agent guard <name>, /agent stay <name>, /agent dismiss <name>, /agent list.",
+        return bounded("OP4 controls: /agent menu, /agent spawn <name>, /agent follow <name>, /agent guard <name>, /agent list. The menu also has Stay and Dismiss.",
             "Names use 1–24 lowercase letters, digits, _ or -. Each owner has at most six helpers including unloaded helpers; server cap 24. /agent profile <name> <profile> selects a profile; /agent profiles lists all six.",
             "/agent ask <name> <question>: Primitive, Regular and Ultimate Finals give local guidance; Debug shows status; CLI previews proposals; API sends your question and a live Minecraft snapshot to optional OpenAI.",
-            "Offline, dead, Spectator or distant owners pause helpers. /agent suggest <request> needs /agent approve <id> and live Codex review. I only give advice and do not run these commands.");
+            "Player hunt: /agent target <player>, /agent approve <id>, then live Codex review. /agent ceasefire stops it. I only give advice and do not run these commands.");
     }
     static List<String> operator(String q,Set<String> w,boolean op) {
         if(!op)return bounded("Owner controls require operator level 4. A rank badge or the private-code Admin role does not grant operator permissions.",

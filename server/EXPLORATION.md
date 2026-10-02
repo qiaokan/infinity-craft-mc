@@ -1,4 +1,4 @@
-# Exploration and scores — 2.12.0-explore.6
+# Exploration and scores — 2.12.0-explore.7
 
 Use `/guide` anywhere in the world. It responds to your current place: Main Hub, a mode lobby, a minigame, an adventure map, or a normal game mode. `/hub` returns to the Main Hub, `/lobbies` lists destinations, and `/play` chooses a mode. Tap or right-click the Minigames or Adventure entry sign in the hub, or use `/play minigames` or `/play adventure`, to open a vanilla chest-like course menu. Tap an icon to enter a course. A **SELECT COURSE** sign at each course start reopens the menu, as do the glowing checkpoint lanterns. Direct map commands remain available.
 
