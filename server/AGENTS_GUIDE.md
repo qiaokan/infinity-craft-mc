@@ -1,21 +1,48 @@
-# Helpers, AI chat, and full operator controls — 2.12.0-explore.5
+# Helper squads, AI modes, and full operator controls — 2.12.0-explore.6
 
-## In-world helpers
+Helpers are vanilla iron golems controlled by this server. They work with Java and Bedrock without a client mod. **Only an operator with level 4 can create, change, dismiss, or ask a helper.** The free Admin-code role is separate.
 
-A level-4 operator can create a visible iron-golem helper. These helpers use Minecraft navigation and controlled hostile-mob combat; Java and Bedrock players see the same entity. Use lowercase names with 1–24 letters, numbers, underscores or hyphens.
+## Manage a squad
+
+Open `/agent menu` for a chest-style menu. Create up to **six named helpers per owner**, choose one to manage it, select an AI profile, or set Follow, Guard, or Stay for the loaded squad. The entire server has **24 slots**, including unloaded helpers. Menu icons are controls rather than collectible items. Dismissal has a confirmation screen.
 
 ```text
-/agent spawn buddy
-/agent follow buddy
-/agent guard buddy
-/agent stay buddy
-/agent list
-/agent dismiss buddy
+/agent spawn guide
+/agent spawn defender
+/agent profile guide primitive
+/agent profile defender ultimate_finals
+/agent ask guide how do ranks work
+/agent status defender
+/agent squad follow
+/agent menu
 ```
 
-Use `/agent help` to see the controls. Spawn on open solid ground. Follow moves toward the owner and fights nearby hostile mobs; Guard defends the location where that mode was set; Stay pauses navigation and combat. Helpers do not attack players, pets, or ordinary animals. They pause while their owner is offline, dead, spectating, in another dimension, or no longer a level-4 operator. They do not follow across game worlds or load distant chunks. A following helper pauses if it falls more than 48 blocks behind; return toward it to resume. Each operator has three helper slots, including unloaded helpers; dismiss an old helper to free one.
+Names use 1–24 lowercase letters, digits, `_` or `-`. Each helper has its own name, saved owner, AI profile and movement setting. `/agent list` lists your roster. `/agent profile <name> <profile>` changes a saved profile, including an unloaded helper; movement changes need a loaded helper in your dimension. `/agent squad follow`, `guard`, or `stay` affects your loaded helpers in your dimension and reports skipped helpers.
 
-Ownership and mode are saved in the world's `infinity-agents.json`; the golem is saved in ordinary entity data. Restore the whole matching world backup. Dismissal of an unloaded helper removes its saved record immediately and removes its entity when its chunk naturally loads.
+| AI profile | What it does |
+| --- | --- |
+| `primitive` | Combat-ready: proactively seeks nearby hostile mobs within 12 blocks. Answers basic server questions locally; Follow, Guard and Stay remain available. |
+| `regular` | Standard follow/guard hostile-mob defense and local server help. |
+| `ultimate_finals` | Shares a focus target, prioritizes hostiles threatening the owner, and approaches from six flank positions when loaded terrain is clear. Uses ordinary golem stats; these are golems with deterministic tactics, not player bots or learned PvP models. Players, pets and animals are not enemies. |
+| `debug` | Passive helper with read-only status: health, loaded state, position, movement and pause reason. Does not expose host files or secrets. |
+| `cli` | Saves source-change requests for owner approval and live Codex code review, edits and testing. Also previews six fixed Minecraft server actions. It does not launch a terminal, shell or apply model-generated code. |
+| `api` | Optional external AI text answers with a limited live Minecraft snapshot. `/agent data <name>` previews the data. Requires the owner's configured connection and shares the server's request budget with `/ai`. It has no tools and cannot run its suggestions. |
+
+AI profile and movement are separate controls. Follow moves toward the owner; Guard anchors a combat helper at its current location; Stay stops navigation and combat. Helpers never attack players, pets or ordinary animals. They pause while the owner is offline, dead, spectating, in another dimension, or no longer OP4. Follow pauses beyond 48 blocks; return nearby to resume. Helpers never teleport or load distant chunks.
+
+The roster is saved as format 2 in the world's `infinity-agents.json`. Existing format-1 helpers upgrade with the Regular profile. Restore the whole matching world backup, including ordinary entity data. Dismissing an unloaded helper frees its roster slot immediately and removes its entity when its chunk next loads.
+
+## Reviewed code changes
+
+Set a helper to CLI, then use `/agent code <name> <request>` to save a plain-text change request (up to 500 characters). It writes a private review record with the world, not an executable patch. Do not include secrets. `/agent code-pending` shows your requests; `/agent code-approve <id>` approves the exact saved text; `/agent code-cancel <id>` cancels it. Requests expire after 24 hours, with three active requests per owner and 16 server-wide.
+
+Ask Codex in this live chat to review the request. Codex reads `agent-code-pending` in the **local** server console and uses `agent-code-review <id>` only after checking your approval. Codex then inspects the repository, edits the source, reviews the resulting diff, runs the needed tests and creates a Git commit. `agent-code-complete <id> <full-40-character-commit>` records the result. Use the stopped-world backup and tested upgrade procedure to install it. No code changes happen while this chat is closed. If a review is already underway, cancelling the request in Minecraft cannot undo source edits made here; tell Codex to stop too.
+
+The queue validates state, helper identity, OP4 and local-console origin. A console completion records the reviewer-supplied commit; Minecraft cannot independently verify Git, test results, or that the console operator is Codex. Those checks happen in the live review. Requests are not sent to an external model automatically.
+
+## Live Minecraft data
+
+`/agent data <name>` reads a bounded snapshot for one of your own helpers. API-mode asks include the snapshot with your question and the server guide, and show a notice before sending. It contains game status such as the owner's current location/mode, helper status, world time/weather and online player count. It excludes IP addresses, keys, private host settings, other players' inventories and host files. API-profile helpers also keep the latest 12 sanitized samples in memory, one every five seconds. `/agent history <name>` shows the latest three with server-tick timestamps; explicit API asks may include those three samples to compare recent changes. Sampling never makes API requests automatically. History clears when the helper leaves API mode, is dismissed, or its owner goes offline/loses OP4; it also resets on server restart. It is a recent game-status history, not a persistent analytics database. All six helpers share the same API request and spending limits; changing helper names or profiles cannot create extra quotas.
 
 ## Chat help
 

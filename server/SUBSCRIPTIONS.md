@@ -5,10 +5,10 @@ The server is free to play. **There is no checkout, payment collection, paid ran
 | Plan | Proposed price | Current status |
 | --- | ---: | --- |
 | Free | $0 | Available now; every game mode is open |
-| Go supporter | $10 USD/month | Planned; cannot purchase yet |
-| Plus supporter | $15 USD/month | Planned; cannot purchase yet |
-| Pro supporter | $20 USD/month | Planned; cannot purchase yet |
-| Ultra supporter | $25 USD/month | Planned; cannot purchase yet |
+| Go supporter | $50 USD/month | Planned; cannot purchase yet |
+| Plus supporter | $75 USD/month | Planned; cannot purchase yet |
+| Pro supporter | $100 USD/month | Planned; cannot purchase yet |
+| Ultra supporter | $200 USD/month | Planned; cannot purchase yet |
 | Admin | $0 | Private owner-controlled staff role; never sold |
 
 **Go, Plus, Pro, and Ultra also name free, permanent achievement/item-trade badges.** Those badges remain available without paying, never expire, and are not subscriptions. The proposed paid plans would be optional support for the server with cosmetic recognition while active; a purchase must never erase or replace an earned badge. Every game mode, power bundle, item trade, and earnable cosmetic remains available on Free. No plan grants gameplay power, items, operator access, or the Admin code. See [MEMBERSHIPS.md](MEMBERSHIPS.md) for the existing earned badges.

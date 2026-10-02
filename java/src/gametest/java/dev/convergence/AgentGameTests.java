@@ -74,7 +74,7 @@ public class AgentGameTests {
         c.assertFalse(root.canUse(source.withPermissions(LeveledPermissionPredicate.GAMEMASTERS)), "OP2 cannot control helpers");
         c.assertFalse(root.canUse(source.withPermissions(LeveledPermissionPredicate.ADMINS)), "OP3 cannot control helpers");
         c.assertTrue(root.canUse(source.withPermissions(LeveledPermissionPredicate.OWNERS)), "OP4 controls helpers");
-        for (String command : new String[]{"help", "spawn", "follow", "guard", "stay", "dismiss", "list"}) c.assertTrue(root.getChild(command) != null, "Command exists: " + command);
+        for (String command : new String[]{"help", "spawn", "follow", "guard", "stay", "dismiss", "list", "profile", "status", "squad"}) c.assertTrue(root.getChild(command) != null, "Command exists: " + command);
         c.complete();
     }
     @GameTest public void helpersBoundNamesOwnershipAndUnloadedCount(TestContext c) {
@@ -85,27 +85,29 @@ public class AgentGameTests {
             s.mode(other, "one", AgentCompanions.Mode.STAY); s.dismiss(other, "one");
             c.assertTrue(s.owned(p, "one") != null, "Other UUID cannot modify or dismiss owner's helper");
             c.assertEquals(s.owned(p, "one").getValue().mode(), AgentCompanions.Mode.FOLLOW, "Unauthorized mode change rejected");
-            golem(s, p, "two"); golem(s, p, "three");
-            s.loaded.remove(golem.getUuid()); s.spawn(p, "four");
+            for (String name : new String[]{"two", "three", "four", "five", "six"}) golem(s, p, name);
+            s.loaded.remove(golem.getUuid()); s.spawn(p, "seven");
             c.assertEquals(s.count(p), AgentCompanions.LIMIT, "Unloaded helper still consumes a slot");
-            c.assertTrue(s.owned(p, "four") == null, "Fourth helper rejected");
+            c.assertTrue(s.owned(p, "seven") == null, "Seventh helper rejected");
             s.dismiss(p, "one"); s.load(golem); c.assertTrue(golem.isRemoved(), "Dismissed unloaded entity removed on next load");
-            c.assertEquals(s.count(p), 2, "Dismissal frees exactly one slot");
+            c.assertEquals(s.count(p), AgentCompanions.LIMIT - 1, "Dismissal frees exactly one slot");
         } finally { cleanup(s, p); cleanup(s, other); }
         c.complete();
     }
     @GameTest public void helpersPersistRosterVanillaTagsAndModes(TestContext c) {
         var p = player(c, "helper-save"); var s = AgentCompanions.get(c.getWorld().getServer());
         try {
-            var golem = golem(s, p, "keeper"); s.mode(p, "keeper", AgentCompanions.Mode.GUARD);
+            var golem = golem(s, p, "keeper"); s.profile(p, "keeper", AgentCompanions.Profile.ULTIMATE_FINALS); s.mode(p, "keeper", AgentCompanions.Mode.GUARD);
             var record = s.owned(p, "keeper");
             c.assertEquals(AgentCompanions.read(s.file).agents.get(record.getKey()).mode(), AgentCompanions.Mode.GUARD, "Guard mode and ownership survive roster reload");
+            c.assertEquals(AgentCompanions.read(s.file).agents.get(record.getKey()).profile(), AgentCompanions.Profile.ULTIMATE_FINALS, "Profile survives roster reload");
             var write = NbtWriteView.create(ErrorReporter.EMPTY, c.getWorld().getRegistryManager()); golem.writeData(write);
             var restored = EntityType.IRON_GOLEM.create(c.getWorld(), SpawnReason.LOAD);
             restored.readData(NbtReadView.create(ErrorReporter.EMPTY, c.getWorld().getRegistryManager(), write.getNbt()));
             c.assertTrue(restored.getCommandTags().contains(AgentCompanions.TAG), "Vanilla Tags preserve identity after entity NBT roundtrip");
             c.assertTrue(restored.getCommandTags().contains("infinity_owner_" + p.getUuidAsString()), "Owner is identifiable in vanilla NBT");
             c.assertTrue(restored.getCommandTags().contains("infinity_mode_guard"), "Mode is identifiable in vanilla NBT");
+            c.assertTrue(restored.getCommandTags().contains("infinity_profile_ultimate_finals"), "Profile is identifiable in vanilla NBT");
             golem.discard(); s.load(restored);
             c.assertTrue(restored.isPersistent(), "Loaded helper does not despawn");
             c.assertTrue(((AgentGoalAccess) restored).infinity$getTargetSelector().getGoals().isEmpty(), "Reload removes vanilla revenge and village targeting");
@@ -223,6 +225,156 @@ public class AgentGameTests {
             c.assertTrue(failed, "Corrupt roster fails visibly rather than losing ownership");
             c.assertEquals(Files.readString(file), "{broken-json", "Original data retained for recovery");
         } catch (java.io.IOException e) { throw new RuntimeException(e); }
+        c.complete();
+    }
+    @GameTest public void helperRosterMigratesAndRejectsInvalidProfiles(TestContext c) throws Exception {
+        Path dir = Files.createTempDirectory("infinity-helper-migration-");
+        try {
+            Path file = dir.resolve("roster.json"); var data = new AgentCompanions.Data(); data.format = 1;
+            String id = UUID.randomUUID().toString(), owner = UUID.randomUUID().toString();
+            data.agents.put(id, new AgentCompanions.Agent(owner, "legacy", AgentCompanions.Mode.GUARD, "minecraft:overworld", 0, 64, 0));
+            var json = com.google.gson.JsonParser.parseString(CommunityServer.GSON.toJson(data)).getAsJsonObject();
+            json.getAsJsonObject("agents").getAsJsonObject(id).remove("profile");
+            String original = json.toString(); Files.writeString(file, original);
+            var migrated = AgentCompanions.read(file);
+            c.assertEquals(migrated.format, 2, "Legacy schema upgrades in memory");
+            c.assertEquals(migrated.agents.get(id).profile(), AgentCompanions.Profile.REGULAR, "Legacy helpers keep their regular combat behavior");
+            c.assertEquals(migrated.agents.get(id).mode(), AgentCompanions.Mode.GUARD, "Migration retains guard movement");
+            c.assertEquals(Files.readString(file), original, "A read does not overwrite a legacy roster");
+            json.addProperty("format", 2);
+            for (String profile : new String[]{"UNKNOWN", "regular"}) {
+                json.getAsJsonObject("agents").getAsJsonObject(id).addProperty("profile", profile);
+                Files.writeString(file, json.toString()); boolean rejected = false;
+                try { AgentCompanions.read(file); } catch (IllegalStateException expected) { rejected = true; }
+                c.assertTrue(rejected, "Unknown and noncanonical persisted profiles fail visibly: " + profile);
+            }
+            json.getAsJsonObject("agents").getAsJsonObject(id).remove("profile"); Files.writeString(file, json.toString());
+            boolean missingRejected = false; try { AgentCompanions.read(file); } catch (IllegalStateException expected) { missingRejected = true; }
+            c.assertTrue(missingRejected, "Format 2 must provide each helper profile");
+            c.assertEquals(AgentCompanions.Profile.parse("ultimate-finals"), AgentCompanions.Profile.ULTIMATE_FINALS, "Command profile names accept the documented hyphen alias");
+        } finally { removeDirectory(dir); }
+        c.complete();
+    }
+    @GameTest public void helperRosterBoundsFileSizeAndGlobalCount(TestContext c) throws Exception {
+        Path dir = Files.createTempDirectory("infinity-helper-bounds-");
+        try {
+            Path file = dir.resolve("roster.json"); String oversized = " ".repeat(AgentCompanions.MAX_BYTES + 1); Files.writeString(file, oversized);
+            boolean rejected = false; try { AgentCompanions.read(file); } catch (IllegalStateException expected) { rejected = true; }
+            c.assertTrue(rejected, "Oversized data rejected before parsing");
+            c.assertEquals(Files.size(file), (long) AgentCompanions.MAX_BYTES + 1, "Oversized original remains intact");
+            var data = new AgentCompanions.Data(); String owner = UUID.randomUUID().toString();
+            for (int index = 0; index <= AgentCompanions.GLOBAL_LIMIT; index++) {
+                if (index % AgentCompanions.LIMIT == 0) owner = UUID.randomUUID().toString();
+                data.agents.put(UUID.randomUUID().toString(), new AgentCompanions.Agent(owner, "helper-" + index, AgentCompanions.Mode.STAY, "minecraft:overworld", 0, 64, 0));
+            }
+            Files.writeString(file, CommunityServer.GSON.toJson(data)); rejected = false;
+            try { AgentCompanions.read(file); } catch (IllegalStateException expected) { rejected = true; }
+            c.assertTrue(rejected, "Roster rejects a 25th helper even when individual owners remain within six");
+        } finally { removeDirectory(dir); }
+        c.complete();
+    }
+    @GameTest public void helperGlobalLimitIncludesUnloadedOwners(TestContext c) throws Exception {
+        var p = player(c, "helper-global"); Path dir = Files.createTempDirectory("infinity-helper-global-");
+        var companions = AgentCompanions.get(c.getWorld().getServer());
+        try {
+            var isolated = new AgentCompanions(companions.server, dir.resolve("roster.json")); String owner = UUID.randomUUID().toString();
+            for (int index = 0; index < AgentCompanions.GLOBAL_LIMIT; index++) {
+                if (index % AgentCompanions.LIMIT == 0) owner = UUID.randomUUID().toString();
+                isolated.data.agents.put(UUID.randomUUID().toString(), new AgentCompanions.Agent(owner, "helper-" + index, AgentCompanions.Mode.STAY, "minecraft:overworld", 0, 64, 0));
+            }
+            isolated.save(); isolated.spawn(p, "overflow");
+            c.assertEquals(isolated.count(p), 0, "New owner cannot bypass global cap");
+            c.assertEquals(isolated.data.agents.size(), AgentCompanions.GLOBAL_LIMIT, "Unloaded helpers count toward global limit");
+            c.assertTrue(isolated.loaded.isEmpty(), "Rejected creation loads no entities or chunks");
+        } finally { cleanup(companions, p); removeDirectory(dir); }
+        c.complete();
+    }
+    @GameTest public void helperMutationsRecheckOpFourInsideMethods(TestContext c) {
+        var p = player(c, "helper-revoke"); var s = AgentCompanions.get(c.getWorld().getServer());
+        try {
+            golem(s, p, "locked");
+            s.server.getPlayerManager().removeFromOperators(new net.minecraft.server.PlayerConfigEntry(p.getGameProfile()));
+            s.spawn(p, "extra"); s.mode(p, "locked", AgentCompanions.Mode.STAY); s.profile(p, "locked", AgentCompanions.Profile.DEBUG);
+            s.squad(p, AgentCompanions.Mode.GUARD); s.dismiss(p, "locked");
+            c.assertEquals(s.count(p), 1, "Permission loss blocks spawn and dismissal even without command dispatcher");
+            c.assertEquals(s.owned(p, "locked").getValue().mode(), AgentCompanions.Mode.FOLLOW, "Permission loss blocks direct movement and squad changes");
+            c.assertEquals(s.owned(p, "locked").getValue().profile(), AgentCompanions.Profile.REGULAR, "Permission loss blocks direct profile changes");
+        } finally {
+            s.server.getPlayerManager().addToOperators(new net.minecraft.server.PlayerConfigEntry(p.getGameProfile()), java.util.Optional.of(LeveledPermissionPredicate.OWNERS), java.util.Optional.of(false));
+            cleanup(s, p);
+        }
+        c.complete();
+    }
+    @GameTest public void helperSquadChangesOnlyLoadedSameDimensionOwnedHelpers(TestContext c) {
+        var p = player(c, "helper-squad"); var other = player(c, "helper-stranger"); var s = AgentCompanions.get(c.getWorld().getServer());
+        try {
+            var first = golem(s, p, "first"); var second = golem(s, p, "second"); var unloaded = golem(s, p, "unloaded");
+            var stranger = golem(s, other, "stranger"); s.loaded.remove(unloaded.getUuid());
+            s.squad(p, AgentCompanions.Mode.GUARD);
+            c.assertEquals(s.owned(p, "first").getValue().mode(), AgentCompanions.Mode.GUARD, "First loaded squad member guards");
+            c.assertEquals(s.owned(p, "second").getValue().mode(), AgentCompanions.Mode.GUARD, "Second loaded squad member guards");
+            c.assertEquals(s.owned(p, "unloaded").getValue().mode(), AgentCompanions.Mode.FOLLOW, "Squad command does not modify unloaded helpers");
+            c.assertEquals(s.owned(other, "stranger").getValue().mode(), AgentCompanions.Mode.FOLLOW, "Squad cannot control another OP's helper");
+            var prior = AgentCompanions.read(s.file.resolveSibling(s.file.getFileName() + ".previous"));
+            c.assertEquals(prior.agents.get(first.getUuidAsString()).mode(), AgentCompanions.Mode.FOLLOW, "One squad save preserves the previous state of the first helper");
+            c.assertEquals(prior.agents.get(second.getUuidAsString()).mode(), AgentCompanions.Mode.FOLLOW, "One squad save preserves the previous state of the whole squad");
+            var position = p.getEntityPos(); p.teleport(s.server.getWorld(World.NETHER), 0, 100, 0, Set.of(), 0, 0, true);
+            s.squad(p, AgentCompanions.Mode.STAY);
+            c.assertEquals(s.owned(p, "first").getValue().mode(), AgentCompanions.Mode.GUARD, "Squad skips helpers in another dimension");
+            p.teleport(c.getWorld(), position.x, position.y, position.z, Set.of(), 0, 0, true);
+            s.dismiss(p, "unloaded"); s.load(unloaded); c.assertTrue(unloaded.isRemoved(), "Skipped unloaded helper remains dismissible");
+        } finally { cleanup(s, p); cleanup(s, other); }
+        c.complete();
+    }
+    @GameTest public void passiveProfilesDisableEvenForcedHostileDamage(TestContext c) {
+        var p = player(c, "helper-passive"); var s = AgentCompanions.get(c.getWorld().getServer());
+        var zombie = EntityType.ZOMBIE.create(c.getWorld(), SpawnReason.COMMAND);
+        try {
+            var golem = golem(s, p, "observer"); zombie.setPosition(golem.getEntityPos().add(1, 0, 0)); zombie.setAiDisabled(true); c.getWorld().spawnEntity(zombie);
+            float health = zombie.getHealth();
+            for (var profile : new AgentCompanions.Profile[]{AgentCompanions.Profile.DEBUG, AgentCompanions.Profile.CLI, AgentCompanions.Profile.API}) {
+                s.profile(p, "observer", profile); s.control(golem, s.owned(p, "observer").getValue(), 20);
+                c.assertTrue(golem.getTarget() == null, "Passive profile chooses no hostile target: " + profile);
+                golem.setTarget(zombie); c.assertFalse(golem.tryAttack(c.getWorld(), zombie), "Independent damage gate blocks forced attacks for " + profile);
+                c.assertEquals(zombie.getHealth(), health, "Passive forced attack causes no damage");
+            }
+            String saved = CommunityServer.GSON.toJson(s.data); var tags = Set.copyOf(golem.getCommandTags());
+            s.status(p, "observer"); c.assertEquals(CommunityServer.GSON.toJson(s.data), saved, "Status diagnostics cannot change saved helper state");
+            c.assertEquals(golem.getCommandTags(), tags, "Status diagnostics do not mutate tags");
+        } finally { zombie.discard(); cleanup(s, p); }
+        c.complete();
+    }
+    @GameTest public void primitiveProfileIsReadyToAttackAtLongerSensingRange(TestContext c) {
+        var p = player(c, "helper-primitive"); var s = AgentCompanions.get(c.getWorld().getServer());
+        var zombie = EntityType.ZOMBIE.create(c.getWorld(), SpawnReason.COMMAND);
+        try {
+            var golem = golem(s, p, "fighter"); golem.setPosition(p.getEntityPos().add(1, 0, 0));
+            zombie.setPosition(p.getEntityPos().add(11, 0, 0)); zombie.setAiDisabled(true); c.getWorld().spawnEntity(zombie);
+            s.control(golem, s.owned(p, "fighter").getValue(), 20); c.assertTrue(golem.getTarget() == null, "Regular senses hostiles within ten blocks");
+            s.profile(p, "fighter", AgentCompanions.Profile.PRIMITIVE); s.control(golem, s.owned(p, "fighter").getValue(), 25);
+            c.assertTrue(golem.getTarget() == zombie, "Primitive proactively engages a hostile eleven blocks away");
+            s.mode(p, "fighter", AgentCompanions.Mode.STAY); s.control(golem, s.owned(p, "fighter").getValue(), 30);
+            c.assertTrue(golem.getTarget() == null, "Stay still stops an aggressive primitive helper");
+        } finally { zombie.discard(); cleanup(s, p); }
+        c.complete();
+    }
+    @GameTest public void ultimateFinalsSquadSharesFocusAndFlanksHostiles(TestContext c) {
+        var p = player(c, "helper-hive"); var s = AgentCompanions.get(c.getWorld().getServer());
+        var focus = EntityType.ZOMBIE.create(c.getWorld(), SpawnReason.COMMAND); var closer = EntityType.ZOMBIE.create(c.getWorld(), SpawnReason.COMMAND);
+        try {
+            var first = golem(s, p, "alpha"); var second = golem(s, p, "beta");
+            s.profile(p, "alpha", AgentCompanions.Profile.ULTIMATE_FINALS); s.profile(p, "beta", AgentCompanions.Profile.ULTIMATE_FINALS);
+            first.setPosition(p.getEntityPos().add(-3, 0, 0)); second.setPosition(p.getEntityPos().add(4, 0, 0));
+            focus.setPosition(p.getEntityPos().add(0, 0, 4)); focus.setAiDisabled(true); c.getWorld().spawnEntity(focus);
+            closer.setPosition(p.getEntityPos().add(5, 0, 3)); closer.setAiDisabled(true); c.getWorld().spawnEntity(closer);
+            s.control(first, s.owned(p, "alpha").getValue(), 20); s.control(second, s.owned(p, "beta").getValue(), 20);
+            c.assertTrue(first.getTarget() == focus && second.getTarget() == focus, "Hive shares focus despite a nearer hostile for one golem");
+            var left = s.flankPoint(first, s.owned(p, "alpha").getValue(), p, focus); var right = s.flankPoint(second, s.owned(p, "beta").getValue(), p, focus);
+            c.assertTrue(left != null && right != null && left.squaredDistanceTo(right) > 4, "Squad receives separate clear loaded flanking positions");
+            closer.setTarget(p); s.control(first, s.owned(p, "alpha").getValue(), 25); s.control(second, s.owned(p, "beta").getValue(), 25);
+            c.assertTrue(first.getTarget() == closer && second.getTarget() == closer, "Owner threat overrides prior shared focus");
+            c.assertFalse(AgentCompanions.allowDamage(p, p.getDamageSources().mobAttack(first)), "Aggressive hive still cannot attack a player");
+        } finally { focus.discard(); closer.discard(); cleanup(s, p); }
         c.complete();
     }
     @GameTest public void helperActionsRequireBothLiveApprovalsAndNeverReplay(TestContext c) throws Exception {

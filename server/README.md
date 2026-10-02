@@ -1,6 +1,6 @@
-# Infinity Armor Exploration Server — 2.12.0-explore.5
+# Infinity Armor Exploration Server — 2.12.0-explore.6
 
-Multi-mode build based on Infinity Armor 2.3.0 and the crossplay preview. Updated September 29, 2026.
+Multi-mode build based on Infinity Armor 2.3.0 and the crossplay preview. Updated October 1, 2026.
 
 This server build lets Java and Bedrock players share **one Fabric server with shared game worlds** with Infinity Armor's Java powers. It is a crossplay preview based on your 2.3.0 source. Read VALIDATION.md for the checks and remaining play-test limits.
 
@@ -12,7 +12,7 @@ Six new building textures, two Creative building wands, two wearable cosmetic ar
 
 ## Helpers and operator controls
 
-Use `/ai <question>` for built-in server help. Optional OpenAI chat is configured in **Owner: AI chat** while the world is stopped; a fresh download contains no API key. Operators at level 4 can create in-world helpers with `/agent spawn <name>` and control them with `/agent follow`, `/agent guard`, `/agent stay`, `/agent dismiss`, and `/agent list`. Separately, OP4 owners can propose one of six fixed helper actions, such as setting daytime or saving the world. A proposal never runs automatically: the OP4 owner approves its ID, then a live Codex session must review it and dispatch the fixed command from the local console before it expires. See [AGENTS_GUIDE.md](AGENTS_GUIDE.md) for the steps and limits.
+Use `/ai <question>` for built-in server help. Optional OpenAI chat is configured in **Owner: AI chat** while the world is stopped; a fresh download contains no API key. Operators at level 4 can use `/agent menu` to manage up to six named helpers, select six AI profiles and control the squad. Create helpers with `/agent spawn <name>` and control them with `/agent follow`, `/agent guard`, `/agent stay`, `/agent dismiss`, and `/agent list`. Separately, OP4 owners can propose one of six fixed helper actions, such as setting daytime or saving the world. A proposal never runs automatically: the OP4 owner approves its ID, then a live Codex session must review it and dispatch the fixed command from the local console before it expires. See [AGENTS_GUIDE.md](AGENTS_GUIDE.md) for the steps and limits.
 
 ## Three steps to play
 

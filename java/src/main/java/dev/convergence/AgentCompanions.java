@@ -1,6 +1,7 @@
 package dev.convergence;
 
 import com.mojang.brigadier.arguments.StringArgumentType;
+import com.google.gson.JsonParser;
 import dev.convergence.mixin.AgentGoalAccess;
 import java.nio.file.Path;
 import java.util.*;
@@ -35,8 +36,10 @@ import net.minecraft.util.math.Vec3d;
 /** Server-controlled vanilla companions: navigation and combat work on either edition. */
 public final class AgentCompanions {
     static final String TAG = "infinity_agent";
-    static final int LIMIT = 3;
-    static final String HELP = "Helpers: /agent spawn <name>, /agent follow <name>, /agent guard <name>, /agent stay <name>, /agent dismiss <name>, /agent list. Names: 1–24 lowercase letters/numbers, - or _. 3 per OP4 owner. Follow pauses beyond 48 blocks; return nearby to resume. Helpers pause while you are offline, dead, without OP4, or in another dimension; they never teleport or load chunks. Safe server actions: /agent suggest <request>, /agent pending, /agent approve <id>, /agent cancel <id>. An action runs only after your approval and live Codex review.";
+    static final int LIMIT = 6;
+    static final int GLOBAL_LIMIT = 24;
+    static final int MAX_BYTES = 65_536;
+    static final String HELP = "Open /agent or /agent menu for helper controls. /agent spawn <name>, /agent profile <name> <primitive|regular|ultimate_finals|debug|cli|api>, /agent follow <name>, /agent guard <name>, /agent stay <name>, /agent squad <follow|guard|stay>, /agent status <name>, /agent dismiss <name>, /agent list. Names: 1–24 lowercase letters/numbers, - or _. 6 per OP4 owner; 24 server-wide, including unloaded helpers. Primitive proactively attacks nearby hostile mobs; Regular follows/guards and prioritizes owner threats. Ultimate Finals shares squad focus and flanks hostiles. Helpers never attack players or pets. Debug, CLI, and API are passive physical profiles. /agent data <name> shows limited live data; /agent ask <name> <question> asks a helper; /agent code <name> <request> queues a code request for owner and live Codex review. Follow pauses beyond 48 blocks; return nearby to resume. Helpers pause while you are offline, dead, without OP4, or in another dimension; they never teleport or load chunks. Safe server actions: /agent suggest <request>, /agent pending, /agent approve <id>, /agent cancel <id>. An action runs only after your approval and live Codex review.";
     static final Map<MinecraftServer, AgentCompanions> INSTANCES = new WeakHashMap<>();
     final MinecraftServer server;
     final Path file;
@@ -45,19 +48,45 @@ public final class AgentCompanions {
     final Map<UUID, Integer> lastAttack = new HashMap<>();
 
     enum Mode { FOLLOW, GUARD, STAY }
-    record Agent(String owner, String name, Mode mode, String dimension, double x, double y, double z) {
+    enum Profile {
+        PRIMITIVE("Primitive", "Ready to attack the nearest hostile mob within 12 blocks. Never attacks players or pets.", true),
+        REGULAR("Regular", "Follows or guards, attacking nearby hostile mobs.", true),
+        ULTIMATE_FINALS("Ultimate Finals", "Shares focus with its squad, prioritizes owner threats, and uses clear flanking positions against hostile mobs. Normal golem damage and speed; no PvP.", true),
+        DEBUG("Debug", "Passive helper with read-only status diagnostics. No commands run.", false),
+        CLI("CLI", "Saves code-change requests for owner and live Codex review; previews fixed server actions. No shell or automatic edits.", false),
+        API("API", "Answers with limited live Minecraft data using optional external AI chat. Replies never run commands.", false);
+        final String label, description;
+        final boolean combat;
+        Profile(String label, String description, boolean combat) { this.label = label; this.description = description; this.combat = combat; }
+        String id() { return name().toLowerCase(Locale.ROOT); }
+        String label() { return label; }
+        String description() { return description; }
+        static Profile parse(String value) {
+            if (value == null) return null;
+            try { return valueOf(value.toUpperCase(Locale.ROOT).replace('-', '_')); }
+            catch (IllegalArgumentException e) { return null; }
+        }
+    }
+    record Agent(String owner, String name, Mode mode, Profile profile, String dimension, double x, double y, double z) {
+        Agent(String owner, String name, Mode mode, String dimension, double x, double y, double z) {
+            this(owner, name, mode, Profile.REGULAR, dimension, x, y, z);
+        }
         Vec3d anchor() { return new Vec3d(x, y, z); }
         Agent mode(Mode mode, IronGolemEntity golem) {
-            return new Agent(owner, name, mode, golem.getEntityWorld().getRegistryKey().getValue().toString(), golem.getX(), golem.getY(), golem.getZ());
+            return new Agent(owner, name, mode, profile, golem.getEntityWorld().getRegistryKey().getValue().toString(), golem.getX(), golem.getY(), golem.getZ());
+        }
+        Agent profile(Profile value) {
+            return new Agent(owner, name, mode, value, dimension, x, y, z);
         }
         boolean valid() {
             try { UUID.fromString(owner); } catch (Exception e) { return false; }
-            return validName(name) && mode != null && dimension != null && Identifier.tryParse(dimension) != null
+            return validName(name) && mode != null && profile != null
+                && dimension != null && Identifier.tryParse(dimension) != null
                 && Double.isFinite(x) && Double.isFinite(y) && Double.isFinite(z) && Math.abs(x) <= 30_000_000 && Math.abs(z) <= 30_000_000 && y >= -2048 && y <= 2048;
         }
     }
     static final class Data {
-        int format = 1;
+        int format = 2;
         Map<String, Agent> agents = new TreeMap<>();
     }
     AgentCompanions(MinecraftServer server, Path file) {
@@ -69,8 +98,28 @@ public final class AgentCompanions {
     static Data read(Path file) {
         if (!java.nio.file.Files.exists(file)) return new Data();
         try {
-            Data data = CommunityServer.GSON.fromJson(java.nio.file.Files.readString(file), Data.class);
-            if (data == null || data.format != 1 || data.agents == null) throw new IllegalArgumentException("Invalid agent data");
+            if (java.nio.file.Files.size(file) > MAX_BYTES) throw new IllegalArgumentException("Helper roster exceeds " + MAX_BYTES + " bytes");
+            byte[] bytes;
+            try (var input = java.nio.file.Files.newInputStream(file)) { bytes = input.readNBytes(MAX_BYTES + 1); }
+            if (bytes.length > MAX_BYTES) throw new IllegalArgumentException("Helper roster exceeds " + MAX_BYTES + " bytes");
+            var json = JsonParser.parseString(new String(bytes, java.nio.charset.StandardCharsets.UTF_8));
+            if (!json.isJsonObject() || !json.getAsJsonObject().has("format") || !json.getAsJsonObject().get("format").isJsonPrimitive()
+                || !json.getAsJsonObject().getAsJsonPrimitive("format").isNumber()
+                || !Set.of("1", "2").contains(json.getAsJsonObject().get("format").getAsString()))
+                throw new IllegalArgumentException("Missing helper roster format");
+            Data data = CommunityServer.GSON.fromJson(json, Data.class);
+            if (data == null || (data.format != 1 && data.format != 2) || data.agents == null || data.agents.size() > GLOBAL_LIMIT)
+                throw new IllegalArgumentException("Invalid agent data or exceeded server limit");
+            if (data.format == 1) {
+                // Old rosters had movement modes only. Missing profiles migrate to Regular.
+                var records = json.getAsJsonObject().getAsJsonObject("agents");
+                for (var entry : data.agents.entrySet()) {
+                    if (records.getAsJsonObject(entry.getKey()).has("profile")) throw new IllegalArgumentException("Unexpected profile in old roster format");
+                    if (entry.getValue() == null) throw new IllegalArgumentException("Invalid agent record");
+                    entry.setValue(entry.getValue().profile(Profile.REGULAR));
+                }
+                data.format = 2;
+            }
             Map<String, Set<String>> names = new HashMap<>();
             for (var entry : data.agents.entrySet()) {
                 UUID.fromString(entry.getKey()); Agent agent = entry.getValue();
@@ -96,7 +145,13 @@ public final class AgentCompanions {
     }
     /** Independent damage gate also covers targets forced by commands or another mod. */
     static boolean allowDamage(LivingEntity victim, net.minecraft.entity.damage.DamageSource source) {
-        return !isAgent(source.getAttacker()) || hostile(victim);
+        if (!isAgent(source.getAttacker())) return true;
+        if (!hostile(victim) || !(source.getAttacker() instanceof IronGolemEntity golem)
+            || !(golem.getEntityWorld() instanceof ServerWorld world)) return false;
+        var companions = INSTANCES.get(world.getServer());
+        var agent = companions == null ? null : companions.data.agents.get(golem.getUuidAsString());
+        return agent != null && agent.profile.combat
+            && companions.pauseReason(world.getServer().getPlayerManager().getPlayer(UUID.fromString(agent.owner)), golem, agent) == null;
     }
     static void prepare(IronGolemEntity golem) {
         golem.clearGoalsAndTasks();
@@ -106,10 +161,11 @@ public final class AgentCompanions {
         golem.getNavigation().stop();
     }
     void tags(IronGolemEntity golem, Agent agent) {
-        new HashSet<>(golem.getCommandTags()).stream().filter(t -> t.startsWith("infinity_owner_") || t.startsWith("infinity_name_") || t.startsWith("infinity_mode_")).forEach(golem::removeCommandTag);
+        new HashSet<>(golem.getCommandTags()).stream().filter(t -> t.startsWith("infinity_owner_") || t.startsWith("infinity_name_") || t.startsWith("infinity_mode_") || t.startsWith("infinity_profile_")).forEach(golem::removeCommandTag);
         golem.addCommandTag(TAG); golem.addCommandTag("infinity_owner_" + agent.owner);
         golem.addCommandTag("infinity_name_" + agent.name); golem.addCommandTag("infinity_mode_" + agent.mode.name().toLowerCase(Locale.ROOT));
-        golem.setCustomName(Text.literal(agent.name + " [Helper]")); golem.setCustomNameVisible(true);
+        golem.addCommandTag("infinity_profile_" + agent.profile.id());
+        golem.setCustomName(Text.literal(agent.name + " [" + agent.profile.label + "]")); golem.setCustomNameVisible(true);
     }
     void load(Entity entity) {
         if (!isAgent(entity)) return;
@@ -133,17 +189,19 @@ public final class AgentCompanions {
             if (!world.isChunkLoaded(feet.getX() >> 4, feet.getZ() >> 4) || !world.isInBuildLimit(feet.up(2)) || !world.getWorldBorder().contains(feet)) continue;
             var floor = world.getBlockState(feet.down());
             Box space = new Box(feet.getX() - .2, feet.getY(), feet.getZ() - .2, feet.getX() + 1.2, feet.getY() + 2.7, feet.getZ() + 1.2);
-            if (floor.isFullCube(world, feet.down()) && floor.getFluidState().isEmpty() && !floor.isOf(Blocks.MAGMA_BLOCK)
+            if (loadedRoom(world, space) && floor.isFullCube(world, feet.down()) && floor.getFluidState().isEmpty() && !floor.isOf(Blocks.MAGMA_BLOCK)
                 && world.isBlockSpaceEmpty(null, space) && world.getOtherEntities(owner, space, Entity::isAlive).isEmpty()
                 && world.getBlockState(feet).getFluidState().isEmpty()) return Vec3d.ofBottomCenter(feet);
         }
         return null;
     }
     int spawn(ServerPlayerEntity owner, String name) {
+        if (!operator(owner.getCommandSource())) return reply(owner, "Only OP4 owners can create helpers.");
         if (!validName(name)) return reply(owner, "Helper names use 1–24 lowercase letters/numbers, - or _.");
         if (!owner.isAlive() || owner.isSpectator()) return reply(owner, "You must be alive and outside spectator mode to spawn a helper.");
         if (owned(owner, name) != null) return reply(owner, "You already have a helper named " + name + ".");
-        if (count(owner) >= LIMIT) return reply(owner, "You have 3 helpers, including unloaded helpers. /agent dismiss <name> frees a slot.");
+        if (count(owner) >= LIMIT) return reply(owner, "You have " + LIMIT + " helpers, including unloaded helpers. /agent dismiss <name> frees a slot.");
+        if (data.agents.size() >= GLOBAL_LIMIT) return reply(owner, "The server has " + GLOBAL_LIMIT + " helpers, including unloaded helpers. Dismiss a helper to free a slot.");
         Vec3d place = spawnPlace(owner);
         if (place == null) return reply(owner, "No clear solid ground nearby for a golem. Move to an open area.");
         IronGolemEntity golem = EntityType.IRON_GOLEM.create(owner.getEntityWorld(), SpawnReason.COMMAND);
@@ -156,6 +214,8 @@ public final class AgentCompanions {
         return reply(owner, name + " is following you. /agent guard " + name + " guards its current area; /agent stay " + name + " pauses it.");
     }
     int mode(ServerPlayerEntity owner, String name, Mode mode) {
+        if (!operator(owner.getCommandSource())) return reply(owner, "Only OP4 owners can change helper movement.");
+        if (mode == null) return reply(owner, "Choose follow, guard, or stay.");
         var entry = owned(owner, name);
         if (entry == null) return reply(owner, "No helper named " + name + " belongs to you.");
         IronGolemEntity golem = loaded.get(UUID.fromString(entry.getKey()));
@@ -164,7 +224,35 @@ public final class AgentCompanions {
         Agent agent = entry.getValue().mode(mode, golem); data.agents.put(entry.getKey(), agent); save(); tags(golem, agent); halt(golem);
         return reply(owner, name + " mode: " + mode.name().toLowerCase(Locale.ROOT) + ".");
     }
+    int profile(ServerPlayerEntity owner, String name, Profile profile) {
+        if (!operator(owner.getCommandSource())) return reply(owner, "Only OP4 owners can change helper profiles.");
+        if (profile == null) return reply(owner, "Profiles: primitive, regular, ultimate_finals, debug, cli, api.");
+        var entry = owned(owner, name);
+        if (entry == null) return reply(owner, "No helper named " + name + " belongs to you.");
+        var agent = entry.getValue().profile(profile);
+        data.agents.put(entry.getKey(), agent); save();
+        var golem = loaded.get(UUID.fromString(entry.getKey()));
+        if (golem != null && golem.isAlive()) { tags(golem, agent); halt(golem); }
+        return reply(owner, name + " profile: " + profile.label + ". " + profile.description + (golem == null ? " Saved for its next load." : ""));
+    }
+    int squad(ServerPlayerEntity owner, Mode mode) {
+        if (!operator(owner.getCommandSource())) return reply(owner, "Only OP4 owners can control squads.");
+        if (mode == null) return reply(owner, "Choose follow, guard, or stay.");
+        Map<IronGolemEntity, Agent> changed = new LinkedHashMap<>(); int skipped = 0;
+        for (var entry : data.agents.entrySet()) {
+            var agent = entry.getValue();
+            if (!agent.owner.equals(owner.getUuidAsString())) continue;
+            var golem = loaded.get(UUID.fromString(entry.getKey()));
+            if (golem == null || !golem.isAlive() || golem.getEntityWorld() != owner.getEntityWorld()) { skipped++; continue; }
+            agent = agent.mode(mode, golem); entry.setValue(agent); changed.put(golem, agent);
+        }
+        if (!changed.isEmpty()) {
+            save(); changed.forEach((golem, agent) -> { tags(golem, agent); halt(golem); });
+        }
+        return reply(owner, "Squad " + mode.name().toLowerCase(Locale.ROOT) + ": " + changed.size() + " changed; " + skipped + " skipped (unloaded or another dimension).");
+    }
     int dismiss(ServerPlayerEntity owner, String name) {
+        if (!operator(owner.getCommandSource())) return reply(owner, "Only OP4 owners can dismiss helpers.");
         var entry = owned(owner, name);
         if (entry == null) return reply(owner, "No helper named " + name + " belongs to you.");
         data.agents.remove(entry.getKey()); save(); UUID id = UUID.fromString(entry.getKey());
@@ -175,9 +263,35 @@ public final class AgentCompanions {
     int list(ServerPlayerEntity owner) {
         var agents = data.agents.entrySet().stream().filter(e -> e.getValue().owner.equals(owner.getUuidAsString())).map(e -> {
             var a = e.getValue(); var golem = loaded.get(UUID.fromString(e.getKey()));
-            return a.name + ": " + a.mode.name().toLowerCase(Locale.ROOT) + " (" + a.dimension + ", " + (golem == null ? "unloaded" : Math.round(golem.getHealth()) + "/" + Math.round(golem.getMaxHealth()) + " HP") + ")";
+            var pause = pauseReason(owner, golem, a);
+            return a.name + ": " + a.profile.label + " / " + a.mode.name().toLowerCase(Locale.ROOT) + " (" + a.dimension + ", " + (golem == null ? "unloaded" : Math.round(golem.getHealth()) + "/" + Math.round(golem.getMaxHealth()) + " HP") + ")" + (pause == null ? "" : " — " + pause);
         }).toList();
-        return reply(owner, agents.isEmpty() ? "No helpers. /agent spawn <name> creates one (3 max)." : String.join("\n", agents));
+        return reply(owner, agents.isEmpty() ? "No helpers. /agent spawn <name> creates one (" + LIMIT + " max per owner)." : "Helpers " + agents.size() + "/" + LIMIT + "; server " + data.agents.size() + "/" + GLOBAL_LIMIT + "\n" + String.join("\n", agents));
+    }
+    int status(ServerPlayerEntity owner, String name) {
+        if (!operator(owner.getCommandSource())) return reply(owner, "Only OP4 owners can inspect helper diagnostics.");
+        var entry = owned(owner, name);
+        if (entry == null) return reply(owner, "No helper named " + name + " belongs to you.");
+        var agent = entry.getValue(); var golem = loaded.get(UUID.fromString(entry.getKey())); var pause = pauseReason(owner, golem, agent);
+        String target = golem == null || golem.getTarget() == null ? "none" : golem.getTarget().getType().getTranslationKey();
+        return reply(owner, name + " [" + agent.profile.label + "]\n" + agent.profile.description + "\nMovement: " + agent.mode.name().toLowerCase(Locale.ROOT)
+            + "; state: " + (pause == null ? "active" : pause) + "; combat: " + (agent.profile.combat ? "hostile mobs only" : "disabled")
+            + "\nDimension: " + agent.dimension + "; loaded: " + (golem != null && golem.isAlive()) + "; target: " + target
+            + "\nHP: " + (golem == null ? "unloaded" : Math.round(golem.getHealth()) + "/" + Math.round(golem.getMaxHealth()))
+            + "; anchor: " + Math.round(agent.x) + ", " + Math.round(agent.y) + ", " + Math.round(agent.z));
+    }
+    String pauseReason(ServerPlayerEntity owner, IronGolemEntity golem, Agent agent) {
+        if (golem == null) return "unloaded";
+        if (!golem.isAlive() || golem.isRemoved()) return "helper unavailable";
+        if (owner == null) return "owner offline";
+        if (!operator(owner.getCommandSource())) return "owner needs OP4";
+        if (!owner.isAlive()) return "owner dead";
+        if (owner.isSpectator()) return "owner in spectator mode";
+        if (owner.getEntityWorld() != golem.getEntityWorld()) return "owner in another dimension";
+        if (agent.mode == Mode.STAY) return "staying";
+        if (agent.mode == Mode.GUARD && !golem.getEntityWorld().getRegistryKey().getValue().toString().equals(agent.dimension)) return "guard in another dimension";
+        if (agent.mode == Mode.FOLLOW && golem.squaredDistanceTo(owner) > 48 * 48) return "owner beyond 48-block follow range";
+        return null;
     }
     static void halt(IronGolemEntity golem) {
         golem.setTarget(null); golem.setAttacker(null); golem.setAngryAt(null); golem.setAngerEndTime(0); golem.getNavigation().stop(); golem.stopMovement();
@@ -194,7 +308,7 @@ public final class AgentCompanions {
     void control(IronGolemEntity golem, Agent agent, int ticks) {
         var owner = server.getPlayerManager().getPlayer(UUID.fromString(agent.owner));
         golem.setAttacker(null); golem.setAngryAt(null); golem.setAngerEndTime(0);
-        if (owner == null || !owner.getPermissions().hasPermission(new Level(PermissionLevel.OWNERS)) || !owner.isAlive() || owner.isSpectator() || owner.getEntityWorld() != golem.getEntityWorld() || agent.mode == Mode.STAY) { halt(golem); return; }
+        if (pauseReason(owner, golem, agent) != null) { halt(golem); return; }
         ServerWorld world = owner.getEntityWorld();
         // Anchored helpers never fight in a dimension they were moved into by another command.
         if (agent.mode == Mode.GUARD && !world.getRegistryKey().getValue().toString().equals(agent.dimension)) { halt(golem); return; }
@@ -206,14 +320,19 @@ public final class AgentCompanions {
             else halt(golem);
             return;
         }
-        LivingEntity target = world.getEntitiesByClass(MobEntity.class, new Box(center, center).expand(10), mob -> hostile(mob)
-            && mob.getEntityPos().squaredDistanceTo(center) <= 100 && mob.squaredDistanceTo(golem) <= 24 * 24 && golem.getVisibilityCache().canSee(mob))
-            .stream().min(Comparator.comparing((MobEntity mob) -> agent.mode != Mode.FOLLOW || mob.getTarget() != owner)
-                .thenComparingDouble(mob -> mob.squaredDistanceTo(golem))).orElse(null);
+        double sensing = agent.profile == Profile.PRIMITIVE ? 12 : 10;
+        LivingEntity target = !agent.profile.combat ? null : world.getEntitiesByClass(MobEntity.class, new Box(center, center).expand(sensing), mob -> hostile(mob)
+            && mob.getEntityPos().squaredDistanceTo(center) <= sensing * sensing && mob.squaredDistanceTo(golem) <= 24 * 24 && golem.getVisibilityCache().canSee(mob))
+            .stream().min(Comparator.comparing((MobEntity mob) -> agent.profile == Profile.PRIMITIVE || agent.mode != Mode.FOLLOW || mob.getTarget() != owner)
+                .thenComparingInt(mob -> agent.profile == Profile.ULTIMATE_FINALS ? sharedFocusRank(golem, agent, owner, mob) : 0)
+                .thenComparingDouble(mob -> mob.squaredDistanceTo(agent.profile == Profile.ULTIMATE_FINALS ? owner : golem))
+                .thenComparing(MobEntity::getUuid)).orElse(null);
         golem.setTarget(target);
         if (target != null) {
             golem.lookAtEntity(target, 30, 30);
-            golem.getNavigation().startMovingTo(target, 1.1);
+            Vec3d flank = agent.profile == Profile.ULTIMATE_FINALS ? flankPoint(golem, agent, owner, target) : null;
+            if (flank == null) golem.getNavigation().startMovingTo(target, 1.1);
+            else golem.getNavigation().startMovingTo(flank.x, flank.y, flank.z, 1.1);
             if (golem.isInAttackRange(target) && ticks - lastAttack.getOrDefault(golem.getUuid(), -20) >= 20) {
                 lastAttack.put(golem.getUuid(), ticks); golem.tryAttack(world, target);
             }
@@ -221,8 +340,46 @@ public final class AgentCompanions {
             golem.getNavigation().startMovingTo(center.x, center.y, center.z, 1);
         } else { golem.getNavigation().stop(); golem.stopMovement(); }
     }
+    int sharedFocusRank(IronGolemEntity self, Agent agent, ServerPlayerEntity owner, MobEntity target) {
+        for (var entry : loaded.entrySet()) {
+            var peer = entry.getValue(); var record = data.agents.get(entry.getKey().toString());
+            if (peer != self && record != null && record.owner.equals(agent.owner) && record.profile == Profile.ULTIMATE_FINALS
+                && pauseReason(owner, peer, record) == null && peer.getTarget() == target) return 0;
+        }
+        return 1;
+    }
+    Vec3d flankPoint(IronGolemEntity self, Agent agent, ServerPlayerEntity owner, LivingEntity target) {
+        var peers = loaded.entrySet().stream().filter(entry -> {
+            var record = data.agents.get(entry.getKey().toString());
+            return record != null && record.owner.equals(agent.owner) && record.profile == Profile.ULTIMATE_FINALS
+                && pauseReason(owner, entry.getValue(), record) == null;
+        }).sorted(Comparator.comparing(entry -> data.agents.get(entry.getKey().toString()).name)).map(Map.Entry::getKey).toList();
+        int slot = peers.indexOf(self.getUuid());
+        if (slot < 0 || peers.size() < 2) return null;
+        double angle = slot * (Math.PI * 2 / peers.size());
+        Vec3d point = target.getEntityPos().add(Math.cos(angle) * 1.6, 0, Math.sin(angle) * 1.6);
+        BlockPos feet = BlockPos.ofFloored(point); ServerWorld world = owner.getEntityWorld();
+        Box room = new Box(point.x - .7, point.y, point.z - .7, point.x + .7, point.y + 2.7, point.z + .7);
+        if (!loadedRoom(world, room)) return null;
+        for (int x = (int) Math.floor(room.minX); x <= (int) Math.floor(room.maxX); x++) for (int z = (int) Math.floor(room.minZ); z <= (int) Math.floor(room.maxZ); z++) {
+            var at = new BlockPos(x, feet.getY(), z); var floor = world.getBlockState(at.down());
+            if (!world.getWorldBorder().contains(at) || !floor.isFullCube(world, at.down()) || floor.isOf(Blocks.MAGMA_BLOCK)
+                || !floor.getFluidState().isEmpty() || !world.getBlockState(at).getFluidState().isEmpty()) return null;
+        }
+        return world.isInBuildLimit(feet.up(2))
+            && world.isBlockSpaceEmpty(self, room) && world.getOtherEntities(self, room, Entity::isAlive).isEmpty() ? point : null;
+    }
+    /** Collision shapes can inspect one block outside the requested room. */
+    static boolean loadedRoom(ServerWorld world, Box room) {
+        for (int x = ((int) Math.floor(room.minX) - 1) >> 4; x <= (((int) Math.floor(room.maxX) + 1) >> 4); x++)
+            for (int z = ((int) Math.floor(room.minZ) - 1) >> 4; z <= (((int) Math.floor(room.maxZ) + 1) >> 4); z++)
+                if (!world.isChunkLoaded(x, z)) return false;
+        return true;
+    }
     public static void initialize() {
         AgentActions.initialize();
+        AgentChat.initialize();
+        AgentCodeRequests.initialize();
         ServerLifecycleEvents.SERVER_STARTED.register(server -> {
             var helpers = get(server);
             for (ServerWorld world : server.getWorlds()) for (Entity entity : world.iterateEntities()) helpers.load(entity);
@@ -243,10 +400,20 @@ public final class AgentCompanions {
         ServerTickEvents.END_SERVER_TICK.register(server -> get(server).tick());
         CommandRegistrationCallback.EVENT.register((dispatcher, access, environment) -> {
             var root = CommandManager.literal("agent").requires(AgentCompanions::operator)
-                .executes(c -> CommunityServer.info(c.getSource(), HELP));
+                .executes(c -> c.getSource().getEntity() instanceof ServerPlayerEntity player ? AgentMenu.open(player) : CommunityServer.info(c.getSource(), HELP));
             root.then(CommandManager.literal("help").executes(c -> CommunityServer.info(c.getSource(), HELP)));
+            root.then(CommandManager.literal("menu").executes(c -> AgentMenu.open(c.getSource().getPlayerOrThrow())));
             root.then(CommandManager.literal("spawn").then(CommandManager.argument("name", StringArgumentType.word()).executes(c -> get(c.getSource().getServer()).spawn(c.getSource().getPlayerOrThrow(), StringArgumentType.getString(c, "name")))));
             for (Mode mode : Mode.values()) root.then(CommandManager.literal(mode.name().toLowerCase(Locale.ROOT)).then(CommandManager.argument("name", StringArgumentType.word()).executes(c -> get(c.getSource().getServer()).mode(c.getSource().getPlayerOrThrow(), StringArgumentType.getString(c, "name"), mode))));
+            root.then(CommandManager.literal("profile").then(CommandManager.argument("name", StringArgumentType.word())
+                .then(CommandManager.argument("profile", StringArgumentType.word()).suggests((c, builder) -> {
+                    for (Profile profile : Profile.values()) if (profile.id().startsWith(builder.getRemainingLowerCase())) builder.suggest(profile.id());
+                    return builder.buildFuture();
+                }).executes(c -> get(c.getSource().getServer()).profile(c.getSource().getPlayerOrThrow(), StringArgumentType.getString(c, "name"), Profile.parse(StringArgumentType.getString(c, "profile")))))));
+            root.then(CommandManager.literal("status").then(CommandManager.argument("name", StringArgumentType.word()).executes(c -> get(c.getSource().getServer()).status(c.getSource().getPlayerOrThrow(), StringArgumentType.getString(c, "name")))));
+            var squad = CommandManager.literal("squad");
+            for (Mode mode : Mode.values()) squad.then(CommandManager.literal(mode.name().toLowerCase(Locale.ROOT)).executes(c -> get(c.getSource().getServer()).squad(c.getSource().getPlayerOrThrow(), mode)));
+            root.then(squad);
             root.then(CommandManager.literal("dismiss").then(CommandManager.argument("name", StringArgumentType.word()).executes(c -> get(c.getSource().getServer()).dismiss(c.getSource().getPlayerOrThrow(), StringArgumentType.getString(c, "name")))));
             root.then(CommandManager.literal("list").executes(c -> get(c.getSource().getServer()).list(c.getSource().getPlayerOrThrow())));
             AgentActions.attach(root);

@@ -18,7 +18,9 @@
       "dev.convergence.BackpackGameTests",
       "dev.convergence.PlayerTradingGameTests",
       "dev.convergence.EquipmentGameTests",
-      "dev.convergence.MinigameGameTests"
+      "dev.convergence.MinigameGameTests",
+      "dev.convergence.AgentMenuGameTests",
+      "dev.convergence.AgentCodeGameTests"
     ]
   },
   "depends": {

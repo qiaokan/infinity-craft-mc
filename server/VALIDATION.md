@@ -1,31 +1,32 @@
-# Exploration release validation — 2.12.0-explore.5
+# Helper release validation — 2.12.0-explore.6
 
-Validated September 29, 2026 against the `2.12.0-explore.5` Fabric JAR and pinned Fabric, Geyser, and Floodgate dependencies. Automated checks used separate worlds. The owner's live server was backed up before this JAR was installed.
+Validated October 1, 2026 against the `2.12.0-explore.6` Fabric JAR and pinned Fabric, Geyser and Floodgate dependencies. Automated checks used isolated worlds. The owner's stopped live world and private settings were backed up before installation.
 
 ## Completed checks
 
-- **176 native Minecraft GameTests passed with release dependencies.** They exercise Infinity gear and Creative inventory behavior, mode isolation, the Creative gear picker, course menus and six minigames, selected-map persistence, helpers, and the fixed-action approval queue, alongside earlier server features.
-- **80 Python launcher tests passed.** They cover verified downloads, private dashboard control, owner settings, backups, Pinggy status and installation safety, command handling, port checks, and runtime behavior.
-- **The Geyser localhost smoke check passed with the final JAR.** Geyser registered 24 custom items and 209 custom block overrides, answered a Bedrock UDP ping, and shut down cleanly. This does not authenticate a Bedrock player or verify an item held on an iPad.
-- **Two full-stack cycles passed.** Fabric and Geyser started together in an isolated server, answered a Bedrock UDP ping, saved a stopped-world backup, restarted, and shut down cleanly. No player logged in during these checks.
-- **An isolated copy of the live `2.12.0-explore.4` world upgraded successfully.** Its map-generation marker advanced to version 3 and recorded the six prior maps, two new minigames, and eight course-selector signs. This checks existing-world migration without changing the owner's original world during the rehearsal.
-- **The live server upgrade completed after backups.** The `2.12.0-explore.5` JAR is installed, the server is running, and its world records eight maps and eight selector signs. The checked launcher log has no `ERROR` entry. This is a startup and world-state check, not an authenticated player join or gameplay check.
+- **204 native Minecraft GameTests passed with release dependencies.** They cover the existing gear, Creative picker, inventories, maps, rewards and trading, plus six helper profiles, shared combat focus and flanking, limits including unloaded helpers, format-1 roster migration, OP4 revocation, squad controls, menu ownership/stale clicks/inventory safety, named chat routing, bounded local data history, shared API limits and stale-reply suppression. The code-request tests cover both review gates, original helper identity, logout, expiry, cancellation, full-commit recording and repeated cancellation-history reloads. API tests use local mock transports rather than paid requests.
+- **80 Python launcher tests passed.** Verified downloads, dashboard actions/settings, backups, runtime, ports, command handling and Pinggy status/install safety remain covered.
+- **The final Geyser localhost smoke check passed.** The bridge registered 24 custom items and 209 custom block overrides, answered a Bedrock UDP ping and shut down cleanly. This does not authenticate a Bedrock player or check iPad rendering.
+- **Two full-stack cycles passed.** Fabric and Geyser started with the final build in an isolated server, answered a Bedrock ping, saved a stopped-world backup, restarted and shut down cleanly. No player logged in during these checks.
+- **The live Mac installation started successfully after backup.** The new JAR is installed, the private panel reports `running`, and the launcher log confirms `convergence 2.12.0-explore.6` with no `ERROR` entry. This establishes startup, not a real player's gameplay experience.
 
-`tools/package_crossplay.py` requires fresh native, Python, Geyser, and full-stack evidence before making the release archive. It packages an explicit file list and excludes worlds, backups, account data, owner settings, private keys, local panel tokens, EULA acceptance, and downloaded runtimes.
+`tools/package_crossplay.py` requires fresh native, Python, Geyser and full-stack evidence. It packages an explicit file list and excludes worlds, backups, accounts, owner settings, keys, panel tokens, EULA acceptance and downloaded runtimes.
 
-## Remaining play tests
+## Remaining play tests and operational limits
 
-The new Creative Infinity gear picker and course menus use vanilla chest-style screens and icons, but they still need a real Java client and iPad Bedrock client test. Verify opening the picker, tapping an icon, holding and using the resulting weapon/tool, reopening it with the compass, and full-inventory behavior. For minigames, verify both hub signs and course start signs, all six playable courses, touch controls, timers, and reconnect behavior. Automated tests cannot prove the on-screen experience.
+The helper menu and other pickers use vanilla chest screens. A real Java client and iPad Bedrock client still need to test tapping controls, navigating profiles, dismissing a helper and managing a six-golem squad in narrow spaces. Combat uses deterministic server-controlled golems with ordinary stats and shared hostile-mob tactics; it is not a player-bot or learned PvP implementation. Public-server load testing remains outstanding.
 
-An authenticated iPad login on an earlier `2.12.0-explore.3` build exposed a Geyser Creative-inventory error. Custom items therefore remain out of Bedrock's built-in Creative catalogue; the server picker is the intended route. Geyser may hide custom-output recipes from Bedrock's recipe book, so manual crafting also needs an iPad test. Wardrobe rendering, backpack and player-trading menus, new block textures, helper behavior, flight input, and performance with a large public player count still need device testing.
+API-mode helpers sample bounded game facts locally. Only an explicit API ask sends the question and up to three recent snapshots externally; there are no automatic API requests or model command tools. Device testing and a real configured-provider response remain separate from the mocked integration checks. The private key remains outside public archives.
 
-The fixed AI action queue has automated tests, but a real OP4 owner and a live Codex session must separately review each exact proposal before the local console dispatches it. The server does not watch this chat, and no background approval runs while the chat is closed. Test that workflow with a harmless fixed action before relying on it. Optional model chat does not grant command execution.
+Both action approvals require an OP4 owner and a live Codex session. Minecraft cannot prove that a local-console operator is Codex. The code-request queue stores approved text and a reviewer-supplied Git commit; it does not itself edit/build/install source or verify Git and tests. Codex must inspect the exact request and resulting diff, run checks and use the stopped-world backup/upgrade procedure. Nothing progresses automatically while this chat is closed.
 
-Subscription checkout, renewal, cancellation, refund, and chargeback cannot be tested until the owner creates a Tebex store and connects it. Free Pinggy addresses are temporary and separate for Java and Bedrock; a local listener response does not establish that a friend can join from another network. Test authenticated joining on both editions from another network before inviting players.
+The Creative gear picker, all six minigames and two adventure maps, touch input, crafting, wardrobe rendering, backpacks, player trading and authenticated remote joining still need real device play tests. An earlier authenticated Bedrock login exposed a Creative catalogue error; custom Infinity gear remains supplied through the server picker instead. Geyser may hide custom-output recipes, so manual crafting needs a device test too.
+
+Supporter checkout, renewal, expiry, cancellation, refund and chargeback remain unavailable until a Tebex store and tested billing integration exist. The planned monthly USD prices are Go $50, Plus $75, Pro $100 and Ultra $200. Earned ranks stay free and permanent; Admin and OP are never sold. Free Pinggy addresses are temporary; a local ping is not proof that a friend can authenticate from another network.
 
 ## Reproduce
 
-Use Java 21, Python 3.9+, and the checksum-pinned dependencies described in the source guide:
+Use Java 21, Python 3.9+ and the checksum-pinned dependencies:
 
 ```sh
 python3 tools/check_crossplay.py --java /path/to/java

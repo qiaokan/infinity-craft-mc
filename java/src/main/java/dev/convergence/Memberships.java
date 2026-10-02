@@ -152,7 +152,7 @@ final class Memberships {
             }));
             dispatcher.register(CommandManager.literal("rank").executes(ctx->get(ctx.getSource().getServer()).rank(ctx.getSource().getPlayerOrThrow())));
             dispatcher.register(CommandManager.literal("subscribe").executes(ctx->{
-                CommunityServer.info(ctx.getSource(),"Planned optional supporter subscriptions (USD/month): Go $10, Plus $15, Pro $20, Ultra $25.");
+                CommunityServer.info(ctx.getSource(),"Planned optional supporter subscriptions (USD/month): Go $50, Plus $75, Pro $100, Ultra $200.");
                 return CommunityServer.info(ctx.getSource(),"Checkout is unavailable until the owner sets up Tebex; this command cannot charge you. Permanent cosmetic ranks remain free through achievements or Survival item trades. No game modes, powers, Admin, or OP require a purchase.");
             }));
             dispatcher.register(CommandManager.literal("admincode").then(CommandManager.argument("code",StringArgumentType.greedyString()).executes(ctx->{var p=ctx.getSource().getPlayerOrThrow();var s=get(ctx.getSource().getServer());boolean ok=s.redeem(p.getUuid(),StringArgumentType.getString(ctx,"code"),System.currentTimeMillis());if(ok)s.badge(p);return CommunityServer.say(p,ok?"Free Admin rank unlocked. /staff kick, mute, unmute. This does not grant operator commands.":"Code rejected or temporarily locked. Retry later or ask the owner.");})));
