@@ -1,4 +1,4 @@
-# Infinity Armor Exploration Server source — 2.12.0-explore.10
+# Infinity Armor Exploration Server source — 2.12.0-explore.11
 
 This is a server-only Java and Bedrock crossplay build derived from the user-supplied Infinity Armor v2.3.0 source. The original Java and Bedrock downloads remain unchanged. Start with `server/README.md` for installation, menus, optional commands, and current limitations.
 

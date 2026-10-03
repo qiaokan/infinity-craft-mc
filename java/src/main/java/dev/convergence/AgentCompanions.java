@@ -37,6 +37,7 @@ import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Box;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.GameMode;
+import net.minecraft.world.TeleportTarget;
 
 /** Server-controlled vanilla companions: navigation and combat work on either edition. */
 public final class AgentCompanions {
@@ -45,7 +46,7 @@ public final class AgentCompanions {
     static final int GLOBAL_LIMIT = 24;
     static final int MAX_BYTES = 65_536;
     static final long PLAYER_TARGET_LIFETIME_MS = 5 * 60_000L;
-    static final String HELP = "Open /agent or /agent menu for helper controls. /agent spawn <name>, /agent profile <name> <primitive|regular|ultimate_finals|debug|cli|api>, /agent follow <name>, /agent guard <name>, /agent stay <name>, /agent squad <follow|guard|stay>, /agent status <name>, /agent dismiss <name>, /agent list. Names: 1–24 lowercase letters/numbers, - or _. 6 per OP4 owner; 24 server-wide, including unloaded helpers. Primitive proactively attacks nearby hostile mobs; Regular follows/guards and prioritizes owner threats. Ultimate Finals shares squad focus, leads moving targets, and takes turns with clear-air leap/dive plus native melee follow-ups. These are golem tactics, not actual spear, mace, or elytra use. /agent target <player> proposes an exact player target for Primitive and Ultimate Finals, requiring owner approval and live Codex approval before combat. PvP and team rules apply; /agent ceasefire stops it immediately. Player orders expire after five minutes, session/life/dimension or permission changes, owner-target distance beyond 48 blocks, or no usable aggressive helpers. Follow can pursue beyond the 24-block damage limit and around walls; swings require clear sight. Guard waits outside its 14-block anchor range. Helpers never attack pets. Debug, CLI, and API are passive physical profiles. /agent data <name> shows limited live data; /agent ask <name> <question> asks a helper; /agent code <name> <request> queues a code request for owner and live Codex review. Follow pauses beyond 48 blocks; return nearby to resume. Helpers pause while you are offline, dead, without OP4, or in another dimension; they never teleport or load chunks. Safe server actions: /agent suggest <request>, /agent pending, /agent approve <id>, /agent cancel <id>. An action runs only after your approval and live Codex review.";
+    static final String HELP = "Open /agent or /agent menu for helper controls. /agent spawn <name>, /agent profile <name> <primitive|regular|ultimate_finals|debug|cli|api>, /agent follow <name>, /agent guard <name>, /agent stay <name>, /agent squad <follow|guard|stay>, /agent status <name>, /agent recall <name>, /agent dismiss <name>, /agent list. Names: 1–24 lowercase letters/numbers, - or _. 6 per OP4 owner; 24 server-wide, including unloaded helpers. Primitive proactively attacks nearby hostile mobs; Regular follows/guards and prioritizes owner threats. Ultimate Finals shares squad focus, leads moving targets, and takes turns with clear-air leap/dive plus native melee follow-ups. These are golem tactics, not actual spear, mace, or elytra use. /agent target <player> proposes an exact player target for Primitive and Ultimate Finals, requiring owner approval and live Codex approval before combat. PvP and team rules apply; /agent ceasefire stops it immediately. Player orders expire after five minutes, session/life/dimension or permission changes, owner-target distance beyond 48 blocks, or no usable aggressive helpers. Follow can pursue beyond the 24-block damage limit and around walls; swings require clear sight. Guard waits outside its 14-block anchor range. Helpers never attack pets. Debug, CLI, and API are passive physical profiles. /agent data <name> shows limited live data; /agent ask <name> <question> asks a helper; /agent code <name> <request> queues a code request for owner and live Codex review. Follow pauses beyond 48 blocks; return nearby to resume. Helpers pause while you are offline, dead, without OP4, or in another dimension; they never automatically teleport or load chunks. Bring here in the helper menu (or /agent recall <name>) explicitly moves an already loaded helper beside you, preserves its health, stats and profile, and clears your squad's player-target orders and pending target approvals. Safe server actions: /agent suggest <request>, /agent pending, /agent approve <id>, /agent cancel <id>. An action runs only after your approval and live Codex review.";
     static final Map<MinecraftServer, AgentCompanions> INSTANCES = new WeakHashMap<>();
     final MinecraftServer server;
     final Path file;
@@ -54,6 +55,9 @@ public final class AgentCompanions {
     final Map<UUID, IronGolemEntity> loaded = new HashMap<>();
     final Map<UUID, Integer> lastAttack = new HashMap<>();
     final Map<UUID, PlayerTarget> playerTargets = new HashMap<>();
+    /** Exists only during one synchronous, explicitly requested transfer. Never grants portal access. */
+    private RecallPermit recallPermit;
+    private record RecallPermit(ServerPlayerEntity owner, IronGolemEntity helper, Agent agent, TeleportTarget target) {}
     static final int LEAP_COOLDOWN = 80, LEAP_TIMEOUT = 50;
     static final double AIR_SPEED = .42, LEAP_HEIGHT = 3;
     final Map<UUID, Integer> nextLeap = new HashMap<>();
@@ -208,6 +212,11 @@ public final class AgentCompanions {
         if (agent == null) { golem.discard(); return; } // Dismissed while its chunk was unloaded.
         prepare(golem); tags(golem, agent); loaded.put(golem.getUuid(), golem);
     }
+    void unload(Entity entity) {
+        if (loaded.remove(entity.getUuid(), entity)) {
+            aerial.remove(entity.getUuid()); lastAttack.remove(entity.getUuid()); nextLeap.remove(entity.getUuid());
+        }
+    }
     Map.Entry<String, Agent> owned(ServerPlayerEntity owner, String name) {
         return data.agents.entrySet().stream().filter(e -> e.getValue().owner.equals(owner.getUuidAsString()) && e.getValue().name.equals(name)).findFirst().orElse(null);
     }
@@ -294,18 +303,74 @@ public final class AgentCompanions {
 
     /** Only examine already loaded terrain; helpers never add chunk tickets. */
     static Vec3d spawnPlace(ServerPlayerEntity owner) {
+        return spawnPlace(owner, null);
+    }
+    private static Vec3d spawnPlace(ServerPlayerEntity owner, IronGolemEntity helper) {
         ServerWorld world = owner.getEntityWorld(); BlockPos origin = owner.getBlockPos();
         for (int radius = 2; radius <= 4; radius++) for (int dx = -radius; dx <= radius; dx++) for (int dz = -radius; dz <= radius; dz++) {
             if (Math.abs(dx) != radius && Math.abs(dz) != radius) continue;
             BlockPos feet = origin.add(dx, 0, dz);
             if (!world.isChunkLoaded(feet.getX() >> 4, feet.getZ() >> 4) || !world.isInBuildLimit(feet.up(2)) || !world.getWorldBorder().contains(feet)) continue;
-            var floor = world.getBlockState(feet.down());
-            Box space = new Box(feet.getX() - .2, feet.getY(), feet.getZ() - .2, feet.getX() + 1.2, feet.getY() + 2.7, feet.getZ() + 1.2);
-            if (loadedRoom(world, space) && floor.isFullCube(world, feet.down()) && floor.getFluidState().isEmpty() && !floor.isOf(Blocks.MAGMA_BLOCK)
-                && world.isBlockSpaceEmpty(null, space) && world.getOtherEntities(owner, space, Entity::isAlive).isEmpty()
+            Box space = helper == null
+                ? new Box(feet.getX() - .2, feet.getY(), feet.getZ() - .2, feet.getX() + 1.2, feet.getY() + 2.7, feet.getZ() + 1.2)
+                : helper.getDimensions(helper.getPose()).getBoxAt(Vec3d.ofBottomCenter(feet));
+            var minimum = BlockPos.ofFloored(space.minX, space.minY, space.minZ);
+            var maximum = BlockPos.ofFloored(space.maxX, space.maxY, space.maxZ);
+            if (!loadedRoom(world, space) || !world.isInBuildLimit(minimum) || !world.isInBuildLimit(maximum)
+                || !world.getWorldBorder().contains(minimum) || !world.getWorldBorder().contains(maximum)) continue;
+            boolean supported = true;
+            for (var support : BlockPos.iterate(BlockPos.ofFloored(space.minX, feet.getY() - 1, space.minZ),
+                    BlockPos.ofFloored(space.maxX - 1e-6, feet.getY() - 1, space.maxZ - 1e-6))) {
+                var floor = world.getBlockState(support);
+                if (!floor.isFullCube(world, support) || !floor.getFluidState().isEmpty() || floor.isOf(Blocks.MAGMA_BLOCK)) { supported = false; break; }
+            }
+            if (supported && world.isBlockSpaceEmpty(null, space) && world.getOtherEntities(helper == null ? owner : helper, space, Entity::isAlive).isEmpty()
                 && world.getBlockState(feet).getFluidState().isEmpty()) return Vec3d.ofBottomCenter(feet);
         }
         return null;
+    }
+    /** ModeEntityMixin may allow only the exact transfer validated by recall, on the server thread. */
+    public static boolean allowRecallTeleport(Entity entity, TeleportTarget target) {
+        if (!(entity.getEntityWorld() instanceof ServerWorld source)) return false;
+        var helpers = INSTANCES.get(source.getServer());
+        var permit = helpers == null ? null : helpers.recallPermit;
+        return permit != null && source.getServer().isOnThread() && permit.helper == entity && permit.target == target
+            && AgentMenu.allowed(permit.owner) && permit.owner.getEntityWorld() == target.world()
+            && helpers.loaded.get(entity.getUuid()) == entity && helpers.data.agents.get(entity.getUuidAsString()) == permit.agent
+            && permit.agent.owner.equals(permit.owner.getUuidAsString()) && entity.isAlive() && !entity.isRemoved();
+    }
+    int recall(ServerPlayerEntity owner, String name) {
+        // Check the player's own permissions, not elevated permissions inherited from execute-as.
+        if (!AgentMenu.allowed(owner)) return reply(owner, "Bring here requires a living, connected, non-spectator OP4 owner.");
+        var entry = owned(owner, name);
+        if (entry == null) return reply(owner, "No helper named " + name + " belongs to you.");
+        var id = UUID.fromString(entry.getKey());
+        var golem = loaded.get(id);
+        if (golem == null || !golem.isAlive() || golem.isRemoved() || !isAgent(golem)
+            || !(golem.getEntityWorld() instanceof ServerWorld source) || source.getEntity(id) != golem)
+            return reply(owner, "That helper is unloaded or unavailable. Return near its saved area in "
+                + entry.getValue().dimension + ". Bring here never loads distant chunks.");
+        if (golem.hasPassengers() || golem.hasVehicle()) return reply(owner, "Dismount this helper and remove its passengers before using Bring here.");
+        Vec3d place = spawnPlace(owner, golem);
+        if (place == null) return reply(owner, "No clear solid ground nearby for a golem. Move to an open area and try Bring here again.");
+        if (recallPermit != null || !server.isOnThread()) return reply(owner, "A helper transfer is already in progress. Try again.");
+        // A recall cancels this owner's player-target approvals and movement targets before crossing worlds.
+        AgentActions.get(server).ceasefire(owner);
+        halt(golem); lastAttack.remove(id); nextLeap.remove(id);
+        var target = new TeleportTarget(owner.getEntityWorld(), place, Vec3d.ZERO, golem.getYaw(), golem.getPitch(), TeleportTarget.NO_OP);
+        Entity moved;
+        recallPermit = new RecallPermit(owner, golem, entry.getValue(), target);
+        try { moved = golem.teleportTo(target); }
+        finally { recallPermit = null; }
+        if (!(moved instanceof IronGolemEntity recalled) || !recalled.getUuid().equals(id)
+            || recalled.getEntityWorld() != owner.getEntityWorld() || !recalled.isAlive() || recalled.isRemoved())
+            return reply(owner, "The helper could not move here. Its roster is preserved; check its status and try again.");
+        // Native transfer copies the saved entity (including UUID, health, attributes and admin metadata).
+        // Rebind only after it succeeds; an old-world unload cannot remove this new loaded identity.
+        var agent = entry.getValue().mode(Mode.FOLLOW, recalled);
+        data.agents.put(entry.getKey(), agent); save(); prepare(recalled); tags(recalled, agent); halt(recalled);
+        loaded.put(id, recalled);
+        return reply(owner, name + " is beside you and following. Its health, stats and profile were kept; player-target orders were cleared.");
     }
     int spawn(ServerPlayerEntity owner, String name) {
         if (!operator(owner.getCommandSource())) return reply(owner, "Only OP4 owners can create helpers.");
@@ -332,7 +397,7 @@ public final class AgentCompanions {
         if (entry == null) return reply(owner, "No helper named " + name + " belongs to you.");
         IronGolemEntity golem = loaded.get(UUID.fromString(entry.getKey()));
         if (golem == null || !golem.isAlive()) return reply(owner, "That helper is unloaded. Return to its area to change its mode.");
-        if (golem.getEntityWorld() != owner.getEntityWorld()) return reply(owner, "Return to the helper's dimension to change its mode.");
+        if (golem.getEntityWorld() != owner.getEntityWorld()) return reply(owner, "That helper is in another dimension. Choose Bring here in its menu, or /agent recall " + name + ", before giving movement orders.");
         Agent agent = entry.getValue().mode(mode, golem); data.agents.put(entry.getKey(), agent); save(); tags(golem, agent); halt(golem);
         validatePlayerTargets();
         return reply(owner, name + " mode: " + mode.name().toLowerCase(Locale.ROOT) + ".");
@@ -392,9 +457,14 @@ public final class AgentCompanions {
         String target = golem == null || golem.getTarget() == null ? "none" : golem.getTarget().getType().getTranslationKey();
         return reply(owner, name + " [" + agent.profile.label + "]\n" + agent.profile.description + "\nMovement: " + agent.mode.name().toLowerCase(Locale.ROOT)
             + "; state: " + (pause == null ? "active" : pause) + "; combat: " + (playerCombatProfile(agent.profile) ? "hostile mobs or explicitly approved player" : agent.profile.combat ? "hostile mobs only" : "disabled")
-            + "\nDimension: " + agent.dimension + "; loaded: " + (golem != null && golem.isAlive()) + "; target: " + target
+            + "\nLocation: " + location(golem, agent) + "; target: " + target
             + "\nHP: " + (golem == null ? "unloaded" : Math.round(golem.getHealth()) + "/" + Math.round(golem.getMaxHealth()))
             + "; anchor: " + Math.round(agent.x) + ", " + Math.round(agent.y) + ", " + Math.round(agent.z) + "\n" + playerTargetStatus(owner));
+    }
+    static String location(IronGolemEntity golem, Agent agent) {
+        boolean live = golem != null && golem.isAlive() && !golem.isRemoved();
+        return live ? golem.getEntityWorld().getRegistryKey().getValue() + " at " + golem.getBlockX() + ", " + golem.getBlockY() + ", " + golem.getBlockZ()
+            : "unloaded; saved anchor " + agent.dimension + " at " + Math.round(agent.x) + ", " + Math.round(agent.y) + ", " + Math.round(agent.z);
     }
     String pauseReason(ServerPlayerEntity owner, IronGolemEntity golem, Agent agent) {
         if (golem == null) return "unloaded";
@@ -640,7 +710,7 @@ public final class AgentCompanions {
         ServerLifecycleEvents.SERVER_STOPPED.register(INSTANCES::remove);
         ServerEntityEvents.ENTITY_LOAD.register((entity, world) -> { if (isAgent(entity)) get(world.getServer()).load(entity); });
         ServerEntityEvents.ENTITY_UNLOAD.register((entity, world) -> {
-            if (isAgent(entity)) { var helpers = get(world.getServer()); helpers.aerial.remove(entity.getUuid()); helpers.loaded.remove(entity.getUuid()); helpers.lastAttack.remove(entity.getUuid()); }
+            if (isAgent(entity)) get(world.getServer()).unload(entity);
         });
         ServerPlayerEvents.LEAVE.register(player -> get(player.getEntityWorld().getServer()).invalidatePlayer(player));
         ServerPlayerEvents.AFTER_RESPAWN.register((oldPlayer, player, alive) -> get(player.getEntityWorld().getServer()).invalidatePlayer(oldPlayer));
@@ -661,6 +731,7 @@ public final class AgentCompanions {
             root.then(CommandManager.literal("help").executes(c -> CommunityServer.info(c.getSource(), HELP)));
             root.then(CommandManager.literal("menu").executes(c -> AgentMenu.open(c.getSource().getPlayerOrThrow())));
             root.then(CommandManager.literal("spawn").then(CommandManager.argument("name", StringArgumentType.word()).executes(c -> get(c.getSource().getServer()).spawn(c.getSource().getPlayerOrThrow(), StringArgumentType.getString(c, "name")))));
+            root.then(CommandManager.literal("recall").then(CommandManager.argument("name", StringArgumentType.word()).executes(c -> get(c.getSource().getServer()).recall(c.getSource().getPlayerOrThrow(), StringArgumentType.getString(c, "name")))));
             for (Mode mode : Mode.values()) root.then(CommandManager.literal(mode.name().toLowerCase(Locale.ROOT)).then(CommandManager.argument("name", StringArgumentType.word()).executes(c -> get(c.getSource().getServer()).mode(c.getSource().getPlayerOrThrow(), StringArgumentType.getString(c, "name"), mode))));
             root.then(CommandManager.literal("profile").then(CommandManager.argument("name", StringArgumentType.word())
                 .then(CommandManager.argument("profile", StringArgumentType.word()).suggests((c, builder) -> {

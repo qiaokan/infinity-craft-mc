@@ -1,4 +1,4 @@
-INFINITY ARMOR — EXPLORATION SERVER 2.12.0-explore.10
+INFINITY ARMOR — EXPLORATION SERVER 2.12.0-explore.11
 
 1. Extract the entire ZIP into a folder you will keep.
 2. Double-click Start-Mac.command (Mac) or start.bat (Windows).
@@ -30,7 +30,7 @@ For outside-network friends on an Apple Silicon Mac, open Start-Pinggy-Mac.comma
 For a fixed joining name on Mac, follow DYNU_JOINING.md: reserve your own free Dynu hostname, save its private API key locally, and forward Java TCP 25565 plus Bedrock UDP 19132 in your router. Start-Dynu-Mac.command keeps that name's IPv4 current while open. Keep the Mac awake and test both editions from another Internet connection. DNS alone does not make the games reachable or guarantee a name forever.
 
 IN MINECRAFT
-Admin/OP4: Infinity Menu > Admin editor > choose a player or loaded AI helper > choose a stat > Review > Confirm. Edit health, max health, speed, damage, armor, size, hunger, XP and other supported stats. Equipment bonuses remain separate; reset restores recorded attribute bases. Setting health to zero kills the selected target. AI helpers have their own supported stats; hunger and XP apply to players.
+Admin/OP4: Infinity Menu > Admin editor > choose a player or loaded AI helper > choose a stat > Review > Confirm. Edit health, max health, speed, damage, armor, size, hunger, XP and other supported stats. To exceed 20 health, raise Health capacity, confirm, then fill Current health and confirm. Equipment bonuses remain separate; reset restores recorded attribute bases. Setting health to zero kills the selected target. AI helpers have their own supported stats; hunger and XP apply to players.
 Select the Infinity Menu compass for modes, gear, powers, cosmetics and helpers. INFINITY MENU signs in the themed lobbies open the same controls. /menu remains a shortcut.
 New players start in the Main Hub. Existing players can use /hub.
 /lobbies — list mode lobbies; /lobby <mode> — visit one.
@@ -71,3 +71,5 @@ Operators can use any power/cosmetic without earning it and switch modes immedia
 Helper menu: /agent menu. Six named helpers per OP4 owner; six AI profiles; /agent ask <name> <question>; /agent squad follow|guard|stay. CLI code-change requests require in-game owner approval and live Codex source review/testing. API asks send a limited Minecraft snapshot; /agent data <name> previews it. More details: AGENTS_GUIDE.md.
 
 Also available through Infinity Menu: building kits, wardrobe and backpack controls. /ptrade <player> starts a mutually confirmed player trade. Try Crystal Hunt and Color Rush. Read EXPANSION.md and EXPLORATION.md.
+
+Missing AI helpers: Infinity Menu > AI Helpers > choose a loaded helper > Bring here. This preserves the existing golem and resumes Follow beside you. Unloaded helpers need their area visited first.

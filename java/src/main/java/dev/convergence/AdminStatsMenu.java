@@ -30,6 +30,7 @@ final class AdminStatsMenu {
     static final int MINUS_LARGE = 19, MINUS_MEDIUM = 20, MINUS_SMALL = 21;
     static final int PLUS_SMALL = 23, PLUS_MEDIUM = 24, PLUS_LARGE = 25;
     static final int MINIMUM = 28, MAXIMUM = 34, RESET = 37, REVIEW = 40, RESET_ALL = 47;
+    static final int RELATED_HEALTH = 31;
     static final int CONFIRM = 10, CANCEL = 16, PREVIEW_START = 18, PREVIEW_SIZE = 27;
     enum Page { PLAYERS, STATS, EDIT, CONFIRM }
     enum Operation { SET, RESET, RESET_ALL }
@@ -161,7 +162,8 @@ final class AdminStatsMenu {
                 var stat = stats.get(i); var value = AdminStats.value(target, stat);
                 icon(view, slot, stat.icon(), stat.label() + " • " + number(value.base()),
                     "Effective: " + number(value.effective()), "Range: " + number(stat.minimum()) + " to " + number(stat.maximum()),
-                    stat.id().equals("health") || stat.id().equals("max_health") ? "2 health points = 1 heart." : "",
+                    stat.id().equals("health") ? "To go above this range, edit Health capacity first. 2 health points = 1 heart."
+                        : stat.id().equals("max_health") ? "Raise the health limit here, then fill Current health. 2 health points = 1 heart." : "",
                     value.edited() ? "Edited by an admin; original value can be restored." : "Select to prepare an edit.");
             }
             icon(view, RESET_ALL, Items.MILK_BUCKET, "Restore edited attributes", "Review every original attribute value before restoring it.",
@@ -181,7 +183,15 @@ final class AdminStatsMenu {
                 icon(view, plus[i], Items.LIME_DYE, "Add " + step);
             }
             icon(view, MINIMUM, Items.REDSTONE, "Minimum: " + number(selected.minimum()), "Prepare the minimum allowed by Minecraft.");
-            icon(view, MAXIMUM, Items.GLOWSTONE_DUST, "Maximum: " + number(selected.maximum()), "Prepare the maximum allowed by Minecraft.");
+            icon(view, MAXIMUM, Items.GLOWSTONE_DUST, (selected.id().equals("health") ? "Fill to capacity: " : "Maximum: ") + number(selected.maximum()),
+                selected.id().equals("health") ? "Prepare a full heal up to the current health capacity. Review and Confirm still required."
+                    : "Prepare the maximum allowed by Minecraft.");
+            if (selected.id().equals("health") && AdminStats.find(target, "max_health") != null)
+                icon(view, RELATED_HEALTH, Items.APPLE, "Raise health capacity", "Want more than " + number(selected.maximum()) + " health? Edit the maximum here first.",
+                    "Opens Health capacity without changing any values. Pending edits are discarded.");
+            else if (selected.id().equals("max_health"))
+                icon(view, RELATED_HEALTH, Items.RED_DYE, "Edit current health", "After confirming the capacity, choose Fill to capacity here to heal.",
+                    "Opens Current health without changing any values. Pending edits are discarded.");
             icon(view, REVIEW, Items.EMERALD, "Review change", selected.id().equals("health") && pending == 0
                 ? "WARNING: setting health to zero kills this " + targetKind(target) + "." : "Check the target and exact values before applying.");
             if (selected.attribute()) icon(view, RESET, Items.MILK_BUCKET, "Restore original attribute", value.edited()
@@ -292,7 +302,8 @@ final class AdminStatsMenu {
         @Override public void onSlotClick(int slot, int button, SlotActionType action, PlayerEntity player) {
             if (player != owner || owner.currentScreenHandler != this || owner.networkHandler != actorSession.connection()) return;
             if (!canUse(player)) { fail("This player, AI helper or permission changed. Reopen the admin editor."); return; }
-            if (action != SlotActionType.PICKUP || button < 0 || button > 1 || !getCursorStack().isEmpty() || slot < 0 || slot >= 54) {
+            if ((action != SlotActionType.PICKUP && action != SlotActionType.QUICK_MOVE)
+                    || button < 0 || button > 1 || !getCursorStack().isEmpty() || slot < 0 || slot >= 54) {
                 sendContentUpdates(); return;
             }
             if (slot == BACK) {
@@ -326,6 +337,10 @@ final class AdminStatsMenu {
                     var current = AdminStats.value(targetSession.entity(), stat);
                     show(Page.CONFIRM, 0, statId, pending, Operation.SET, List.of(new Change(statId, current.base(), pending)));
                 } else if (slot == RESET) reviewReset(false);
+                else if (slot == RELATED_HEALTH && (statId.equals("health") || statId.equals("max_health"))) {
+                    owner.closeHandledScreen();
+                    openStat(owner, targetSession.entity(), statId.equals("health") ? "max_health" : "health");
+                }
             } else if (page == Page.CONFIRM) {
                 if (slot == CONFIRM) apply();
                 else if (slot == CANCEL) { owner.closeHandledScreen(); openStats(owner, targetSession.entity(), 0); }

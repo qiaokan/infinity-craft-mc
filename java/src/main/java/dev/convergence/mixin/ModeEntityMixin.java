@@ -1,5 +1,6 @@
 package dev.convergence.mixin;
 import dev.convergence.GameModes;
+import dev.convergence.AgentCompanions;
 import net.minecraft.entity.Entity;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.world.TeleportTarget;
@@ -13,6 +14,7 @@ public abstract class ModeEntityMixin {
     private void portal(TeleportTarget target, CallbackInfoReturnable<Entity> cir) {
         Entity self = (Entity)(Object)this;
         if (self instanceof ServerPlayerEntity p && GameModes.allowTeleport(p,target.world())) return;
+        if (AgentCompanions.allowRecallTeleport(self, target)) return;
         if (GameModes.of(self.getEntityWorld()) != GameModes.of(target.world())) cir.setReturnValue(null);
     }
 }

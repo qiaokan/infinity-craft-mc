@@ -1,4 +1,4 @@
-# Infinity Armor Exploration Server — 2.12.0-explore.10
+# Infinity Armor Exploration Server — 2.12.0-explore.11
 
 Multi-mode build based on Infinity Armor 2.3.0 and the crossplay preview. Updated October 3, 2026.
 
@@ -16,11 +16,13 @@ This release fixes a saved-lobby chunk-loading loop that could freeze Minecraft 
 
 Select **Infinity Menu → Admin editor • players and AI**. An Admin or OP4 can choose themselves, another online player or a loaded AI helper, select a stat, adjust the proposed value, then review and confirm it. Values do not change while browsing. The confirmation identifies the exact target and change; setting health to zero kills that target. A target that dies, disconnects, unloads or changes worlds must be selected again. AI behavior/profile changes also cancel an open review.
 
+**To go above 20 health:** choose **Health capacity (max health)**, raise it, then Review and Confirm. Next open **Current health**, choose **Fill to capacity**, then Review and Confirm to heal. Both stats appear first in the list, and their edit screens link directly to each other. Capacity alone does not heal you. For example, 100 health points equals 50 hearts.
+
 The editor includes current health, food, saturation, exhaustion, absorption and XP level, plus the attributes supported by that player: maximum health, movement and attack speed, attack damage, armor, toughness, size, reach, jump strength and more. It edits attribute **base values** while retaining equipment and potion modifiers, and shows the resulting effective value. Two health points equal one heart. Minecraft's valid numeric ranges are shown in the editor; they are engine limits, not rank restrictions.
 
 Attribute base changes persist across reconnects and respawns and apply in every game mode. **Reset original attribute** restores the base value from before this editor first changed it; resetting all attributes reviews the recorded changes first. Health, hunger and XP edits happen once and continue to follow normal damage, regeneration and the server's separate mode profiles. Normal gameplay is not frozen. The editor cannot run shell commands, read private keys or approve AI actions.
 
-Registered AI golem helpers offer health, absorption and their supported combat/body attributes. Their edited bases and original-value reset records save together with the entity. Wild golems are not editable through this menu, and unloaded helpers are not force-loaded. Food and XP apply only to players. Existing AI follow/guard/profile controls remain in **AI Helpers**.
+Registered AI golem helpers offer health, absorption and their supported combat/body attributes. Their edited bases and original-value reset records save together with the entity. Wild golems are not editable through this menu, and unloaded helpers are not force-loaded. Food and XP apply only to players. Existing AI follow/guard/profile controls remain in **AI Helpers**. Select a loaded helper and **Bring here** to recover it from another game world, preserve its health and stats, and resume Follow. Unloaded helpers require a visit to their saved area first.
 
 For an exact value, an OP4 player can also use the optional command `/adminstats PlayerName set max_health 100`. This gives a base of 50 hearts; it does not also heal the player. `/adminstats PlayerName view` shows the stat IDs and values, and `/adminstats PlayerName reset max_health` restores the recorded original. Bedrock names include their prefix, such as `.PlayerName`. For a registered AI, use `/adminstats ai <entity UUID> view` or `/adminstats ai <entity UUID> set attack_damage 30`; the menu avoids needing its UUID.
 

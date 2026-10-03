@@ -1,6 +1,6 @@
 {
   "minecraft": "1.21.11",
-  "version": "2.12.0-explore.10",
+  "version": "2.12.0-explore.11",
   "downloads": [
     {
       "path": "fabric/mods/polymer-bundled-0.15.2+1.21.11.jar",
@@ -41,8 +41,8 @@
   ],
   "bundled": [
     {
-      "path": "fabric/mods/Infinity-Armor-2.12.0-explore.10.jar",
-      "sha256": "3825af440a31ce0ae607d2eb6e840038dfc427d2de479b429615457365a31566"
+      "path": "fabric/mods/Infinity-Armor-2.12.0-explore.11.jar",
+      "sha256": "363d3f4715730a5543431416c2ed02aa244d6b0aa6a12245a77822d71b993193"
     },
     {
       "path": "fabric/mods/fabric-api-0.141.6+1.21.11.jar",

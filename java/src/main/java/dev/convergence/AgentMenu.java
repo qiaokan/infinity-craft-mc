@@ -21,7 +21,7 @@ import net.minecraft.text.Text;
 
 /** Read-only vanilla chest screens keep the helper controls usable through Geyser. */
 final class AgentMenu {
-    static final int FOLLOW = 28, GUARD = 30, STAY = 32, INFO = 34, CEASEFIRE = 37, ASK = 39, DISMISS = 43, BACK = 49;
+    static final int FOLLOW = 28, GUARD = 30, STAY = 32, INFO = 34, CEASEFIRE = 37, ASK = 39, RECALL = 41, DISMISS = 43, BACK = 49;
     static final int CONFIRM = 11, CANCEL = 15;
     static final String ASK_QUESTION = "Explain my helper's current state and suggest what I should do next.";
     enum Page { ROSTER, HELPER, DISMISS }
@@ -134,6 +134,7 @@ final class AgentMenu {
                 movement(view, selected.name());
                 icon(view, INFO, Items.SPYGLASS, "Status • profile, location, and health");
                 askButton(view, player);
+                recallButton(view);
                 icon(view, DISMISS, Items.RED_DYE, "Dismiss helper • confirmation required");
                 hive(view, helpers, player);
             }
@@ -160,11 +161,18 @@ final class AgentMenu {
             + "Explains this helper's state and suggests a next step. Answers cannot execute commands.");
     }
 
+    private static void recallButton(SimpleInventory view) {
+        icon(view, RECALL, Items.ENDER_PEARL, "Bring here • then follow");
+        description(view, RECALL, "Moves this existing loaded helper beside you, even from another mode. Keeps health, stats and profile. Clears your squad's player-target orders and pending target approvals. Unloaded helpers must first be loaded by visiting their area.");
+    }
+
     private static void rosterIcon(SimpleInventory view, int slot, AgentCompanions helpers, String id, AgentCompanions.Agent agent) {
         icon(view, slot, Items.IRON_INGOT,
             agent.name() + " • " + agent.profile().label() + " • " + agent.mode().name().toLowerCase(java.util.Locale.ROOT));
-        description(view, slot, helpers.loaded.containsKey(UUID.fromString(id))
-            ? "Loaded • select to manage this helper" : "Unloaded • return nearby for movement controls");
+        var golem = helpers.loaded.get(UUID.fromString(id));
+        description(view, slot, AgentCompanions.location(golem, agent)
+            + (golem != null && golem.isAlive() && !golem.isRemoved()
+                ? " • select, then Bring here to move it beside you" : " • return nearby to load this helper"));
     }
 
     private static void profileChoices(SimpleInventory view, AgentCompanions.Agent selected) {
@@ -240,6 +248,7 @@ final class AgentMenu {
                 profileChoices(view, agent);
                 hive(view, helpers, owner);
                 askButton(view, owner);
+                recallButton(view);
             }
             syncState();
         }
@@ -324,6 +333,7 @@ final class AgentMenu {
                         : clicked == GUARD ? AgentCompanions.Mode.GUARD : clicked == STAY ? AgentCompanions.Mode.STAY : null;
                     if (movement != null) { helpers.mode(owner, agent.name(), movement); refresh(); return; }
                     if (clicked == INFO) { owner.closeHandledScreen(); helpers.status(owner, agent.name()); return; }
+                    if (clicked == RECALL) { owner.closeHandledScreen(); helpers.recall(owner, agent.name()); return; }
                     if (clicked == ASK) {
                         owner.closeHandledScreen();
                         AgentChat.ask(owner.getCommandSource(), agent.name(), ASK_QUESTION);

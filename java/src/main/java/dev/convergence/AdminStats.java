@@ -72,7 +72,7 @@ public final class AdminStats {
     }
     public static List<Stat> list(LivingEntity target) {
         var result=new ArrayList<Stat>();
-        result.add(new Stat("health","Health",Items.RED_DYE,0,target.getMaxHealth(),1,false,false));
+        result.add(new Stat("health","Current health",Items.RED_DYE,0,target.getMaxHealth(),1,false,false));
         if(target instanceof ServerPlayerEntity player) {
         result.add(new Stat("food","Food",Items.COOKED_BEEF,0,20,1,true,false));
         result.add(new Stat("saturation","Saturation",Items.GOLDEN_CARROT,0,player.getHungerManager().getFoodLevel(),1,false,false));
@@ -88,7 +88,8 @@ public final class AdminStats {
                 double step=name.contains("speed")||name.contains("gravity")||name.contains("resistance")?.01:name.equals("scale")?.1:1;
                 Item icon=name.contains("health")?Items.APPLE:name.contains("attack")?Items.IRON_SWORD:
                     name.contains("armor")?Items.IRON_CHESTPLATE:name.contains("speed")?Items.FEATHER:Items.REDSTONE;
-                result.add(new Stat(name,Text.translatable(attr.getTranslationKey()).getString(),icon,min,max,step,false,true));
+                var stat=new Stat(name,name.equals("max_health")?"Health capacity (max health)":Text.translatable(attr.getTranslationKey()).getString(),icon,min,max,step,false,true);
+                if(name.equals("max_health"))result.add(1,stat);else result.add(stat);
             });
         return List.copyOf(result);
     }

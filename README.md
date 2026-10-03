@@ -21,7 +21,7 @@ Java players use **Minecraft Java 1.21.11** and the Java address and port shown 
 
 The local owner panel controls the server; it is not a public website. Back up a stopped world before upgrading, and keep your world, `fabric/config`, and `settings.json` private. See [`server/README.md`](server/README.md) for full setup and upgrade instructions.
 
-The latest preview fixes a saved-lobby loading loop that could freeze the server during joining and show “stream ended” on Bedrock. Decoration updates now wait for completed chunks. The owner confirmed joining successfully after the repair.
+The latest preview makes health capacity easier to edit, supports touch-transfer taps in the Admin editor, and adds **Bring here** for an existing loaded AI helper left in another world. It includes the previous saved-lobby loading repair; the owner confirmed joining successfully after that repair.
 
 ## Explore the world
 
@@ -35,7 +35,11 @@ Admin is a free, private full-OP4 role. It grants Minecraft's highest operator l
 
 Admin/OP4 can choose **Infinity Menu → Admin editor • players and AI** to edit online players and loaded AI helpers. Review and confirm health, damage, speed, armor, size and other supported base attributes; player hunger and XP are included. Equipment and potion modifiers remain active, saved original bases can be restored, and changing or dismissing the target cancels a stale review. Two health points equal one heart; health zero kills the selected target. Minecraft numeric ranges and both AI execution approvals still apply.
 
+To exceed 20 health, raise **Health capacity (max health)** and confirm, then open **Current health → Fill to capacity** and confirm the heal. Raising capacity alone does not heal. The two stats appear first and link directly to each other.
+
 Use **Infinity Menu → AI Helpers** to create or manage up to six named golems. The first-helper button and status report make their presence visible. Choose Primitive, Regular, Ultimate Finals, Debug, CLI or API. Ultimate Finals shares targets, predicts pursuit and rotates clear-air leap/dive attacks with native melee follow-ups. It uses ordinary golem damage; it does not equip player weapons or reproduce a totem bypass.
+
+If a loaded helper is too far away or in another game world, select it and choose **Bring here**. Its existing health, profile and edited stats stay intact; it resumes Follow and the squad's player-target orders and pending target approvals are cleared. Unloaded helpers need their area visited first. Ordinary Follow does not teleport or load distant chunks.
 
 The host can connect the installed, signed-in Codex CLI in the stopped-world panel. **Ask Codex** and questions in all six profiles then receive actual Codex answers with limited game facts. No API key is needed for that provider; the host account's usage limits still apply. Questions are separate sessions, not this live Codex conversation, and cannot execute or approve changes. Proposed server actions, code changes and exact player targets retain the owner's approval plus a separate live Codex review. See [`server/AGENTS_GUIDE.md`](server/AGENTS_GUIDE.md).
 

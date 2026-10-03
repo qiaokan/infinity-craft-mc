@@ -17,6 +17,7 @@ import net.minecraft.command.permission.PermissionPredicate;
 import net.minecraft.entity.EntityType;
 import net.minecraft.entity.SpawnReason;
 import net.minecraft.entity.attribute.EntityAttributes;
+import net.minecraft.entity.attribute.EntityAttributeModifier;
 import net.minecraft.entity.passive.IronGolemEntity;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.command.CommandOutput;
@@ -24,9 +25,11 @@ import net.minecraft.storage.NbtReadView;
 import net.minecraft.storage.NbtWriteView;
 import net.minecraft.test.TestContext;
 import net.minecraft.util.ErrorReporter;
+import net.minecraft.util.Identifier;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.GameMode;
+import net.minecraft.world.TeleportTarget;
 import net.minecraft.world.World;
 import net.minecraft.world.rule.GameRules;
 
@@ -92,7 +95,112 @@ public class AgentGameTests {
         c.assertFalse(root.canUse(source.withPermissions(LeveledPermissionPredicate.GAMEMASTERS)), "OP2 cannot control helpers");
         c.assertFalse(root.canUse(source.withPermissions(LeveledPermissionPredicate.ADMINS)), "OP3 cannot control helpers");
         c.assertTrue(root.canUse(source.withPermissions(LeveledPermissionPredicate.OWNERS)), "OP4 controls helpers");
-        for (String command : new String[]{"help", "spawn", "follow", "guard", "stay", "dismiss", "list", "profile", "status", "squad"}) c.assertTrue(root.getChild(command) != null, "Command exists: " + command);
+        for (String command : new String[]{"help", "spawn", "follow", "guard", "stay", "dismiss", "list", "profile", "status", "squad", "recall"}) c.assertTrue(root.getChild(command) != null, "Command exists: " + command);
+        c.complete();
+    }
+    @GameTest public void manualRecallCrossesModesPreservingIdentityStatsAndResetHistory(TestContext c) {
+        var owner = player(c, "recall-owner");
+        var helpers = AgentCompanions.get(c.getWorld().getServer());
+        var destination = GameModes.world(helpers.server, GameModes.Mode.HARDCORE);
+        try {
+            var helper = golem(helpers, owner, "traveler");
+            var id = helper.getUuid();
+            helpers.profile(owner, "traveler", AgentCompanions.Profile.ULTIMATE_FINALS);
+            helpers.mode(owner, "traveler", AgentCompanions.Mode.STAY);
+            var modifier = Identifier.of("infinity_test", "recall_modifier");
+            helper.getAttributeInstance(EntityAttributes.ATTACK_DAMAGE).setBaseValue(19);
+            helper.getAttributeInstance(EntityAttributes.ATTACK_DAMAGE).addPersistentModifier(
+                new EntityAttributeModifier(modifier, 5, EntityAttributeModifier.Operation.ADD_VALUE));
+            c.assertTrue(AdminStats.set(owner.getCommandSource(), helper, "attack_damage", 45).success(), "Set real admin damage before transfer");
+            c.assertTrue(AdminStats.set(owner.getCommandSource(), helper, "max_health", 320).success(), "Set real admin capacity before transfer");
+            c.assertTrue(AdminStats.set(owner.getCommandSource(), helper, "health", 280).success(), "Set real health before transfer");
+            var feet = owner.getBlockPos();
+            for (var at : BlockPos.iterate(feet.add(-8, -1, -8), feet.add(8, 6, 8)))
+                destination.setBlockState(at, at.getY() == feet.getY() - 1 ? Blocks.STONE.getDefaultState() : Blocks.AIR.getDefaultState());
+            var target = new TeleportTarget(destination, owner.getEntityPos(), Vec3d.ZERO, 0, 0, TeleportTarget.NO_OP);
+            c.assertTrue(helper.teleportTo(target) == null, "A normal helper portal cannot cross isolated modes");
+            c.assertFalse(AgentCompanions.allowRecallTeleport(helper, target), "No permit exists before an explicit recall");
+            c.assertTrue(owner.teleportTo(target) == owner, "Actual OP4 owner moves to another mode");
+            acknowledgeLoadedPlayer(owner);
+            helpers.recall(owner, "traveler");
+            var moved = helpers.loaded.get(id);
+            c.assertTrue(moved != null && moved != helper && moved.getEntityWorld() == destination, "Native inter-mode transfer rebinds the destination entity");
+            c.assertTrue(c.getWorld().getEntity(id) == null && destination.getEntity(id) == moved, "There is exactly one live world entity with the same UUID");
+            c.assertEquals(moved.getHealth(), 280f, "Current health survives recall");
+            c.assertEquals(moved.getMaxHealth(), 320f, "Edited capacity survives recall");
+            c.assertEquals(moved.getAttributeValue(EntityAttributes.ATTACK_DAMAGE), 50d, "Edited base and independent modifier survive recall");
+            c.assertEquals(AdminStats.original(moved, AdminStats.find(moved, "attack_damage")), 19d, "Original admin reset value survives native transfer");
+            var record = helpers.data.agents.get(id.toString());
+            c.assertEquals(record.profile(), AgentCompanions.Profile.ULTIMATE_FINALS, "Recall preserves profile");
+            c.assertEquals(record.mode(), AgentCompanions.Mode.FOLLOW, "Explicit recall resumes following");
+            c.assertEquals(record.dimension(), destination.getRegistryKey().getValue().toString(), "Anchor dimension follows the actual destination");
+            c.assertEquals(record.anchor(), moved.getEntityPos(), "Saved anchor uses the checked arrival point");
+            helpers.unload(helper);
+            c.assertTrue(helpers.loaded.get(id) == moved, "A late old-world unload cannot erase the destination instance");
+            c.assertFalse(AgentCompanions.allowRecallTeleport(moved, target), "Permit is cleared after synchronous transfer");
+            var back = new TeleportTarget(c.getWorld(), Vec3d.ofBottomCenter(feet), Vec3d.ZERO, 0, 0, TeleportTarget.NO_OP);
+            c.assertTrue(moved.teleportTo(back) == null, "Later generic portals remain blocked");
+        } finally { cleanup(helpers, owner); }
+        c.complete();
+    }
+    @GameTest public void recallRefusesForeignRevokedDeadUnloadedAndUnsafeScaledHelpers(TestContext c) throws Exception {
+        var owner = player(c, "recall-checks");
+        var other = player(c, "recall-other");
+        var helpers = AgentCompanions.get(c.getWorld().getServer());
+        IronGolemEntity helper = null;
+        var passenger = EntityType.PIG.create(c.getWorld(), SpawnReason.COMMAND);
+        try {
+            helper = golem(helpers, owner, "checked");
+            helpers.mode(owner, "checked", AgentCompanions.Mode.STAY);
+            var start = helper.getEntityPos();
+            helpers.recall(other, "checked");
+            c.assertEquals(helper.getEntityPos(), start, "Even another OP4 cannot recall a foreign helper");
+            OperatorGameTests.level(owner, LeveledPermissionPredicate.ADMINS);
+            helpers.server.getCommandManager().getDispatcher().execute("agent recall checked", helpers.server.getCommandSource().withEntity(owner));
+            c.assertEquals(helper.getEntityPos(), start, "Console execute-as cannot bypass the owner's actual OP level");
+            OperatorGameTests.level(owner, LeveledPermissionPredicate.OWNERS);
+            owner.changeGameMode(GameMode.SPECTATOR);
+            helpers.recall(owner, "checked");
+            c.assertEquals(helper.getEntityPos(), start, "Spectator owner cannot recall");
+            owner.changeGameMode(GameMode.SURVIVAL);
+            owner.setHealth(0);
+            helpers.recall(owner, "checked");
+            c.assertEquals(helper.getEntityPos(), start, "Dead owner cannot recall");
+            owner.setHealth(20);
+            helpers.loaded.remove(helper.getUuid());
+            helpers.recall(owner, "checked");
+            c.assertEquals(helper.getEntityPos(), start, "Unloaded identity is never recreated or searched into loaded chunks");
+            c.assertTrue(!helpers.loaded.containsKey(helper.getUuid()), "Unloaded refusal leaves the loaded registry unchanged");
+            helpers.loaded.put(helper.getUuid(), helper);
+            passenger.setPosition(helper.getEntityPos());
+            c.getWorld().spawnEntity(passenger);
+            c.assertTrue(passenger.startRiding(helper, true, false), "A real mounted passenger exercises native transfer containment");
+            helpers.recall(owner, "checked");
+            c.assertEquals(helper.getEntityPos(), start, "Recall refuses to transfer a helper with passengers");
+            c.assertTrue(passenger.getVehicle() == helper, "Refusal leaves unrelated passenger state intact");
+            passenger.stopRiding(); passenger.discard();
+            helper.getAttributeInstance(EntityAttributes.SCALE).setBaseValue(3);
+            helpers.recall(owner, "checked");
+            c.assertFalse(helper.getDimensions(helper.getPose()).getBoxAt(helper.getEntityPos()).intersects(owner.getBoundingBox()), "Safe placement includes the owner using the latest effective scale before the next entity tick");
+            c.assertEquals(helpers.owned(owner, "checked").getValue().mode(), AgentCompanions.Mode.FOLLOW, "An enlarged helper can be recalled where its full body fits");
+            helpers.mode(owner, "checked", AgentCompanions.Mode.STAY);
+            start = helper.getEntityPos();
+            helper.getAttributeInstance(EntityAttributes.SCALE).setBaseValue(2);
+            var feet = owner.getBlockPos();
+            for (var at : BlockPos.iterate(feet.add(-7, 3, -7), feet.add(7, 3, 7)))
+                c.getWorld().setBlockState(at, Blocks.STONE.getDefaultState());
+            helpers.recall(owner, "checked");
+            c.assertEquals(helper.getEntityPos(), start, "Recall checks the edited scale's actual body against a low ceiling");
+            c.assertEquals(helpers.owned(owner, "checked").getValue().mode(), AgentCompanions.Mode.STAY, "Failed recalls do not change movement or roster identity");
+            c.assertFalse(AgentCompanions.allowRecallTeleport(helper,
+                new TeleportTarget(GameModes.world(helpers.server, GameModes.Mode.HARDCORE), start, Vec3d.ZERO, 0, 0, TeleportTarget.NO_OP)),
+                "Rejected requests leave no reusable cross-mode permit");
+        } finally {
+            passenger.discard();
+            if (helper != null && !helper.isRemoved()) helpers.loaded.put(helper.getUuid(), helper);
+            OperatorGameTests.level(owner, LeveledPermissionPredicate.OWNERS);
+            cleanup(helpers, owner); cleanup(helpers, other);
+        }
         c.complete();
     }
     @GameTest public void helpersBoundNamesOwnershipAndUnloadedCount(TestContext c) {

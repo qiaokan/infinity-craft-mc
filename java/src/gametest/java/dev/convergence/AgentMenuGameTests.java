@@ -415,4 +415,51 @@ public class AgentMenuGameTests {
         } finally { helpers.ceasefire(owner); helpers.ceasefire(other); cleanup(helpers, owner); cleanup(helpers, other); cleanup(helpers, target); }
         c.complete();
     }
+
+    @GameTest public void bringHereMenuPreservesHelperClearsCombatAndRejectsOldClicks(TestContext c) {
+        var owner = player(c, "menu-recall");
+        var target = player(c, "menu-recall-target");
+        var helpers = AgentCompanions.get(c.getWorld().getServer());
+        var actions = AgentActions.get(helpers.server);
+        try {
+            helpers.spawn(owner, "returning");
+            helpers.profile(owner, "returning", AgentCompanions.Profile.PRIMITIVE);
+            var id = UUID.fromString(helpers.owned(owner, "returning").getKey());
+            var helper = helpers.loaded.get(id);
+            helper.setPosition(owner.getEntityPos().add(6, 0, 0));
+            helper.setHealth(73);
+            c.assertTrue(helpers.assignPlayerTarget(owner, target), "An existing player combat order is active before recall");
+            actions.target(owner, target);
+            var proposal = actions.data.proposals.values().stream()
+                .filter(value -> value.owner.equals(owner.getUuidAsString()) && value.action == AgentActions.Action.TARGET && value.active()).findFirst().orElse(null);
+            c.assertTrue(proposal != null, "A real pending target proposal exists before recall; eligibility="
+                + helpers.targetEligibility(owner, target) + "; queueFull=" + actions.queueFull(owner));
+            c.assertEquals(AgentMenu.open(owner), 1, "Owner can open its recall roster");
+            detail(owner, "returning");
+            var screen = menu(owner);
+            c.assertTrue(screen.view.getStack(AgentMenu.RECALL).getName().getString().startsWith("Bring here"), "Loaded helper has a visible manual recall button");
+            var original = helper.getEntityPos();
+            ((ScreenHandler) screen).onSlotClick(AgentMenu.RECALL, 0, SlotActionType.PICKUP, target);
+            c.assertEquals(helper.getEntityPos(), original, "Another player cannot activate the owner's recall menu");
+            click(owner, AgentMenu.RECALL);
+            c.assertTrue(owner.currentScreenHandler == owner.playerScreenHandler, "Recall closes the menu so the owner can see the returned helper");
+            c.assertTrue(helpers.loaded.get(id) == helper && helper.squaredDistanceTo(owner) < 36, "Same-world recall keeps the existing helper and moves it beside its owner");
+            c.assertEquals(helper.getHealth(), 73f, "Menu recall preserves current health");
+            c.assertTrue(!helpers.playerTargets.containsKey(owner.getUuid()), "Recall clears the owner's old approved player target");
+            c.assertEquals(proposal.state, AgentActions.State.CANCELLED, "Recall also cancels pending target approvals");
+            c.assertTrue(helper.getTarget() == null && helper.getNavigation().isIdle(), "Old combat and path targets are stopped");
+            var recalledPosition = helper.getEntityPos();
+            ((ScreenHandler) screen).onSlotClick(AgentMenu.RECALL, 0, SlotActionType.PICKUP, owner);
+            c.assertEquals(helper.getEntityPos(), recalledPosition, "Delayed old-window recall packet cannot trigger another transfer");
+            c.assertEquals(helpers.count(owner), 1, "Recall does not replace or duplicate roster members");
+        } catch (RuntimeException | Error failure) {
+            System.err.println("[Infinity helper-menu test] bring-here workflow failed");
+            failure.printStackTrace();
+            throw failure;
+        } finally {
+            actions.ceasefire(owner);
+            cleanup(helpers, owner); cleanup(helpers, target);
+        }
+        c.complete();
+    }
 }

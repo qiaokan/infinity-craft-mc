@@ -1,4 +1,4 @@
-# Helper squads, AI modes, and full operator controls — 2.12.0-explore.10
+# Helper squads, AI modes, and full operator controls — 2.12.0-explore.11
 
 Admins can edit a loaded helper through **Infinity Menu → Admin editor • players and AI**. Select its golem icon, change health, damage, speed, armor, size or another supported base attribute, then Review and Confirm. Original attribute values can be restored. The edits and reset values save with the entity; helper behavior/profile changes invalidate an open stat review. Follow, guard and profile controls remain in **AI Helpers**, and player-target orders still require both approvals.
 
@@ -40,7 +40,7 @@ Names use 1–24 lowercase letters, digits, `_` or `-`. Each helper has its own 
 
 When Codex is enabled, questions to **all six profiles** use the Codex connection. The profile still selects the helper's movement/combat behavior and the context for its answer. With the OpenAI API provider, only API-profile helper questions are sent externally; other profiles keep their local responses.
 
-AI profile and movement are separate controls. Follow moves toward the owner; Guard anchors a combat helper at its current location; Stay stops navigation and combat. Player targeting requires a separate reviewed order. Helpers pause while the owner is offline, dead, spectating, in another dimension, or no longer OP4. Follow pauses beyond 48 blocks; return nearby to resume ordinary mob defense. Helpers never teleport or load distant chunks.
+AI profile and movement are separate controls. Follow moves toward the owner; Guard anchors a combat helper at its current location; Stay stops navigation and combat. Player targeting requires a separate reviewed order. Helpers pause while the owner is offline, dead, spectating, in another dimension, or no longer OP4. Follow pauses beyond 48 blocks; return nearby to resume ordinary mob defense. Helpers never teleport automatically or load distant chunks. For a loaded helper left in another world or beyond follow range, choose **AI Helpers → helper → Bring here**, or use `/agent recall <name>`. The owner must be online, alive and OP4, with safe space nearby. This moves the existing golem, preserves its health and edited attributes, switches it to Follow and clears the squad’s active player-target order and pending target approvals. Unloaded helpers must first be loaded by visiting their area; they are not replaced or force-loaded.
 
 Ultimate Finals predicts at most two blocks ahead of a moving target. Eligible squad members take turns attempting a short leap from 4–7 blocks away on roughly level ground; only one helper in that owner's squad performs the aerial sequence against the same target at a time. Each helper has an 80-tick leap cooldown. The path needs loaded, dry, unobstructed airspace and a clear solid landing inside its movement area. Walls, low ceilings or unsuitable ground keep the helper on ordinary ground pursuit.
 

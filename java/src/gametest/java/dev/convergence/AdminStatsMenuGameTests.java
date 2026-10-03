@@ -28,6 +28,7 @@ public class AdminStatsMenuGameTests {
         p.getEntityWorld().getServer().getPlayerManager().remove(p);
     }
     private void click(ServerPlayerEntity p, int slot) { p.currentScreenHandler.onSlotClick(slot, 0, SlotActionType.PICKUP, p); }
+    private void quickClick(ServerPlayerEntity p, int slot) { p.currentScreenHandler.onSlotClick(slot, 0, SlotActionType.QUICK_MOVE, p); }
     private AdminStatsMenu.Handler menu(ServerPlayerEntity p) { return (AdminStatsMenu.Handler)p.currentScreenHandler; }
     private void edit(ServerPlayerEntity admin, ServerPlayerEntity target, String id) {
         admin.closeHandledScreen();
@@ -43,10 +44,31 @@ public class AdminStatsMenuGameTests {
             c.assertTrue(admin.currentScreenHandler instanceof ServerMenu.Handler, "OP3 cannot enter Admin editor through main menu");
             admin.closeHandledScreen();
             OperatorGameTests.level(admin, LeveledPermissionPredicate.OWNERS);
+            admin.changeGameMode(GameMode.CREATIVE);
+            admin.getInventory().setStack(0, new ItemStack(Items.EMERALD, 11));
             ServerMenu.open(admin); click(admin, ServerMenu.ADMIN);
             c.assertEquals(menu(admin).page, AdminStatsMenu.Page.PLAYERS, "OP4 enters target picker without a command");
-            click(admin, 0);
+            quickClick(admin, 0);
             c.assertEquals(menu(admin).page, AdminStatsMenu.Page.STATS, "Self is the first target");
+            c.assertEquals(menu(admin).stats.get(0).id(), "health", "Current health is first");
+            c.assertEquals(menu(admin).stats.get(1).id(), "max_health", "Capacity is beside current health");
+            quickClick(admin, 1);
+            c.assertEquals(menu(admin).statId, "max_health", "Touch transfer selects a statistic in creative");
+            quickClick(admin, AdminStatsMenu.PLUS_MEDIUM);
+            c.assertEquals(menu(admin).pending, 30d, "Touch transfer stages the same increase as a normal click");
+            c.assertEquals(admin.getMaxHealth(), 20f, "Staging does not apply the increase");
+            quickClick(admin, AdminStatsMenu.REVIEW);
+            c.assertEquals(menu(admin).page, AdminStatsMenu.Page.CONFIRM, "Touch transfer opens the separate review");
+            c.assertEquals(admin.getMaxHealth(), 20f, "Touch review still needs confirmation");
+            ScreenHandler oldReview = admin.currentScreenHandler;
+            quickClick(admin, AdminStatsMenu.CONFIRM);
+            c.assertEquals(admin.getMaxHealth(), 30f, "Touch confirmation applies the reviewed capacity");
+            ScreenHandler current = admin.currentScreenHandler;
+            oldReview.onSlotClick(AdminStatsMenu.CONFIRM, 0, SlotActionType.QUICK_MOVE, admin);
+            c.assertTrue(admin.currentScreenHandler == current, "Old touch confirmation cannot affect the new screen");
+            c.assertEquals(admin.getHealth(), 20f, "Changing capacity never silently heals");
+            c.assertTrue(admin.currentScreenHandler.getCursorStack().isEmpty(), "Touch controls never acquire menu icons");
+            c.assertEquals(admin.getInventory().getStack(0).getCount(), 11, "Touch controls preserve the player's inventory");
             admin.closeHandledScreen();
             admin.changeGameMode(GameMode.SPECTATOR);
             var dispatcher = c.getWorld().getServer().getCommandManager().getDispatcher();
@@ -62,7 +84,9 @@ public class AdminStatsMenuGameTests {
         var target = player(c, "editor-target", false);
         try {
             target.getInventory().setStack(0, new ItemStack(Items.DIAMOND, 7));
-            edit(admin, target, "max_health");
+            edit(admin, target, "health");
+            click(admin, AdminStatsMenu.RELATED_HEALTH);
+            c.assertEquals(menu(admin).statId, "max_health", "Health screen can open capacity without hunting through attributes");
             click(admin, AdminStatsMenu.PLUS_MEDIUM);
             c.assertEquals(target.getMaxHealth(), 20f, "Adjusting pending value does not change target");
             click(admin, AdminStatsMenu.REVIEW);
@@ -75,6 +99,14 @@ public class AdminStatsMenuGameTests {
             oldReview.onSlotClick(AdminStatsMenu.CONFIRM, 0, SlotActionType.PICKUP, admin);
             c.assertTrue(admin.currentScreenHandler == current, "Old confirm does not replace new screen");
             c.assertEquals(target.getMaxHealth(), 30f, "Old confirm cannot apply twice");
+            c.assertEquals(target.getHealth(), 20f, "Raising capacity does not silently heal");
+            edit(admin, target, "max_health"); click(admin, AdminStatsMenu.RELATED_HEALTH);
+            c.assertEquals(menu(admin).statId, "health", "Capacity screen links back to current health");
+            click(admin, AdminStatsMenu.MAXIMUM);
+            c.assertEquals(menu(admin).pending, 30d, "Full-health proposal now exceeds the old twenty-point limit");
+            c.assertEquals(target.getHealth(), 20f, "Selecting full health still needs review and confirmation");
+            click(admin, AdminStatsMenu.REVIEW); click(admin, AdminStatsMenu.CONFIRM);
+            c.assertEquals(target.getHealth(), 30f, "Confirmed heal fills the new capacity");
             edit(admin, target, "max_health"); click(admin, AdminStatsMenu.RESET);
             c.assertEquals(menu(admin).operation, AdminStatsMenu.Operation.RESET, "Reset previews saved original");
             c.assertEquals(target.getMaxHealth(), 30f, "Reset still needs confirmation");
@@ -138,7 +170,7 @@ public class AdminStatsMenuGameTests {
             edit(admin, admin, "max_health");
             ScreenHandler screen = admin.currentScreenHandler;
             var icon = screen.getSlot(AdminStatsMenu.PLUS_SMALL).getStack().copy();
-            for (var action : new SlotActionType[]{SlotActionType.SWAP, SlotActionType.QUICK_MOVE, SlotActionType.CLONE,
+            for (var action : new SlotActionType[]{SlotActionType.SWAP, SlotActionType.CLONE,
                     SlotActionType.THROW, SlotActionType.QUICK_CRAFT, SlotActionType.PICKUP_ALL}) {
                 screen.onSlotClick(AdminStatsMenu.PLUS_SMALL, 0, action, admin);
                 c.assertTrue(ItemStack.areItemsAndComponentsEqual(icon, screen.getSlot(AdminStatsMenu.PLUS_SMALL).getStack()), "Icon remains server-owned: " + action);
@@ -146,9 +178,11 @@ public class AdminStatsMenuGameTests {
             screen.selectBundleStack(AdminStatsMenu.PLUS_SMALL, 0);
             c.assertTrue(screen.quickMove(admin, AdminStatsMenu.PLUS_SMALL).isEmpty(), "Shift transfer yields no item");
             screen.onSlotClick(AdminStatsMenu.PLUS_SMALL, 0, SlotActionType.PICKUP, other);
+            screen.onSlotClick(AdminStatsMenu.PLUS_SMALL, 0, SlotActionType.QUICK_MOVE, other);
             c.assertTrue(admin.currentScreenHandler == screen, "Foreign actor cannot even stage an edit");
             screen.setCursorStack(new ItemStack(Items.DIAMOND, 3));
             click(admin, AdminStatsMenu.PLUS_SMALL);
+            quickClick(admin, AdminStatsMenu.PLUS_SMALL);
             c.assertEquals(screen.getCursorStack().getCount(), 3, "Cursor items are preserved");
             c.assertTrue(admin.currentScreenHandler == screen, "Cursor blocks action without changing screen");
             c.assertEquals(admin.getInventory().getStack(0).getCount(), 11, "Original inventory preserved");
