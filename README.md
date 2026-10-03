@@ -21,6 +21,8 @@ Java players use **Minecraft Java 1.21.11** and the Java address and port shown 
 
 The local owner panel controls the server; it is not a public website. Back up a stopped world before upgrading, and keep your world, `fabric/config`, and `settings.json` private. See [`server/README.md`](server/README.md) for full setup and upgrade instructions.
 
+The latest preview fixes a saved-lobby loading loop that could freeze the server during joining and show “stream ended” on Bedrock. Decoration updates now wait for completed chunks. The owner confirmed joining successfully after the repair.
+
 ## Explore the world
 
 The Main Hub leads to Survival, Creative, Hardcore, Minigames, and Adventure. Select the **Infinity Menu** compass to choose modes and use gear, powers, cosmetics, backpacks and helpers. Lobby signs open it too. `/menu`, `/guide`, `/play` and `/hub` remain optional shortcuts. The hub and five mode lobbies have themed arches, glass lighting, flags and planted corners; existing builds are preserved during the upgrade. The Minigames and Adventure hall signs open course menus; `/play minigames` and `/play adventure` open them too. Six timed minigames have `/best` and `/leaderboard <map>` commands; two starter adventure maps are included. Inventories are separated between modes.

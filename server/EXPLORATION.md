@@ -1,4 +1,4 @@
-# Exploration and scores — 2.12.0-explore.9
+# Exploration and scores — 2.12.0-explore.10
 
 Select the **Infinity Menu** recovery compass in your hotbar to choose **Play Survival**, **Play Creative**, **Play Hardcore**, **Minigames**, **Adventure maps**, or **Main Hub**. Tap or right-click an **INFINITY MENU** sign in the Main Hub or a mode lobby to open the same menu. A missing compass is restored when you have an empty inventory slot; no existing item is replaced. If it appears in your main inventory, move it to the hotbar first.
 

@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "convergence_tests",
-  "version": "2.12.0-explore.9",
+  "version": "2.12.0-explore.10",
   "name": "Infinity Armor Tests",
   "environment": "*",
   "entrypoints": {

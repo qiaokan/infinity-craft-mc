@@ -1,4 +1,4 @@
-# Infinity Armor Exploration Server — 2.12.0-explore.9
+# Infinity Armor Exploration Server — 2.12.0-explore.10
 
 Multi-mode build based on Infinity Armor 2.3.0 and the crossplay preview. Updated October 3, 2026.
 
@@ -7,6 +7,10 @@ This server build lets Java and Bedrock players share **one Fabric server with s
 Select the named **Infinity Menu** recovery compass in your hotbar to open gear, powers, worlds and AI helpers. Every `/convergence` feature has a menu button; typing that command is optional. If the compass is in your main inventory, move it to the hotbar first. Tap or right-click an **INFINITY MENU** sign in the Main Hub or a mode lobby to reopen the menu and recover a missing compass. Clear one inventory slot if your inventory is full; the server never replaces your items to make room.
 
 Choose **Minigames** or **Adventure maps**, then tap a course icon to play. `/guide` gives directions for your current location, `/best` shows personal times, and `/leaderboard <map>` shows saved minigame records. See [EXPLORATION.md](EXPLORATION.md) for navigation and scores.
+
+## Lobby joining fix
+
+This release fixes a saved-lobby chunk-loading loop that could freeze Minecraft on joining and disconnect Bedrock players with “End of stream” or “stream ended.” Decoration upgrades now wait until the chunk finishes loading, preserving existing blocks and edited signs.
 
 ## Admin health and stat editor
 

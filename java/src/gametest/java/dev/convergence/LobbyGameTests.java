@@ -5,6 +5,9 @@ import java.util.Set;
 import java.util.Map;
 import java.util.LinkedHashMap;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerChunkEvents;
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
+import net.minecraft.block.Block;
 import net.minecraft.block.Blocks;
 import net.minecraft.block.entity.SignBlockEntity;
 import net.minecraft.item.ItemStack;
@@ -14,7 +17,9 @@ import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.test.TestContext;
 import net.minecraft.util.ActionResult;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.ChunkPos;
 import net.minecraft.text.Text;
+import net.minecraft.world.chunk.WorldChunk;
 
 public class LobbyGameTests {
     private ServerPlayerEntity player(TestContext c,String name){return new ModeGameTests().player(c,name);}
@@ -89,6 +94,103 @@ public class LobbyGameTests {
         } finally {
             world.setBlockState(occupied,oldOccupied);world.setBlockState(missing,oldMissing);
         }
+        c.complete();
+    }
+    @GameTest public void lobbyChunkLoadDefersRepairsUntilItsCompletedWorldTick(TestContext c) {
+        var world=GameModes.world(c.getWorld().getServer(),GameModes.Mode.HUB);
+        var center=LobbyServer.LOBBIES.get("creative").center();
+        var accent=center.add(5,6,-10);
+        var occupied=center.add(9,0,-5);
+        var signPos=center.add(0,0,-4);
+        var otherAccent=LobbyServer.LOBBIES.get("main").center().add(5,6,-10);
+        var chunk=world.getWorldChunk(accent);
+        var originalAccent=chunk.getBlockState(accent);
+        var originalOccupied=chunk.getBlockState(occupied);
+        var originalOther=world.getBlockState(otherAccent);
+        var sign=(SignBlockEntity)chunk.getBlockEntity(signPos);
+        var front=sign.getFrontText();var back=sign.getBackText();
+        int flags=Block.NOTIFY_LISTENERS|Block.FORCE_STATE;
+        // Drain startup work before creating missing blocks, so this event is the only queued repair.
+        ServerTickEvents.END_WORLD_TICK.invoker().onEndTick(world);
+        try {
+            world.setBlockState(accent,Blocks.AIR.getDefaultState(),flags);
+            world.setBlockState(otherAccent,Blocks.AIR.getDefaultState(),flags);
+            world.setBlockState(occupied,Blocks.CHEST.getDefaultState(),flags);
+            var chest=(net.minecraft.block.entity.ChestBlockEntity)chunk.getBlockEntity(occupied);
+            chest.setStack(0,new ItemStack(Items.DIAMOND,13));
+            sign.setText(front.withMessage(0,Text.literal("Keep my arrival sign")),true);
+            sign.setText(back.withMessage(1,Text.literal("Keep this back too")),false);
+            int loadedChunks=world.getChunkManager().getLoadedChunkCount();
+
+            // Dispatch the registered native event, not the installer helper. A synchronous
+            // repair here can ask for the same still-pending chunk future and freeze a join.
+            ServerChunkEvents.CHUNK_LOAD.invoker().onChunkLoad(world,chunk);
+            c.assertTrue(chunk.getBlockState(accent).isAir(),"Chunk-load callback only queues work while its full-chunk future may be pending");
+            c.assertEquals(world.getChunkManager().getLoadedChunkCount(),loadedChunks,"Enqueuing lobby repair does not load chunks");
+
+            ServerTickEvents.END_WORLD_TICK.invoker().onEndTick(world);
+            c.assertTrue(chunk.getBlockState(accent).isOf(Blocks.PEARLESCENT_FROGLIGHT),"The completed captured chunk is repaired after the world tick");
+            c.assertTrue(world.getBlockState(otherAccent).isAir(),"A chunk-load repair does not sweep another lobby chunk");
+            c.assertTrue(chunk.getBlockState(occupied).isOf(Blocks.CHEST),"Deferred repair preserves player storage");
+            c.assertTrue(chunk.getBlockEntity(occupied)==chest,"Deferred repair retains the original chest block entity");
+            c.assertTrue(chest.getStack(0).isOf(Items.DIAMOND),"Deferred repair keeps the stored item type");
+            c.assertEquals(chest.getStack(0).getCount(),13,"Deferred repair keeps the stored item count");
+            c.assertEquals(sign.getFrontText().getMessage(0,false).getString(),"Keep my arrival sign","Deferred repair preserves edited front text");
+            c.assertEquals(sign.getBackText().getMessage(1,false).getString(),"Keep this back too","Deferred repair preserves edited back text");
+            c.assertEquals(world.getChunkManager().getLoadedChunkCount(),loadedChunks,"Draining one completed repair does not load neighboring chunks");
+
+            world.setBlockState(accent,Blocks.AIR.getDefaultState(),flags);
+            ServerTickEvents.END_WORLD_TICK.invoker().onEndTick(world);
+            c.assertTrue(chunk.getBlockState(accent).isAir(),"A completed queue entry is consumed rather than rebuilding every tick");
+        } finally {
+            sign.setText(front,true);sign.setText(back,false);
+            world.setBlockState(accent,originalAccent,flags);
+            world.setBlockState(occupied,originalOccupied,flags);
+            world.setBlockState(otherAccent,originalOther,flags);
+        }
+        c.complete();
+    }
+    @GameTest public void lobbyChunkRepairRejectsStaleEventsAndCancelsUnloadedChunks(TestContext c) {
+        var world=GameModes.world(c.getWorld().getServer(),GameModes.Mode.HUB);
+        var accent=LobbyServer.LOBBIES.get("creative").center().add(5,6,-10);
+        var chunk=world.getWorldChunk(accent);
+        var original=chunk.getBlockState(accent);
+        int flags=Block.NOTIFY_LISTENERS|Block.FORCE_STATE;
+        ServerTickEvents.END_WORLD_TICK.invoker().onEndTick(world);
+        try {
+            world.setBlockState(accent,Blocks.AIR.getDefaultState(),flags);
+            // The native chunk has the same position but has never been published by the
+            // manager. Preloaded hub fixtures must not hide an event/manager identity bug.
+            var stale=new WorldChunk(world,chunk.getPos());
+            c.assertTrue(world.getChunkManager().getWorldChunk(chunk.getPos().x,chunk.getPos().z)==chunk,"Fixture has a distinct completed manager chunk");
+            ServerChunkEvents.CHUNK_LOAD.invoker().onChunkLoad(world,stale);
+            ServerTickEvents.END_WORLD_TICK.invoker().onEndTick(world);
+            c.assertTrue(chunk.getBlockState(accent).isAir(),"An event for another chunk instance cannot repair the resident chunk");
+            c.assertTrue(stale.getBlockState(accent).isAir(),"An unpublished event chunk is not mutated");
+
+            ServerChunkEvents.CHUNK_LOAD.invoker().onChunkLoad(world,chunk);
+            ServerChunkEvents.CHUNK_UNLOAD.invoker().onChunkUnload(world,chunk);
+            ServerTickEvents.END_WORLD_TICK.invoker().onEndTick(world);
+            c.assertTrue(chunk.getBlockState(accent).isAir(),"Unloading cancels a queued repair even if a completed instance is still visible");
+
+            ServerChunkEvents.CHUNK_LOAD.invoker().onChunkLoad(world,chunk);
+            ServerTickEvents.END_WORLD_TICK.invoker().onEndTick(world);
+            c.assertTrue(chunk.getBlockState(accent).isOf(Blocks.PEARLESCENT_FROGLIGHT),"A fresh load event can repair the chunk after cancellation");
+        } finally {world.setBlockState(accent,original,flags);}
+        c.complete();
+    }
+    @GameTest public void lobbyChunkLoadOutsideBuiltPlatformsNeverLoadsItsNeighbors(TestContext c) {
+        var world=GameModes.world(c.getWorld().getServer(),GameModes.Mode.HUB);
+        var distant=new ChunkPos(625_000,625_000);
+        for(int x=-1;x<=1;x++) for(int z=-1;z<=1;z++)
+            c.assertFalse(world.isChunkLoaded(distant.x+x,distant.z+z),"Distant fixture and its neighbors start unloaded");
+        var unpublished=new WorldChunk(world,distant);
+        ServerChunkEvents.CHUNK_LOAD.invoker().onChunkLoad(world,unpublished);
+        ServerTickEvents.END_WORLD_TICK.invoker().onEndTick(world);
+        for(int x=-1;x<=1;x++) for(int z=-1;z<=1;z++)
+            c.assertFalse(world.isChunkLoaded(distant.x+x,distant.z+z),"Unknown chunk event does not request this chunk or any neighbor");
+        for (var section : unpublished.getSectionArray())
+            c.assertTrue(section.isEmpty(),"Unknown chunk event leaves every native chunk section empty");
         c.complete();
     }
     @GameTest public void lobbyVisualUpgradeKeepsArrivalBridgesAndNavigationUnchanged(TestContext c) {

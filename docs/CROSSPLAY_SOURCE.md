@@ -1,4 +1,4 @@
-# Infinity Armor Exploration Server source — 2.12.0-explore.9
+# Infinity Armor Exploration Server source — 2.12.0-explore.10
 
 This is a server-only Java and Bedrock crossplay build derived from the user-supplied Infinity Armor v2.3.0 source. The original Java and Bedrock downloads remain unchanged. Start with `server/README.md` for installation, menus, optional commands, and current limitations.
 
@@ -37,3 +37,5 @@ Run each command only after the previous one succeeds. The redirected logs are r
 The packager writes server and source ZIPs under `dist/lobbies`. It includes explicit release files and reports, excluding worlds, keys, EULA files, account data, runtime downloads, and local panel tokens. Do not archive the whole `server` or `research` directory after running a world. The original powers guide is included as `ORIGINAL_GUIDE_2.3.0.md`.
 
 The Admin editor is implemented in `AdminStats.java` and `AdminStatsMenu.java`. It enumerates supported player and AI golem attributes, changes finite values within native ranges, preserves modifiers, and records original base values in the existing player `InfinityModes` data for reset. Registered helpers save their originals in the same entity NBT through `AdminStatGolemMixin`; no separate reset database is used. OP4, actor/target identity, helper registration, connection and menu context are rechecked on mutation. There is no background stat pinning or AI approval shortcut.
+
+Lobby decoration CHUNK_LOAD events enqueue work without reading world blocks. END_WORLD_TICK processes only the same completed chunk instance through the nonblocking chunk lookup; unload/shutdown clears queued work. Native lifecycle regressions cover deferred mutation and stale events. The full-stack smoke test now loads the saved hub after each startup and checks console responsiveness before cleanup, covering the cold-load path missed by startup-only checks.

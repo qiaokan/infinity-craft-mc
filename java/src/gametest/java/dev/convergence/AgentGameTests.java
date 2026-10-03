@@ -610,9 +610,21 @@ public class AgentGameTests {
         } catch (RuntimeException failure) {
             c.getWorld().getGameRules().setValue(GameRules.PVP, pvp, s.server); cleanup(s, owner); cleanup(s, target); throw failure;
         }
+        java.util.function.Supplier<String> pursuitState = () -> "eligibility=" + s.targetEligibility(owner, target)
+            + "; pvp=" + c.getWorld().getGameRules().getValue(GameRules.PVP)
+            + "; owner=" + owner.getEntityPos() + "/" + owner.getHealth() + "/" + owner.getGameMode()
+            + "; target=" + target.getEntityPos() + "/" + target.getHealth() + "/" + target.getGameMode()
+            + "; helper=" + helper.getEntityPos() + "/" + helper.getHealth() + "/removed=" + helper.isRemoved()
+            + "; loaded=" + (s.loaded.get(helper.getUuid()) == helper)
+            + "; pause=" + (s.data.agents.containsKey(helper.getUuidAsString()) ? s.pauseReason(owner, helper, s.data.agents.get(helper.getUuidAsString())) : "missing record");
+        String[] firstLost = {null};
+        for (int tick = 1; tick < 65; tick++) {
+            final int at = tick;
+            c.runAtTick(tick, () -> {if(firstLost[0] == null && !s.playerTargets.containsKey(owner.getUuid()))firstLost[0] = "tick=" + at + "; " + pursuitState.get();});
+        }
         c.runAtTick(65, () -> {
             try {
-                c.assertTrue(s.validPlayerTarget(owner) != null, "Normal navigation around a wall does not consume the approved order");
+                c.assertTrue(s.validPlayerTarget(owner) != null, "Normal navigation around a wall does not consume the approved order; first lost: " + firstLost[0] + "; final: " + pursuitState.get());
                 c.assertTrue(helper.squaredDistanceTo(target) < initialDistance - 1, "Server ticks actually move the golem around the obstruction toward the approved player");
                 c.assertTrue(helper.getVisibilityCache().canSee(target), "The golem reaches a clear sight line after navigating around the corner");
             } finally { c.getWorld().getGameRules().setValue(GameRules.PVP, pvp, s.server); cleanup(s, owner); cleanup(s, target); }

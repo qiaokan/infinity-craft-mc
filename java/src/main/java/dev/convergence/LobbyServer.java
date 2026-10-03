@@ -4,6 +4,9 @@ import java.nio.file.Files;
 import java.util.*;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerChunkEvents;
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerWorldEvents;
 import net.fabricmc.fabric.api.event.player.UseBlockCallback;
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockState;
@@ -26,7 +29,9 @@ import net.minecraft.util.DyeColor;
 import net.minecraft.util.Hand;
 import net.minecraft.util.WorldSavePath;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.ChunkPos;
 import net.minecraft.util.math.Vec3d;
+import net.minecraft.world.chunk.WorldChunk;
 
 /** One protected hub dimension with a central plaza and five physical mode lobbies. */
 final class LobbyServer {
@@ -52,6 +57,7 @@ final class LobbyServer {
     record Palette(Block pillar, Block glass, Block light, Block banner, Block leaves, Block plant) {}
     record Decoration(Lobby lobby, BlockState state) {}
     static final Map<BlockPos, Decoration> DECORATIONS = decorations();
+    private static final Map<ServerWorld, Map<ChunkPos, WorldChunk>> PENDING_DECOR = new IdentityHashMap<>();
 
     static Palette palette(String id) {
         return switch (id) {
@@ -118,7 +124,9 @@ final class LobbyServer {
 
     static boolean loadedSite(ServerWorld world, BlockPos pos) {
         return world != null && world.isInBuildLimit(pos) && world.getWorldBorder().contains(pos)
-            && world.isChunkLoaded(pos.getX() >> 4, pos.getZ() >> 4);
+            // isChunkLoaded can be true while CHUNK_LOAD is still completing its future.
+            // This lookup returns only a completed chunk and never waits or requests one.
+            && world.getChunkManager().getWorldChunk(pos.getX() >> 4, pos.getZ() >> 4) != null;
     }
 
     /** Upgrade loaded original platforms only. Never replace player blocks or rebuild a saved hub. */
@@ -126,7 +134,7 @@ final class LobbyServer {
         return installDecor(world, null);
     }
 
-    private static int installDecor(ServerWorld world, net.minecraft.util.math.ChunkPos onlyChunk) {
+    private static int installDecor(ServerWorld world, ChunkPos onlyChunk) {
         if (world == null || GameModes.of(world) != GameModes.Mode.HUB) return 0;
         int changed = 0;
         for (var entry : DECORATIONS.entrySet()) {
@@ -155,8 +163,24 @@ final class LobbyServer {
         return changed;
     }
 
-    private static boolean inChunk(BlockPos pos, net.minecraft.util.math.ChunkPos chunk) {
+    private static boolean inChunk(BlockPos pos, ChunkPos chunk) {
         return chunk == null || (pos.getX() >> 4 == chunk.x && pos.getZ() >> 4 == chunk.z);
+    }
+
+    private static void tickDecor(ServerWorld world) {
+        var pending = PENDING_DECOR.get(world);
+        if (pending == null) return;
+        // Process a snapshot: any chunks loaded by ordinary block/sign notifications
+        // enqueue work for a later tick instead of recursively installing decorations.
+        for (var entry : new LinkedHashMap<>(pending).entrySet()) {
+            var pos = entry.getKey();
+            var ready = world.getChunkManager().getWorldChunk(pos.x, pos.z);
+            if (ready == null) continue;
+            if (!pending.remove(pos, entry.getValue())) continue;
+            // Do not apply an old load notification to a replacement chunk instance.
+            if (ready == entry.getValue()) installDecor(world, pos);
+        }
+        if (pending.isEmpty()) PENDING_DECOR.remove(world, pending);
     }
     static CommunityServer.Place place(MinecraftServer server, String id) {
         var world = GameModes.world(server, GameModes.Mode.HUB);
@@ -328,8 +352,19 @@ final class LobbyServer {
             // Existing saves load their hub lazily. Upgrade only our fixed platform chunks.
             boolean known = DECORATIONS.keySet().stream().anyMatch(pos -> inChunk(pos, chunk.getPos()));
             if (known && Files.exists(world.getServer().getSavePath(WorldSavePath.ROOT).resolve("infinity-built-in-lobbies.json")))
-                installDecor(world, chunk.getPos());
+                // Never read/write world blocks here: the chunk's FULL future may still
+                // be completing, and even native sign setters can wait for that future.
+                PENDING_DECOR.computeIfAbsent(world, key -> new LinkedHashMap<>()).put(chunk.getPos(), chunk);
         });
+        ServerTickEvents.END_WORLD_TICK.register(LobbyServer::tickDecor);
+        ServerChunkEvents.CHUNK_UNLOAD.register((world, chunk) -> {
+            var pending = PENDING_DECOR.get(world);
+            if (pending == null) return;
+            pending.remove(chunk.getPos(), chunk);
+            if (pending.isEmpty()) PENDING_DECOR.remove(world, pending);
+        });
+        ServerWorldEvents.UNLOAD.register((server, world) -> PENDING_DECOR.remove(world));
+        ServerLifecycleEvents.SERVER_STOPPED.register(server -> PENDING_DECOR.keySet().removeIf(world -> world.getServer() == server));
         UseBlockCallback.EVENT.register((player,world,hand,hit)-> {
             if (!(player instanceof ServerPlayerEntity p) || world.isClient() || hand!=Hand.MAIN_HAND) return ActionResult.PASS;
             return useSign(p,hit.getBlockPos());

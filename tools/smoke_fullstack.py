@@ -38,7 +38,7 @@ def main():
             tcp.bind(('127.0.0.1',0));udp.bind(('127.0.0.1',0));java_port=tcp.getsockname()[1];bedrock_port=udp.getsockname()[1]
         options=launcher.parse_args(['--java',args.java,'--bind','127.0.0.1','--java-port',str(java_port),'--bedrock-port',str(bedrock_port),'--memory','2G'])
         options.community=community.settings({'server_name':'Infinity Armor Test'})
-        stop=threading.Event(); ready=[]
+        stop=threading.Event(); ready=[]; console=[]
         def on_ready(addresses):
             ready.append(True)
             assert launcher.properties(root / 'fabric/server.properties')['online-mode']=='true'
@@ -50,8 +50,26 @@ def main():
             assert (root/'fabric/crossplay-export/infinity-items.json').is_file()
             assert (root/'fabric/world/infinity-built-in-maps.json').is_file()
             assert (root/'fabric/world/infinity-built-in-lobbies.json').is_file()
+            # A saved hub is loaded lazily on a real player's first join. Startup
+            # alone misses callbacks that wait recursively on the loading chunk.
+            send=console[0]
+            send('execute in convergence:hub run forceload add -64 -64 64 64')
+            marker='INFINITY_COLD_LOBBY_OK_'+str(attempt)
+            command=('execute in convergence:hub if loaded -10 81 -10 '
+                     'if loaded 58 81 58 if loaded -58 81 10 if loaded 10 81 -58 '
+                     'run say '+marker)
+            deadline=time.monotonic()+25
+            while time.monotonic()<deadline:
+                send(command)
+                if '[Server] '+marker in (root/'fabric/launcher.log').read_text():
+                    break
+                time.sleep(.25)
+            else:
+                raise RuntimeError('Cold lobby chunks did not load while the server remained responsive')
+            send('execute in convergence:hub run forceload remove -64 -64 64 64')
+            print('Full-stack cold lobby load remained responsive, run',attempt+1)
             stop.set()
-        launcher.run_server(options,stop,on_ready,root,console=False)
+        launcher.run_server(options,stop,on_ready,root,console=False,on_console_ready=console.append)
         assert ready and not (root/'launcher.lock').exists()
         assert (root/'fabric/world/level.dat').is_file()
         log=(root/'fabric/launcher.log').read_text()
