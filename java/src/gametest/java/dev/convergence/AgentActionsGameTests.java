@@ -143,6 +143,9 @@ public class AgentActionsGameTests {
             f.queue.codexApprove(f.core.server.getCommandSource(), id); f.control();
             c.assertEquals(proposal.state, AgentActions.State.DISPATCHED, "Final approval consumes the exact proposal before activation");
             c.assertTrue(f.helper.getTarget() == f.target, "The approved helper attacks the exact named player");
+            c.assertFalse(AgentCompanions.allowDamage(f.target, f.target.getDamageSources().mobAttack(f.helper)), "Both approvals permit pursuit but not remote melee damage");
+            f.target.setPosition(f.helper.getEntityPos().add(1, 0, 0));
+            c.assertTrue(f.helper.isInAttackRange(f.target) && f.helper.getVisibilityCache().canSee(f.target), "Approved damage fixture is in melee range with clear sight");
             c.assertTrue(AgentCompanions.allowDamage(f.target, f.target.getDamageSources().mobAttack(f.helper)), "Only approved combat may pass the damage gate");
             c.assertTrue(f.commands.isEmpty(), "Player-target activation never interpolates a server command");
             f.queue.ceasefire(f.owner); f.queue.codexApprove(f.core.server.getCommandSource(), id); f.control();

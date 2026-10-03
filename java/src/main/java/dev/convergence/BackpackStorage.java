@@ -63,7 +63,7 @@ final class BackpackStorage {
     }
     static NbtCompound owned(ServerPlayerEntity p) {return GameModes.state(p).getCompoundOrEmpty(OWNED);}
     static boolean earned(ServerPlayerEntity p,String key,String advancement) {
-        if(Memberships.operator(p)||p.isCreative()&&GameModes.current(p)==GameModes.Mode.CREATIVE)return true;
+        if(Memberships.gameplayBypass(p)||p.isCreative()&&GameModes.current(p)==GameModes.Mode.CREATIVE)return true;
         if(owned(p).getBoolean(key,false))return true;
         var a=p.getEntityWorld().getServer().getAdvancementLoader().get(Identifier.of("minecraft",advancement));
         if(a!=null&&p.getAdvancementTracker().getProgress(a).isDone()) {

@@ -101,14 +101,17 @@ public class OperatorGameTests {
         } finally {deop(p);}
         c.complete();
     }
-    @GameTest public void lowerOperatorsAndAdminCodesDoNotGainFullOverride(TestContext c) {
+    @GameTest public void lowerOperatorsRequireAnAdminGrantForFullOverride(TestContext c) {
         var p=new ModeGameTests().player(c,"limited-op");var rewards=new RewardGameTests().isolated(c);
         try {
             level(p,LeveledPermissionPredicate.GAMEMASTERS);
             c.assertFalse(Memberships.operator(p),"OP2 remains scoped to vanilla permission level");
             c.assertFalse(rewards.power(p,"hacks"),"OP2 cannot skip reward achievements");deop(p);
-            Memberships.get(c.getWorld().getServer()).account(p.getUuid()).admin=true;
-            c.assertFalse(rewards.cosmetic(p,"wither"),"Admin code cannot skip rewards");
+            c.assertTrue(Memberships.get(c.getWorld().getServer()).grantAdmin(p.getUuid()),"Trusted Admin grant succeeds");
+            c.assertTrue(rewards.cosmetic(p,"wither"),"Admin has the requested cosmetic gameplay bypass");
+            c.assertTrue(Memberships.operator(p)&&Memberships.owner(p.getCommandSource()),"Admin grants real OP4 commands");
+            c.assertTrue(AgentCompanions.operator(p.getCommandSource()),"Admin can control helpers through their normal review gates");
+            c.assertTrue(Memberships.get(c.getWorld().getServer()).revokeAdmin(p.getUuid()),"Admin revocation succeeds");
         } finally {deop(p);}
         c.complete();
     }

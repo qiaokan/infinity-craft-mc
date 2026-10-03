@@ -112,10 +112,12 @@ public class AgentMenuGameTests {
         try {
             AgentMenu.open(owner);
             click(owner, AgentMenu.helperSlot(0));
+            AgentMenu.open(owner);
             click(owner, AgentMenu.helperSlot(1));
             c.assertEquals(helpers.count(owner), 2, "Two empty slots create two distinct helpers");
             c.assertTrue(helpers.owned(owner, "helper-1") != null && helpers.owned(owner, "helper-2") != null,
                 "Numbered names stay unique as the screen refreshes");
+            AgentMenu.open(owner);
             detail(owner, "helper-1");
             ScreenHandler detailScreen = owner.currentScreenHandler;
             for (var profile : AgentCompanions.Profile.values()) {
@@ -144,6 +146,133 @@ public class AgentMenuGameTests {
             System.err.println("[Infinity helper-menu test] squad controls failed");
             failure.printStackTrace();
             throw failure;
+        } finally { cleanup(helpers, owner); }
+        c.complete();
+    }
+
+    @GameTest public void firstHelperButtonRevealsTheNamedGolemWithoutRepeatingItsClick(TestContext c) {
+        var owner = player(c, "menu-first");
+        var helpers = AgentCompanions.get(c.getWorld().getServer());
+        int proposals = AgentActions.get(helpers.server).data.proposals.size();
+        try {
+            AgentMenu.open(owner);
+            var firstScreen = menu(owner);
+            c.assertEquals(firstScreen.view.getStack(AgentMenu.helperSlot(0)).getName().getString(),
+                "Create your first helper", "An empty squad has an obvious first-helper action");
+            c.assertEquals(helpers.count(owner), 0, "Opening helper controls never spawns an entity automatically");
+            click(owner, AgentMenu.helperSlot(0));
+            c.assertTrue(owner.currentScreenHandler == owner.playerScreenHandler,
+                "Creating the helper closes its menu so the owner can see the golem and feedback");
+            var record = helpers.owned(owner, "helper-1");
+            c.assertTrue(record != null, "The first-helper button saves one named helper");
+            var golem = helpers.loaded.get(UUID.fromString(record.getKey()));
+            c.assertTrue(golem != null && golem.isAlive() && !golem.isInvisible(),
+                "The actual helper entity is loaded, alive, and visible");
+            c.assertTrue(golem.isCustomNameVisible() && golem.getCustomName().getString().contains("helper-1"),
+                "The visible helper name matches the menu feedback");
+            c.assertTrue(golem.getEntityWorld() == owner.getEntityWorld() && golem.squaredDistanceTo(owner) <= 32,
+                "The helper appears beside its owner in the same world");
+            ((ScreenHandler)firstScreen).onSlotClick(AgentMenu.helperSlot(0), 0, SlotActionType.PICKUP, owner);
+            c.assertEquals(helpers.count(owner), 1, "A delayed click from the closed menu cannot create a second helper");
+            c.assertEquals(AgentActions.get(helpers.server).data.proposals.size(), proposals,
+                "Creating a helper does not approve or execute a server action");
+        } finally { cleanup(helpers, owner); }
+        c.complete();
+    }
+
+    @GameTest public void helperInformationClosesTheChestAndRosterReturnsToInfinityMenu(TestContext c) {
+        var owner = player(c, "menu-readable-help");
+        var helpers = AgentCompanions.get(c.getWorld().getServer());
+        try {
+            helpers.spawn(owner, "guide");
+            AgentMenu.open(owner);
+            var roster = menu(owner);
+            c.assertEquals(roster.view.getStack(AgentMenu.BACK).getName().getString(), "Back to Infinity Menu", "The helper roster has a visible parent-menu route");
+            click(owner, AgentMenu.INFO);
+            c.assertTrue(owner.currentScreenHandler == owner.playerScreenHandler, "Roster help closes its chest before showing chat guidance");
+            AgentMenu.open(owner); detail(owner, "guide");
+            click(owner, AgentMenu.INFO);
+            c.assertTrue(owner.currentScreenHandler == owner.playerScreenHandler, "Helper status closes its chest so its location and health are readable");
+            c.assertTrue(helpers.owned(owner, "guide") != null, "Reading status leaves the helper intact");
+            AgentMenu.open(owner);
+            ScreenHandler oldRoster = owner.currentScreenHandler;
+            click(owner, AgentMenu.BACK);
+            c.assertTrue(owner.currentScreenHandler instanceof ServerMenu.Handler, "Roster Back opens the actual Infinity Menu");
+            var parent = owner.currentScreenHandler;
+            oldRoster.onSlotClick(AgentMenu.INFO, 0, SlotActionType.PICKUP, owner);
+            c.assertTrue(owner.currentScreenHandler == parent, "Delayed help clicks do not close the newly opened parent menu");
+        } finally { cleanup(helpers, owner); }
+        c.complete();
+    }
+
+    @GameTest public void askHelperButtonClosesForItsAnswerAndKeepsOwnerPermissions(TestContext c) {
+        var owner = player(c, "menu-ask-helper");
+        var server = c.getWorld().getServer();
+        var helpers = AgentCompanions.get(server);
+        var originalService = ServerAssistant.AI.remove(server);
+        int proposals = AgentActions.get(server).data.proposals.size();
+        try {
+            helpers.spawn(owner, "guide");
+            AgentMenu.open(owner); detail(owner, "guide");
+            var first = menu(owner);
+            c.assertEquals(first.view.getStack(AgentMenu.ASK).getName().getString(), "Ask helper", "Local fallback is never mislabeled as Codex");
+            c.assertEquals(first.view.getStack(AgentMenu.ASK).getItem(), Items.WRITABLE_BOOK, "The ask button uses a vanilla crossplay icon");
+            var lore = first.view.getStack(AgentMenu.ASK).get(DataComponentTypes.LORE).lines();
+            c.assertTrue(lore.stream().allMatch(line -> line.getString().length() <= 43), "Guidance disclosure wraps into touch-screen-size lines");
+            c.assertTrue(String.join(" ", lore.stream().map(Text::getString).toList()).contains("Answers cannot execute commands"), "The menu explains that answers cannot run commands");
+            var session = ServerAssistant.SESSIONS.get(server);
+            if (session != null) session.readyAt.remove(owner.getUuid());
+            operator(owner, LeveledPermissionPredicate.ADMINS);
+            click(owner, AgentMenu.ASK);
+            c.assertTrue(owner.currentScreenHandler == owner.playerScreenHandler, "Revoking OP4 closes a previously opened Ask button");
+            session = ServerAssistant.SESSIONS.get(server);
+            c.assertTrue(session == null || !session.readyAt.containsKey(owner.getUuid()), "Rejected Ask does not dispatch a question");
+            operator(owner, LeveledPermissionPredicate.OWNERS);
+            AgentMenu.open(owner); detail(owner, "guide");
+            ScreenHandler questionScreen = owner.currentScreenHandler;
+            click(owner, AgentMenu.ASK);
+            c.assertTrue(owner.currentScreenHandler == owner.playerScreenHandler, "Asking closes the chest before the answer is delivered");
+            session = ServerAssistant.SESSIONS.get(server);
+            c.assertTrue(session != null && session.readyAt.containsKey(owner.getUuid()), "The actual named-helper question path applies its shared cooldown");
+            c.assertEquals(helpers.owned(owner, "guide").getValue().profile(), AgentCompanions.Profile.REGULAR, "Asking does not change the helper profile");
+            c.assertEquals(AgentActions.get(server).data.proposals.size(), proposals, "An answer cannot queue or approve a server command");
+            session.readyAt.remove(owner.getUuid());
+            questionScreen.onSlotClick(AgentMenu.ASK, 0, SlotActionType.PICKUP, owner);
+            c.assertFalse(session.readyAt.containsKey(owner.getUuid()), "A delayed click cannot dispatch a second question");
+        } finally {
+            if (originalService == null) ServerAssistant.AI.remove(server); else ServerAssistant.AI.put(server, originalService);
+            var session = ServerAssistant.SESSIONS.get(server);
+            if (session != null) session.readyAt.remove(owner.getUuid());
+            cleanup(helpers, owner);
+        }
+        c.complete();
+    }
+
+    @GameTest public void blockedHelperSpawnLeavesItsErrorVisibleAndCanBeRetried(TestContext c) {
+        var owner = player(c, "menu-blocked");
+        var helpers = AgentCompanions.get(c.getWorld().getServer());
+        BlockPos feet = owner.getBlockPos();
+        try {
+            // Leave only the owner's platform. Every searched helper position lacks solid ground.
+            for (BlockPos floor : BlockPos.iterate(feet.add(-5, -1, -5), feet.add(5, -1, 5)))
+                if (!floor.equals(feet.down())) c.getWorld().setBlockState(floor, Blocks.AIR.getDefaultState());
+            c.assertTrue(AgentCompanions.spawnPlace(owner) == null, "The test area cannot safely fit a helper");
+            var gift = new ItemStack(Items.DIAMOND, 7);
+            owner.getInventory().setStack(0, gift.copy());
+            AgentMenu.open(owner);
+            click(owner, AgentMenu.helperSlot(0));
+            c.assertEquals(helpers.count(owner), 0, "A blocked spawn creates no ownership record");
+            c.assertTrue(owner.currentScreenHandler == owner.playerScreenHandler,
+                "The failed spawn leaves its clear-ground chat error unobscured by a reopened menu");
+            c.assertTrue(owner.currentScreenHandler.getCursorStack().isEmpty(), "The create icon never enters the cursor");
+            c.assertTrue(ItemStack.areItemsAndComponentsEqual(gift, owner.getInventory().getStack(0))
+                && owner.getInventory().getStack(0).getCount() == gift.getCount(), "A failed spawn preserves the owner's items");
+            for (BlockPos floor : BlockPos.iterate(feet.add(-5, -1, -5), feet.add(5, -1, 5)))
+                c.getWorld().setBlockState(floor, Blocks.STONE.getDefaultState());
+            AgentMenu.open(owner);
+            click(owner, AgentMenu.helperSlot(0));
+            c.assertEquals(helpers.count(owner), 1, "The owner can reopen and retry after moving to suitable ground");
+            c.assertTrue(owner.currentScreenHandler == owner.playerScreenHandler, "A successful retry reveals the golem");
         } finally { cleanup(helpers, owner); }
         c.complete();
     }

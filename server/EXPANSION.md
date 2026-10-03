@@ -1,4 +1,4 @@
-# Infinity Armor expansion — 2.11.0-expansion.1
+# Infinity Armor expansion — 2.12.0-explore.8
 
 Use the existing launcher and world. Your iPad can join the same server using the host panel's Bedrock address and accept its resource pack. Reconnect after an upgrade to refresh textures. No Minecraft installation is needed on the Mac host.
 
@@ -6,7 +6,15 @@ Use the existing launcher and world. Your iPad can join the same server using th
 
 Six new original building styles join the four Infinity blocks: Aurora Tiles, Obsidian Lattice, Copper Circuit, Moonstone, Sunstone Lamp and Verdant Mosaic. The lamp emits light level 15. Each has its own Java texture and exported Geyser block state.
 
-The **Builder Wand** places a 3×3 plane using the block held in your offhand. The **Sculptor Wand** clears a 3×3 plane with no drops. Both require actual Creative mode; ordinary players use the Creative world, and OP4 can use them elsewhere while in Creative. They protect containers, unbreakable blocks and occupied placement cells. Normal Infinity tools retain their powers in Creative. On Java or iPad, enter Creative through its lobby or `/play creative`. The server gives you an Infinity sword and a named compass, then opens a chest-like gear picker. Tap a vanilla icon for the wand, weapon, or tool you want; the server equips the real Infinity item. Switch away from and back to the compass slot to reopen the picker. If needed, `/convergence gear` reopens it and `/convergence hold builder_wand`, `/convergence hold sculptor_wand`, or another item name equips one directly. On iPad, use `/convergence power` for a held tool's Use power; `/convergence swap` moves the selected block to offhand. `/convergence kit building` gives Creative players or OP4 the blocks and wands. The Bedrock built-in Creative catalogue cannot reliably move custom items into a hotbar on the current bridge; the server-only Java mod does not add a client Creative tab. The picker still needs a real iPad playtest.
+The **Builder Wand** places a 3×3 plane using the block held in your offhand. The **Sculptor Wand** clears a 3×3 plane with no drops. Both require actual Creative mode; ordinary players use the Creative world, and OP4 can use them elsewhere while in Creative. They protect containers, unbreakable blocks and occupied placement cells. Normal Infinity tools retain their powers in Creative.
+
+On Java or iPad, choose **Infinity Menu → Play Creative**, use its lobby sign, or type `/play creative`. The server gives you an Infinity sword and opens a chest-like gear picker. Tap a vanilla icon for the wand, weapon, or tool you want; the server equips the real Infinity item. Selecting the **Infinity Menu** recovery compass opens the full menu; choose **Weapons, tools and blocks** to reopen the catalogue. **Building kit** gives Creative players or OP4 the blocks and wands, **Use held power** activates a held tool, and **Swap main hand and offhand** moves a selected building block to the offhand. Hold the intended item before selecting the compass, then check the menu's held-item label. All `/convergence` controls remain optional shortcuts. The Bedrock built-in Creative catalogue cannot reliably move custom items into a hotbar on the current bridge; the server-only Java mod does not add a client Creative tab. The menus still need real Java and iPad playtests.
+
+Admin is a free staff role that now grants actual vanilla OP4 through the private code or an owner grant. It receives all operator gameplay unlocks plus no Infinity weapon/power cooldowns; valid equipment and the building wands' Creative requirement remain. Full vanilla command access does not waive both approvals for an AI action or a named-player attack. See [MEMBERSHIPS.md](MEMBERSHIPS.md).
+
+## Themed lobbies
+
+The Main Hub and five mode lobbies now have vanilla-block arches, colored glass, lighted columns, banners and planted accents. Each mode has its own palette, and the Main Hub has a cyan glass/sea-lantern crown. Navigation and **INFINITY MENU** signs glow with **TAP TO OPEN** instructions. Existing saves gain accents at startup or when a known lobby chunk loads: only empty spaces above recognized original floors are filled, occupied blocks and edited sign text are preserved, and the existing terrain and destinations are not rebuilt. An occupied or modified area can omit an accent.
 
 ## Earnable wardrobe and backpacks
 

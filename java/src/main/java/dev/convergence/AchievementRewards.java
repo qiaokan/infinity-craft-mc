@@ -141,17 +141,18 @@ final class AchievementRewards {
         }
     }
     boolean unlocked(ServerPlayerEntity p,String id) {var reward=find(id);return reward!=null&&unlocked(p,reward);}
-    boolean unlocked(ServerPlayerEntity p,Reward reward) {return reward!=null&&(Memberships.operator(p)||account(p.getUuid()).unlocked.contains(reward.key()));}
+    boolean unlocked(ServerPlayerEntity p,Reward reward) {return reward!=null&&(Memberships.gameplayBypass(p)||account(p.getUuid()).unlocked.contains(reward.key()));}
     boolean eligible(ServerPlayerEntity p,Reward reward) {return unlocked(p,reward)||(!reward.cosmetic()&&RewardTrades.hasPower(p,reward.id()));}
     static boolean allowed(ServerPlayerEntity p) {
-        return p.isAlive()&&(Memberships.operator(p)||(!p.isSpectator()&&GameModes.current(p)==GameModes.Mode.SURVIVAL&&p.getGameMode()==GameMode.SURVIVAL));
+        return p.isAlive()&&(Memberships.operator(p)||(!p.isSpectator()&&(Memberships.gameplayBypass(p)
+            ||GameModes.current(p)==GameModes.Mode.SURVIVAL&&p.getGameMode()==GameMode.SURVIVAL)));
     }
     boolean inCombat(ServerPlayerEntity p) {return !Memberships.operator(p)&&CommunityServer.get(server).combat.getOrDefault(p.getUuid(),0)>server.getTicks();}
     int list(ServerPlayerEntity p,Boolean cosmetics) {
         sync(p);var a=account(p.getUuid());
         for(var reward:REWARDS)if(cosmetics==null||reward.cosmetic()==cosmetics)
             CommunityServer.say(p,(reward.cosmetic()?"cosmetic ":"power ")+reward.id()+": "+reward.name()+" — "+(eligible(p,reward)?"unlocked":"locked")+" ("+advancementName(reward)+(reward.cosmetic()?"":" or /trades")+")");
-        return CommunityServer.say(p,"Rewards are independent of ranks. One power preset at a time; players use Survival, OP4 can use every mode without unlocks. Active: "+state(p).power+". /power off stops it; /cosmetic off hides your cosmetic.");
+        return CommunityServer.say(p,"Rewards are independent of ranks. One power preset at a time; players use Survival. Admin and OP4 can use every mode without unlocks or reward cooldowns. Active: "+state(p).power+". /power off stops it; /cosmetic off hides your cosmetic.");
     }
     boolean cosmetic(ServerPlayerEntity p,String id) {
         sync(p);var reward=find(id,true);

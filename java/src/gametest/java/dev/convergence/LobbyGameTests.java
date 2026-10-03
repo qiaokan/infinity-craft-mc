@@ -2,6 +2,8 @@ package dev.convergence;
 
 import java.nio.file.Files;
 import java.util.Set;
+import java.util.Map;
+import java.util.LinkedHashMap;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.block.Blocks;
 import net.minecraft.block.entity.SignBlockEntity;
@@ -12,6 +14,7 @@ import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.test.TestContext;
 import net.minecraft.util.ActionResult;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.text.Text;
 
 public class LobbyGameTests {
     private ServerPlayerEntity player(TestContext c,String name){return new ModeGameTests().player(c,name);}
@@ -27,6 +30,8 @@ public class LobbyGameTests {
                 c.assertTrue(world.getBlockEntity(lobby.center().add(0,0,-4)) instanceof SignBlockEntity,"Native sign at "+lobby.id());
         }
         c.assertTrue(Files.exists(server.getSavePath(net.minecraft.util.WorldSavePath.ROOT).resolve("infinity-built-in-lobbies.json")),"Generation marker saved");
+        for (var pos : LobbyServer.MENU_SIGNS)
+            c.assertTrue(LobbyServer.isMenuSign(world, pos), "Every lobby has an Infinity Menu recovery sign");
         c.assertTrue(Files.exists(server.getSavePath(net.minecraft.util.WorldSavePath.ROOT).resolve("infinity-course-selector-signs.json")),"Course selector upgrade marker saved");
         for(var spec:ModeMaps.MAPS.values()) {
             var mapWorld=GameModes.world(server,spec.mode());
@@ -63,6 +68,124 @@ public class LobbyGameTests {
             LobbyServer.build(server);
             c.assertTrue(world.getBlockState(pos).isOf(Blocks.CHEST),"Saved lobby is not rebuilt on restart");
         } finally {world.setBlockState(pos,old);}
+        c.complete();
+    }
+    @GameTest public void lobbyVisualUpgradeRestoresMissingAccentsAndPreservesPlayerStorage(TestContext c) {
+        var world=GameModes.world(c.getWorld().getServer(),GameModes.Mode.HUB);
+        var occupied=LobbyServer.LOBBIES.get("main").center().add(-9,0,-5);
+        var missing=LobbyServer.LOBBIES.get("creative").center().add(5,6,-10);
+        var oldOccupied=world.getBlockState(occupied);var oldMissing=world.getBlockState(missing);
+        try {
+            world.setBlockState(occupied,Blocks.CHEST.getDefaultState());
+            var chest=(net.minecraft.block.entity.ChestBlockEntity)world.getBlockEntity(occupied);
+            chest.setStack(0,new ItemStack(Items.DIAMOND,13));
+            world.setBlockState(missing,Blocks.AIR.getDefaultState(),2);
+            c.assertTrue(LobbyServer.installDecor(world)>0,"An older lobby receives a missing colored lantern without a rebuild");
+            c.assertTrue(world.getBlockState(missing).isOf(Blocks.PEARLESCENT_FROGLIGHT),"Creative's purple gateway receives its matching light");
+            c.assertTrue(world.getBlockState(occupied).isOf(Blocks.CHEST),"A player's block at a planned planter is preserved");
+            c.assertEquals(chest.getStack(0).getCount(),13,"Player storage contents survive the upgrade");
+            c.assertTrue(chest.getStack(0).isOf(Items.DIAMOND),"Stored item type is unchanged");
+            c.assertEquals(LobbyServer.installDecor(world),0,"Repeating the upgrade changes nothing, including signs");
+        } finally {
+            world.setBlockState(occupied,oldOccupied);world.setBlockState(missing,oldMissing);
+        }
+        c.complete();
+    }
+    @GameTest public void lobbyVisualUpgradeKeepsArrivalBridgesAndNavigationUnchanged(TestContext c) {
+        var server=c.getWorld().getServer();var world=GameModes.world(server,GameModes.Mode.HUB);
+        var routes=Map.copyOf(LobbyServer.MAIN_SIGNS);var entries=Map.copyOf(LobbyServer.ENTRY_SIGNS);
+        var floors=new LinkedHashMap<BlockPos,net.minecraft.block.BlockState>();
+        var arrivals=new LinkedHashMap<String,CommunityServer.Place>();
+        for(var lobby:LobbyServer.LOBBIES.values()) {
+            arrivals.put(lobby.id(),LobbyServer.place(server,lobby.id()));
+            for(int x=-12;x<=12;x++) for(int z=-12;z<=12;z++) {
+                var pos=lobby.center().add(x,-1,z);floors.put(pos,world.getBlockState(pos));
+            }
+        }
+        LobbyServer.installDecor(world);
+        for(var floor:floors.entrySet()) c.assertEquals(world.getBlockState(floor.getKey()),floor.getValue(),"Original walking surface is untouched");
+        for(var lobby:LobbyServer.LOBBIES.values()) {
+            c.assertEquals(LobbyServer.place(server,lobby.id()),arrivals.get(lobby.id()),"Arrival coordinates remain stable: "+lobby.id());
+            c.assertTrue(CommunityServer.safe(world,arrivals.get(lobby.id())),"Decor does not obstruct a safe arrival: "+lobby.id());
+            for(int x=-2;x<=2;x++) for(int z=-2;z<=2;z++) for(int y=0;y<=3;y++)
+                c.assertTrue(world.getBlockState(lobby.center().add(x,y,z)).isAir(),"Arrival plaza and headroom remain open");
+            for(int step=-12;step<=12;step++) for(int side=-2;side<=2;side++) for(int y=0;y<=2;y++) {
+                for(var pos:new BlockPos[]{lobby.center().add(step,y,side),lobby.center().add(side,y,step)}) {
+                    if(y==0 && (LobbyServer.MAIN_SIGNS.containsKey(pos)||LobbyServer.ENTRY_SIGNS.containsKey(pos))) continue;
+                    c.assertTrue(world.getBlockState(pos).isAir(),"Five-wide axial path stays open: "+lobby.id()+" "+pos);
+                }
+            }
+            var flag=lobby.center().add(-5,7,-10);
+            c.assertTrue(world.getBlockState(flag).isOf(LobbyServer.palette(lobby.id()).banner()),"Gateway has its themed flag: "+lobby.id());
+            c.assertTrue(world.getBlockState(flag).canPlaceAt(world,flag),"Flag has native support, including sea-lantern gateways: "+lobby.id());
+        }
+        c.assertTrue(world.getBlockState(LobbyServer.LOBBIES.get("main").center().add(0,7,3)).isOf(Blocks.SEA_LANTERN),"Main Hub crown is visible safely above the arrival");
+        c.assertEquals(LobbyServer.MAIN_SIGNS,routes,"All five lobby routing signs retain their coordinates");
+        c.assertEquals(LobbyServer.ENTRY_SIGNS,entries,"Every world/course entry retains its destination");
+        c.complete();
+    }
+    @GameTest public void lobbyVisualUpgradeKeepsEditedSignsAndRejectsUnknownGround(TestContext c) {
+        var world=GameModes.world(c.getWorld().getServer(),GameModes.Mode.HUB);
+        var signPos=LobbyServer.ENTRY_SIGNS.entrySet().stream().filter(entry->entry.getValue().equals("survival")).findFirst().orElseThrow().getKey();
+        var sign=(SignBlockEntity)world.getBlockEntity(signPos);
+        var front=sign.getFrontText();var back=sign.getBackText();
+        var accent=LobbyServer.LOBBIES.get("survival").center().add(5,6,-10);
+        var floor=new BlockPos(accent.getX(),80,accent.getZ());
+        var oldAccent=world.getBlockState(accent);var oldFloor=world.getBlockState(floor);
+        try {
+            sign.setText(front.withMessage(0,Text.literal("My custom sign")),true);
+            world.setBlockState(accent,Blocks.AIR.getDefaultState(),2);
+            world.setBlockState(floor,Blocks.DIAMOND_BLOCK.getDefaultState());
+            LobbyServer.installDecor(world);
+            c.assertEquals(sign.getFrontText().getMessage(0,false).getString(),"My custom sign","A renamed player sign is never restyled");
+            c.assertTrue(world.getBlockState(accent).isAir(),"Decor is skipped above a modified platform instead of claiming player builds");
+            c.assertTrue(world.getBlockState(floor).isOf(Blocks.DIAMOND_BLOCK),"Modified floor is never replaced");
+            var far=new BlockPos(10_000_000,81,10_000_000);
+            c.assertFalse(LobbyServer.loadedSite(world,far),"Unloaded chunks are refused");
+            c.assertFalse(world.isChunkLoaded(far.getX()>>4,far.getZ()>>4),"Checking decor safety did not load an unrelated chunk");
+            c.assertFalse(LobbyServer.loadedSite(world,new BlockPos(0,100_000,0)),"Out-of-height placements are refused");
+        } finally {
+            sign.setText(front,true);sign.setText(back,false);
+            world.setBlockState(floor,oldFloor);world.setBlockState(accent,oldAccent);
+        }
+        c.complete();
+    }
+    @GameTest public void lobbyNavigationSignsAreReadableFromBothSides(TestContext c) {
+        var world=GameModes.world(c.getWorld().getServer(),GameModes.Mode.HUB);
+        LobbyServer.installDecor(world);
+        var signs=new java.util.LinkedHashSet<BlockPos>(LobbyServer.MAIN_SIGNS.keySet());
+        signs.addAll(LobbyServer.ENTRY_SIGNS.keySet());signs.addAll(LobbyServer.MENU_SIGNS);
+        for(var pos:signs) {
+            var sign=(SignBlockEntity)world.getBlockEntity(pos);
+            c.assertTrue(sign.getFrontText().isGlowing() && sign.getBackText().isGlowing(),"Directions glow on both faces");
+            for(int line=0;line<4;line++) c.assertEquals(sign.getFrontText().getMessage(line,false).getString(),sign.getBackText().getMessage(line,false).getString(),"Back face provides the same navigation");
+            c.assertEquals(sign.getFrontText().getMessage(3,false).getString(),"TAP TO OPEN","Touch-screen players see the intended interaction");
+        }
+        c.complete();
+    }
+    @GameTest public void lobbyMenuSignRecoversMenuWithoutReplacingOccupiedBlocks(TestContext c) {
+        var server=c.getWorld().getServer();
+        var world=GameModes.world(server,GameModes.Mode.HUB);
+        var pos=LobbyServer.LOBBIES.get("main").center().add(4,0,-4);
+        var p=player(c,"menu-sign");
+        try {
+            GameModes.FIRST_VISITS.remove(p.getUuid());
+            GameModes.switchNow(p,GameModes.Mode.HUB,"main");
+            p.getInventory().clear();
+            c.assertEquals(LobbyServer.useSign(p,pos),ActionResult.SUCCESS,"Lobby sign opens menu without a command");
+            c.assertTrue(p.currentScreenHandler instanceof ServerMenu.Handler,"The sign opens the native Infinity Menu");
+            c.assertTrue(java.util.stream.IntStream.range(0,36).anyMatch(slot->ServerMenu.isNavigator(p.getInventory().getStack(slot))),"Lost navigator is restored into an empty slot");
+            p.closeHandledScreen();
+            world.setBlockState(pos,Blocks.CHEST.getDefaultState());
+            LobbyServer.installMenuSigns(server);
+            c.assertTrue(world.getBlockState(pos).isOf(Blocks.CHEST),"Installing recovery signs preserves an occupied block");
+            c.assertEquals(LobbyServer.useSign(p,pos),ActionResult.PASS,"An unrelated replacement block does not trigger a menu");
+        } finally {
+            p.closeHandledScreen();
+            server.getPlayerManager().remove(p);
+            world.setBlockState(pos,Blocks.AIR.getDefaultState());
+            LobbyServer.installMenuSigns(server);
+        }
         c.complete();
     }
     @GameTest public void lobbyBridgesConnectAllFiveModeHalls(TestContext c) {
@@ -216,7 +339,7 @@ public class LobbyGameTests {
             GameModes.switchNow(p,GameModes.Mode.ADVENTURE,"ruins");
             c.assertTrue(GameModes.guideText(p).contains("/play adventure"),"Adventure guide opens the map selector");
             GameModes.switchNow(p,GameModes.Mode.CREATIVE,null);
-            c.assertTrue(GameModes.guideText(p).contains("named compass"),"Creative guide explains the Infinity gear picker");
+            c.assertTrue(GameModes.guideText(p).contains("Infinity Menu"),"Creative guide explains the Infinity Menu");
             GameModes.switchNow(p,GameModes.Mode.SURVIVAL,null);
             c.assertTrue(GameModes.guideText(p).contains("/backpack"),"Survival guide names a usable player feature");
             var root=c.getWorld().getServer().getCommandManager().getDispatcher().getRoot();

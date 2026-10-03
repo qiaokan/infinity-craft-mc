@@ -120,6 +120,7 @@ public class Convergence implements ModInitializer {
    }
 
    static boolean ready(PlayerEntity p, String k, int ticks) {
+      if (p instanceof ServerPlayerEntity player && Memberships.unlimitedGameplay(player)) return true;
       Convergence.State s = state(p);
       if (s.cooldown.getOrDefault(k, 0L) > clock) {
          return false;
@@ -127,6 +128,10 @@ public class Convergence implements ModInitializer {
          s.cooldown.put(k, clock + (long)ticks);
          return true;
       }
+   }
+
+   static boolean coolingDown(ServerPlayerEntity p,String key) {
+      return !Memberships.unlimitedGameplay(p)&&state(p).cooldown.getOrDefault(key,0L)>clock;
    }
 
    static <T> void copy(Settings s, Component<T> c) {
@@ -216,18 +221,40 @@ public class Convergence implements ModInitializer {
    }
 
    static int giveBuildingKit(ServerPlayerEntity player) {
-      if(!player.isCreative()&&!Memberships.operator(player))return 0;
+      if(!player.isAlive()||player.isSpectator()||!player.isCreative()&&!Memberships.gameplayBypass(player))return 0;
       for(String path:ExpandedGear.BLOCKS.stream().sorted().toList())
          player.getInventory().offerOrDrop(new ItemStack(ITEMS.get("convergence:"+path),64));
       for(String path:List.of("builder_wand","sculptor_wand"))player.getInventory().offerOrDrop(ITEMS.get("convergence:"+path).getDefaultStack());
-      say(player,"Building kit: ten block styles and two Creative wands. Hold a block then /convergence swap to use it in offhand.");return 1;
+      say(player,"Building kit: ten block styles and two Creative wands. Hold a block, then choose Swap Hands in Infinity Menu to use it in offhand.");return 1;
+   }
+
+   static int giveKit(ServerPlayerEntity player) {
+      if (!player.isAlive() || player.isSpectator()
+          || (!player.isCreative() && !Memberships.gameplayBypass(player) && !player.getCommandSource().getPermissions()
+              .hasPermission(new Level(PermissionLevel.GAMEMASTERS)))) return 0;
+      for (Item item : ITEMS.values()) {
+         player.getInventory().offerOrDrop(new ItemStack(item, item.getMaxCount() > 1 ? 64 : 1));
+      }
+      player.getInventory().offerOrDrop(new ItemStack(Items.FIREWORK_ROCKET, 64));
+      player.getInventory().offerOrDrop(new ItemStack(Items.WHEAT_SEEDS, 64));
+      return 1;
+   }
+
+   static String helpText() {
+      return "Select the Infinity Menu recovery compass for gear, powers, hand swapping, and AI helpers. "
+         + "Sword: sneak+Use cycles Storm/Blink/Heal; Use casts. Mace with an offhand spear: Use arms the combo. "
+         + "Mace: sneak+Use launches or dives. Spear: sneak+Use dashes. Tools: Use excavates, fells, digs, or farms; "
+         + "sneak+Use pulls, cleaves, repels, or heals. Shield: blocks normally; sneak+Use casts Ward. "
+         + "The held totem saves lethal damage. Bows fire Infinity, Void, and Starfire arrows. Radiant blocks glow. "
+         + "Full armor enables all buffs, without Slow Falling. Admin can use gear and kits; other players need Creative or the relevant operator level. "
+         + "AI Helpers lets OP4 owners create named golem companions; player targets and proposed server changes still need both approvals.";
    }
 
    /** Server-side hand placement avoids Bedrock's broken custom Creative-list drag. */
    static int holdCreativeItem(ServerPlayerEntity player, String path) {
-      if ((!player.isCreative() && !player.getCommandSource().getPermissions()
-         .hasPermission(new Level(PermissionLevel.GAMEMASTERS))) || player.isSpectator()) {
-         player.sendMessage(Text.literal("Use /play creative before choosing Infinity gear."), false);
+      if ((!player.isCreative() && !Memberships.gameplayBypass(player) && !player.getCommandSource().getPermissions()
+         .hasPermission(new Level(PermissionLevel.GAMEMASTERS))) || !player.isAlive() || player.isSpectator()) {
+         player.sendMessage(Text.literal("Infinity gear requires Creative, Admin or OP2."), false);
          return 0;
       }
       Item item = ITEMS.get("convergence:" + path);
@@ -241,7 +268,7 @@ public class Convergence implements ModInitializer {
       if (!previous.isEmpty()) player.getInventory().offerOrDrop(previous);
       player.currentScreenHandler.sendContentUpdates();
       player.sendMessage(Text.literal("Holding " + item.getDefaultStack().getName().getString()
-         + ". Use /convergence hold <item> to choose another."), false);
+         + ". Select Infinity Menu to choose another."), false);
       return 1;
    }
 
@@ -271,6 +298,7 @@ public class Convergence implements ModInitializer {
       PlayerTrading.register();
       AgentCompanions.initialize();
       ServerAssistant.initialize();
+      ServerMenu.register();
       Registry.register(
          Registries.ITEM_GROUP,
          Identifier.of("convergence", "powers"),
@@ -283,20 +311,8 @@ public class Convergence implements ModInitializer {
       CommandRegistrationCallback.EVENT
          .register(
             (CommandRegistrationCallback)(dispatcher, access, environment) -> dispatcher.register(
-                  (LiteralArgumentBuilder)((LiteralArgumentBuilder)CommandManager.literal("convergence").then(CommandManager.literal("kit").executes(c -> {
-                        ServerPlayerEntity p = ((ServerCommandSource)c.getSource()).getPlayerOrThrow();
-                        if (!p.isCreative() && !((ServerCommandSource)c.getSource()).getPermissions().hasPermission(new Level(PermissionLevel.GAMEMASTERS))) {
-                           return 0;
-                        } else {
-                           for (Item i : ITEMS.values()) {
-                              p.getInventory().offerOrDrop(new ItemStack(i, i.getMaxCount() > 1 ? 64 : 1));
-                           }
-
-                           p.getInventory().offerOrDrop(new ItemStack(Items.FIREWORK_ROCKET, 64));
-                           p.getInventory().offerOrDrop(new ItemStack(Items.WHEAT_SEEDS, 64));
-                           return 1;
-                        }
-                     }).then(CommandManager.literal("building").executes(c -> giveBuildingKit(c.getSource().getPlayerOrThrow())))))
+                  (LiteralArgumentBuilder)((LiteralArgumentBuilder)CommandManager.literal("convergence").then(CommandManager.literal("kit").executes(c -> giveKit(((ServerCommandSource)c.getSource()).getPlayerOrThrow()))
+                     .then(CommandManager.literal("building").executes(c -> giveBuildingKit(c.getSource().getPlayerOrThrow())))))
                      .then(holdCommand())
                      .then(CommandManager.literal("gear").executes(c -> CreativeGearPicker.open(c.getSource().getPlayerOrThrow())))
                      .then(
@@ -306,7 +322,7 @@ public class Convergence implements ModInitializer {
                                  ((ServerCommandSource)c.getSource())
                                     .sendFeedback(
                                        () -> Text.literal(
-                                             "One set: sword sneak+Use cycles Storm/Blink/Heal; Use casts. Mace+offhand spear: Use arms combo. Mace sneak+Use launches/dives. Spear sneak+Use dashes. Tools: Use excavates/fells/digs/farms; sneak+Use pulls/cleaves/repels/heals. Shield blocks normally; sneak+Use casts Ward. Totem saves lethal damage when held. Bows fire Infinity, Void, and Starfire arrows. Radiant block glows. Full armor enables all buffs. No Slow Falling. Creative gives a sword and named compass; select the compass for a Java/Bedrock gear menu. /convergence gear reopens it; /convergence hold <item> is a fallback. /convergence kit building gives blocks and wands; /wardrobe and /backpack show wearables and storage; /ptrade exchanges items with another player."
+                                             helpText()
                                           ),
                                        false
                                     );
@@ -450,7 +466,7 @@ public class Convergence implements ModInitializer {
       State s = state(p);
       if (!pair(p)) return false;
       if (s.target != null) { feedback(p, "pending", "Mace follow-up already open"); return false; }
-      if (s.cooldown.getOrDefault("spear", 0L) > clock) {
+      if (coolingDown(p,"spear")) {
          feedback(p, "cooldown", "Spear recharging"); return false;
       }
       s.armed = clock + ARM_TICKS;
@@ -460,7 +476,7 @@ public class Convergence implements ModInitializer {
 
    static boolean thrust(ServerPlayerEntity p, LivingEntity target) {
       State s = state(p);
-      if (s.target != null || s.cooldown.getOrDefault("spear", 0L) > clock
+      if (s.target != null || coolingDown(p,"spear")
           || target == null || !valid(p, target) || p.squaredDistanceTo(target) > 36 || !visible(p, target)) return false;
       boolean charged = powered(p);
       if (!hurt(p, target, charged ? 1000 : 30)) {
@@ -514,7 +530,7 @@ public class Convergence implements ModInitializer {
             return ActionResult.PASS;
          }
          if (target.getUuid().equals(s.recentTarget) && clock < s.recentUntil) return ActionResult.PASS;
-         if (powered(p) && s.cooldown.getOrDefault("melee_smash", 0L) <= clock
+         if (powered(p) && !coolingDown(p,"melee_smash")
              && hurt(p, target, (float)(120 + Math.min(300, s.drop * 12)))) {
             s.cooldown.put("melee_smash", clock + 20);
             p.resetTicksSinceLastAttack();

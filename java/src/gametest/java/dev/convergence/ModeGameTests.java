@@ -124,13 +124,15 @@ public class ModeGameTests {
         GameModes.switchNow(next,GameModes.Mode.SURVIVAL,null);
         c.assertEquals(next.getGameMode(),GameMode.SURVIVAL,"Can continue Survival after losing Hardcore");c.complete();
     }
-    @GameTest public void adminRoleCanModerateButCannotGrantRanksOrRunOperatorCommands(TestContext c) {
-        var p=player(c,"scoped-admin");var s=Memberships.get(c.getWorld().getServer());s.account(p.getUuid()).admin=true;
-        var root=s.server.getCommandManager().getDispatcher().getRoot();
-        c.assertTrue(root.getChild("staff").canUse(p.getCommandSource()),"Admin can use dedicated moderation tools");
-        c.assertFalse(root.getChild("membership").canUse(p.getCommandSource()),"Admin cannot grant temporary rank overrides");
-        c.assertFalse(root.getChild("community").canUse(p.getCommandSource()),"Admin cannot build or change shared worlds");
-        c.assertFalse(root.getChild("op").canUse(p.getCommandSource()),"Admin cannot grant operator");c.complete();
+    @GameTest public void adminRoleGrantsActualOperatorCommands(TestContext c) {
+        var p=player(c,"admin-commands");var s=Memberships.get(c.getWorld().getServer());
+        try {
+            c.assertTrue(s.grantAdmin(p.getUuid()),"Trusted grant succeeds");
+            var root=s.server.getCommandManager().getDispatcher().getRoot();
+            for(String command:List.of("staff","membership","community","op"))
+                c.assertTrue(root.getChild(command).canUse(p.getCommandSource()),"Admin has actual OP4 command "+command);
+        } finally {s.revokeAdmin(p.getUuid());OperatorGameTests.deop(p);}
+        c.complete();
     }
     @GameTest public void modesRespawnInTheirOwnWorld(TestContext c) {
         var p=player(c,"respawn-mode");GameModes.switchNow(p,GameModes.Mode.CREATIVE,null);
@@ -144,15 +146,19 @@ public class ModeGameTests {
         CommunityServer.get(c.getWorld().getServer()).combat.put(p.getUuid(),c.getWorld().getServer().getTicks()+200);
         GameModes.request(p,GameModes.Mode.CREATIVE,null);c.assertFalse(GameModes.PENDING.containsKey(p.getUuid()),"Combat blocks escape");c.complete();
     }
-    @GameTest public void membershipsCodeGrantsScopedAdminWithoutOperator(TestContext c) {
+    @GameTest public void membershipsCodeGrantsPersistentAdminAndOperator(TestContext c) {
         var p=player(c,"code-user");var s=members(c);s.config.adminCodeEnabled=true;s.config.adminCodeSha256=Memberships.hash("test-secret");
-        c.assertTrue(s.redeem(p.getUuid(),"test-secret",1000),"Correct code unlocks Admin");
-        c.assertEquals(s.label(p.getUuid()),"ADMIN","Admin rank saved");
-        c.assertFalse(CommunityServer.staff(p.getCommandSource()),"No operator level granted");
-        var reload=new Memberships(s.server,s.file,s.configFile);c.assertTrue(reload.account(p.getUuid()).admin,"Role persists");
-        var root=s.server.getCommandManager().getDispatcher().getRoot();
-        c.assertFalse(root.getChild("membership").canUse(p.getCommandSource()),"Players cannot grant rank overrides");
-        c.assertFalse(root.getChild("staff").canUse(p.getCommandSource()),"Ordinary players lack moderation commands");c.complete();
+        try {
+            c.assertTrue(s.redeem(p.getUuid(),"test-secret",1000),"Correct code unlocks Admin");
+            c.assertEquals(s.label(p.getUuid()),"ADMIN","Admin rank saved");
+            c.assertTrue(Memberships.operator(p),"Code grants actual OP4");
+            var reload=new Memberships(s.server,s.file,s.configFile);
+            c.assertTrue(reload.account(p.getUuid()).admin && reload.account(p.getUuid()).adminOpOwned,"Role and operator provenance persist");
+            var root=s.server.getCommandManager().getDispatcher().getRoot();
+            c.assertTrue(root.getChild("membership").canUse(p.getCommandSource()),"Admin can manage ranks");
+            c.assertFalse(root.getChild("agent-codex-approve").canUse(p.getCommandSource()),"Admin cannot replace Codex review");
+        } finally {s.revokeAdmin(p.getUuid());OperatorGameTests.deop(p);}
+        c.complete();
     }
     @GameTest public void membershipsCodeRateLimitSurvivesReload(TestContext c) {
         var s=members(c);UUID id=UUID.randomUUID();s.config.adminCodeEnabled=true;s.config.adminCodeSha256=Memberships.hash("test-secret");

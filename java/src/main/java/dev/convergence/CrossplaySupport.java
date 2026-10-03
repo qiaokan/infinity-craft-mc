@@ -105,11 +105,14 @@ final class CrossplaySupport {
                 .then(CommandManager.literal("altpower").executes(c -> usePower(c.getSource().getPlayerOrThrow(), true)))
                 .then(CommandManager.literal("swap").executes(c -> swapHands(c.getSource().getPlayerOrThrow())))
                 .then(CommandManager.literal("server").executes(c -> {
-                    c.getSource().sendFeedback(() -> Text.literal(
-                        "Infinity Crossplay: Java and Bedrock share this Fabric world. Java: TCP 25565; Bedrock: UDP 19132 (launcher defaults). "
-                        + "Touch: /convergence power, /convergence altpower, /convergence swap. Ask the host for the address."), false);
+                    c.getSource().sendFeedback(() -> Text.literal(serverInfoText()), false);
                     return 1;
                 }))));
+    }
+
+    static String serverInfoText() {
+        return "Infinity Crossplay: Java and Bedrock share this Fabric world. Java: TCP 25565; Bedrock: UDP 19132 (launcher defaults). "
+            + "Select the Infinity Menu recovery compass for touch-friendly powers, hand swapping, gear, and helper controls. Ask the host for the address.";
     }
 
     static int usePower(ServerPlayerEntity player, boolean alternate) {
@@ -121,7 +124,7 @@ final class CrossplaySupport {
             player.sendMessage(Text.literal("Building wands require Creative in the Creative world; OP4 may use /gamemode creative in any world."),false);return 0;
         }
         if (!POWER_ITEMS.contains(path) && !(alternate && path.equals("shield"))) {
-            player.sendMessage(Text.literal("Hold an Infinity weapon/tool; altpower also casts the shield Ward."), false);
+            player.sendMessage(Text.literal("Hold an Infinity weapon or tool; Alternate Power also casts the shield Ward."), false);
             return 0;
         }
         boolean wasSneaking = player.isSneaking();

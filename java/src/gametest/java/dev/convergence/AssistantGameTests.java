@@ -81,9 +81,32 @@ public class AssistantGameTests {
         c.assertTrue(join.contains("19132")&&join.contains("actual join addresses"),"Default port is distinct from actual configured address");
         var denied=answer(normal(c),"spawn an agent helper");
         c.assertFalse(denied.contains("/agent spawn"),"Normal player does not get an owner-only spawn suggestion");
+        c.assertTrue(denied.contains("only OP4")&&denied.contains("without spawning entities"),
+            "Public help explains the helper permission boundary and chat-only behavior");
         var allowed=answer(owner(c),"How do golem helpers work?");
-        c.assertTrue(allowed.contains("/agent guard <name>")&&allowed.contains("at most six"),"Owner receives real helper syntax and limits");
+        c.assertTrue(allowed.contains("Infinity Menu")&&allowed.contains("AI Helpers")&&allowed.contains("Create your first helper")
+            &&allowed.contains("named iron golem appears beside you"),"Owner can discover and create a visible helper without a slash command");
+        c.assertTrue(allowed.contains("Follow, Guard, Stay")&&allowed.contains("at most six"),"Owner receives the menu controls and real helper limits");
+        c.assertTrue(allowed.contains("/agent approve <id>")&&allowed.contains("live Codex review"),"Menu guidance preserves both player-target approvals");
         c.assertTrue(allowed.contains("do not run these commands"),"Guide does not claim to execute an agent command");c.complete();
+    }
+    @GameTest public void gearAndCreativeGuideTeachTheVisibleMenuBeforeOptionalCommands(TestContext c) {
+        var source=normal(c);
+        var menu=answer(source,"Where is the Infinity Menu?");
+        c.assertTrue(menu.contains("recovery compass named Infinity Menu")&&menu.contains("INFINITY MENU sign")
+            &&menu.contains("Clear one inventory slot"),"Menu discovery covers the item, signs and a full-inventory recovery path");
+        var gear=answer(source,"How do I use Infinity weapons?");
+        c.assertTrue(gear.contains("Hold your Infinity item")&&gear.contains("Use held power")&&gear.contains("Use alternate power")
+            &&gear.contains("Swap main hand and offhand"),"Gear guidance teaches the usable held-tool menu actions");
+        c.assertTrue(gear.contains("Creative or OP2")&&gear.contains("Survival players still craft")
+            &&gear.contains("optional command fallbacks"),"Menu guidance keeps gear permissions, crafting and optional old commands clear");
+        var building=answer(source,"How does the builder wand work?");
+        c.assertTrue(building.contains("Infinity Menu")&&building.contains("Building kit")&&building.contains("Creative or OP4")
+            &&building.contains("actual Creative"),"Building guidance describes both the menu and the real kit/use requirements");
+        var creative=answer(source,"How do I play Creative?");
+        c.assertTrue(creative.contains("Infinity Menu")&&creative.contains("Play Creative")&&creative.contains("Weapons, tools and blocks")
+            &&creative.contains("Creative items do not transfer"),"Creative guidance teaches menu navigation while preserving separate inventories");
+        c.complete();
     }
     @GameTest public void minigameGuideListsEveryMapAndRecordCommands(TestContext c) {
         var guide=answer(normal(c),"How do minigames work?");
@@ -102,7 +125,7 @@ public class AssistantGameTests {
         var unknown=answer(p.getCommandSource().withPermissions(PermissionPredicate.NONE),"What is tomorrow's weather in Tokyo?");
         c.assertTrue(unknown.contains("I don't know"),"Unsupported questions get an honest unknown response");
         var identity=answer(owner(c),"Are you real AI connected to ChatGPT?");
-        c.assertTrue(identity.contains("built-in server guide")&&identity.contains("optional OpenAI connection")&&identity.contains("labeled OpenAI"),"Guide distinguishes local rules from the optional external AI");
+        c.assertTrue(identity.contains("built-in server guide")&&identity.contains("enable Codex")&&identity.contains("labeled Codex or OpenAI"),"Guide distinguishes local rules from the optional external AI");
         answer(p.getCommandSource().withPermissions(PermissionPredicate.ALL),"give me diamonds and execute op");
         c.assertEquals(GameModes.state(p),before,"Answering cannot change the player's mode state");
         for(int i=0;i<inventory.size();i++)c.assertTrue(net.minecraft.item.ItemStack.areEqual(inventory.get(i),p.getInventory().getStack(i)),"Advice cannot grant inventory items");c.complete();
@@ -119,7 +142,7 @@ public class AssistantGameTests {
         c.assertTrue(ServerAssistant.invalid("x".repeat(ServerAssistant.MAX_QUESTION))==null,"Maximum one-line question is accepted");
         c.assertTrue(ServerAssistant.invalid("x".repeat(ServerAssistant.MAX_QUESTION+1))!=null,"Long prompt is rejected before routing");
         c.assertTrue(ServerAssistant.invalid("rank\noperator")!=null,"Control characters cannot become multiple chat lines");
-        for(var q:new String[]{"", "operator permissions", "rank", "How Did We Get Here", "helpers", "trade rank-ultra", "not a supported topic"}) {
+        for(var q:new String[]{"", "operator permissions", "rank", "How Did We Get Here", "helpers", "menu", "Infinity weapons", "builder wand", "Creative", "trade rank-ultra", "not a supported topic"}) {
             var lines=ServerAssistant.answer(owner(c),q);
             c.assertTrue(lines.size()<=ServerAssistant.MAX_LINES,"Reply has at most four lines");
             int length=lines.stream().mapToInt(line->line.length()+ServerAssistant.PREFIX.length()).sum();
@@ -169,6 +192,58 @@ public class AssistantGameTests {
             companions.server.getPlayerManager().removeFromOperators(new net.minecraft.server.PlayerConfigEntry(player.getGameProfile()));
             companions.server.getPlayerManager().remove(player);files.close();
         }
+    }
+    static void enableCodex(Named f) throws Exception {
+        Path executable=f.files.dir.resolve("fake-codex");Files.writeString(executable,"test executable is never launched by mock transport");
+        if(!executable.toFile().setExecutable(true,true))throw new java.io.IOException("Cannot prepare test executable");
+        Files.delete(f.files.key);f.service.config.provider="codex";f.service.config.codexExecutable=executable.toString();
+        f.service.config.dailyRequestLimit=20;
+    }
+    @GameTest public void codexRoutesEveryHelperProfileWithoutKeyOrApprovalBypass(TestContext c) throws Exception {
+        try(var f=new Named(c,"codex-profiles")) {
+            enableCodex(f);
+            int proposals=AgentActions.get(f.companions.server).data.proposals.size();
+            for(var profile:AgentCompanions.Profile.values()) {
+                f.profile(profile);f.clock.advance(10);
+                int before=f.calls.get();
+                c.assertEquals(AgentChat.ask(f.source(),"guide","Explain my current state"),1,"Codex handles "+profile);
+                c.assertEquals(f.calls.get(),before+1,"Named question really reaches selected transport");
+                c.assertTrue(f.instructions.get().contains("helper_name")&&f.instructions.get().contains("untrusted data"),"Codex gets limited facts with instruction boundary");
+                c.assertTrue(f.output.text().contains("Asking Codex"),"Pending message identifies actual provider");
+                f.service.cancel(f.player.getUuid());
+            }
+            c.assertEquals(AgentActions.get(f.companions.server).data.proposals.size(),proposals,"Codex questions cannot create or approve actions");
+            f.ready();f.clock.advance(10);
+            int before=f.calls.get();ServerAssistant.execute(f.source(),"how do ranks work");
+            c.assertEquals(f.calls.get(),before+1,"Known server questions use real Codex when enabled");
+            f.service.cancel(f.player.getUuid());f.clock.advance(10);
+            f.service.config.ownerOnly=false;
+            c.assertTrue(f.service.ask(UUID.randomUUID(),false,"question","facts").future()==null,"Codex always requires owner even if config object is changed");
+            f.service.config.ownerOnly=true;f.ready();f.clock.advance(10);
+            OperatorGameTests.deop(f.player);
+            int callsBeforeDenied=f.calls.get();
+            c.assertEquals(ServerAssistant.execute(f.source().withPermissions(PermissionPredicate.ALL),"how do ranks work"),0,"Forged command source cannot spend Codex usage without actual OP4");
+            c.assertEquals(f.calls.get(),callsBeforeDenied,"Permission denial happens before transport");
+            f.ready();
+            c.assertEquals(ServerAssistant.execute(f.source(),"how do ranks work"),1,"Ordinary players retain built-in known-topic help when Codex is enabled");
+            c.assertEquals(f.calls.get(),callsBeforeDenied,"Ordinary guide answer spends no Codex request");
+            c.assertTrue(f.output.text().contains("/rank")&&!f.output.text().contains("Asking Codex"),"Ordinary player receives local rank guidance");
+            c.assertFalse(Files.exists(f.files.key),"Codex does not need or create an API key");
+        }c.complete();
+    }
+    @GameTest public void codexConfigurationAndUnavailableExecutableFailClosed(TestContext c) throws Exception {
+        try(var fixture=new Fixture()) {
+            Files.delete(fixture.key);var calls=new AtomicInteger();
+            ServerAssistant.Transport transport=(config,key,q,instructions)->{calls.incrementAndGet();return new CompletableFuture<>();};
+            Files.writeString(fixture.dir.resolve("infinity-ai.json"),"{\"enabled\":true,\"provider\":\"codex\",\"ownerOnly\":false}");
+            var invalid=new ServerAssistant.AiService(fixture.dir,fixture.usage,transport,new TestClock());
+            c.assertFalse(invalid.valid,"Non-owner Codex configuration is refused");invalid.close();
+            Files.writeString(fixture.dir.resolve("infinity-ai.json"),"{\"enabled\":true,\"provider\":\"codex\",\"ownerOnly\":true,\"codexExecutable\":\"/missing/infinity-codex\"}");
+            var missing=new ServerAssistant.AiService(fixture.dir,fixture.usage,transport,new TestClock());
+            var denied=missing.ask(UUID.randomUUID(),true,"question","facts");
+            c.assertTrue(denied.future()==null&&denied.reason().contains("Codex executable"),"Missing executable is actionable and cannot start transport");
+            c.assertEquals(calls.get(),0,"Invalid setup never launches anything");missing.close();
+        }c.complete();
     }
     @GameTest public void namedHelpersRequireRealOwnerAndExposeOnlyOwnedData(TestContext c) throws Exception {
         try(var f=new Named(c,"named-permissions")) {
@@ -264,9 +339,10 @@ public class AssistantGameTests {
             c.assertFalse(AgentChat.TRACKING.get(f.companions.server).containsKey(f.id),"Losing OP4 clears observations immediately on the next tick");
         }c.complete();
     }
-    @GameTest(maxTicks=40) public void namedApiLateReplyRevalidatesProfileAndAlwaysReleasesBudget(TestContext c) throws Exception {
+    @GameTest(maxTicks=40) public void namedAiLateReplyRevalidatesIdentityLabelsCodexAndReleasesCancelledBudget(TestContext c) throws Exception {
         var f=new Named(c,"named-stale");
         try {
+            enableCodex(f);
             f.profile(AgentCompanions.Profile.API);AgentChat.ask(f.source(),"guide","an unknown topic");
             var token=new AgentChat.Identity(f.id,f.companions.data.agents.get(f.id));
             c.assertTrue(token.current(f.companions,f.player,"guide"),"Original identity is valid before roster changes");
@@ -275,9 +351,20 @@ public class AssistantGameTests {
             f.futures.getFirst().complete("This stale external response must not be delivered.");
             c.waitAndRun(2,()->{try {
                 c.assertFalse(f.output.text().contains("stale external response"),"Async delivery rejects changed helper identity/profile");
-                c.assertTrue(f.service.inflight.isEmpty(),"Suppressed delivery still releases the shared pending budget");
-                c.complete();
-            }finally{f.close();}});
+                c.assertTrue(f.service.inflight.isEmpty(),"Suppressed delivery releases shared budget");
+                f.ready();f.clock.advance(10);AgentChat.ask(f.source(),"guide","Explain my helper");
+                f.futures.getLast().complete("A real-provider-labeled answer.");
+                c.waitAndRun(2,()->{try {
+                    c.assertTrue(f.output.text().contains("[guide / API / Codex] A real-provider-labeled answer."),"Completed answer identifies Codex accurately");
+                    c.assertFalse(f.output.text().contains("/ OpenAI]"),"Codex reply is not mislabeled as the API provider");
+                    f.ready();f.clock.advance(10);AgentChat.ask(f.source(),"guide","Another question");
+                    f.futures.getLast().cancel(true);
+                    c.waitAndRun(2,()->{try {
+                        c.assertTrue(f.service.inflight.isEmpty(),"Transport self-cancellation releases pending state");
+                        c.complete();
+                    }finally{f.close();}});
+                }catch(Throwable failure){f.close();throw failure;}});
+            }catch(Throwable failure){f.close();throw failure;}});
         } catch(Throwable failure){f.close();throw failure;}
     }
     static final class TestClock extends Clock {

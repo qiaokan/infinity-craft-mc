@@ -1,6 +1,6 @@
 # Permanent free ranks
 
-Every player starts at **Free** and can enter every game mode. Go, Plus, Pro, and Ultra are permanent cosmetic ranks, earned through Minecraft advancements or Survival item trades. **Complete all three achievements listed for a rank**, or confirm that rank's item trade, to unlock it. Ranks change only the badge and color beside a player's name. Powers and particle cosmetics have their own unlocks in [REWARDS.md](REWARDS.md). No purchase is required. Optional supporter subscriptions with the same tier names and USD monthly prices are planned, but checkout and paid grants are not active; see [SUBSCRIPTIONS.md](SUBSCRIPTIONS.md).
+Every player starts at **Free** and can enter every game mode. Go, Plus, Pro, and Ultra are permanent cosmetic ranks, earned through Minecraft advancements or Survival item trades. **Complete all three achievements listed for a rank**, or confirm that rank's item trade, to unlock it. These earned ranks change only the badge and color beside a player's name. Powers and particle cosmetics have their own unlocks in [REWARDS.md](REWARDS.md). **Admin is a separate, free staff role that grants full vanilla OP level 4.** No purchase is required. Optional supporter subscriptions with the same tier names and USD monthly prices are planned, but checkout and paid grants are not active; see [SUBSCRIPTIONS.md](SUBSCRIPTIONS.md).
 
 | Rank | Complete all three achievements | Badge color |
 |---|---|---|
@@ -9,7 +9,7 @@ Every player starts at **Free** and can enter every game mode. Go, Plus, Pro, an
 | Plus | Get an iron pickaxe; get a diamond; enchant an item | Aqua |
 | Pro | Enter the Nether; get a blaze rod; enter the End | Purple |
 | Ultra | Defeat the Ender Dragon; enter an End gateway; find an End city | Gold |
-| Admin | Enter the private Admin code | Red; limited moderation |
+| Admin | Enter the private Admin code, or receive a trusted owner grant | Red; full OP4 and gameplay unlocks |
 
 The highest permanent rank from achievements or trades is shown. You do **not** need to finish the lower rank groups before earning a higher rank. An earned rank does not expire, and a rank already earned before this update stays unlocked. The Java server checks the advancements saved for each player, including Bedrock players who join through Geyser. Bedrock's separate platform achievements are not used for these ranks. Java and Bedrock accounts have separate authenticated UUIDs unless they are linked through supported account linking; matching names alone do not share progress.
 
@@ -31,10 +31,11 @@ membership grant PlayerName plus 30
 membership grant PlayerName pro 30
 membership grant PlayerName ultra 30
 membership revoke PlayerName
+membership grantadmin PlayerName
 membership revokeadmin PlayerName
 ```
 
-Bedrock names usually start with a period, such as `.BedrockName`. These commands require the host console or operator level 4. `membership revoke` removes a temporary override, not a permanent rank. `membership revokeadmin` removes the Admin role. Achievement rank and Admin records are stored with the world in `infinity-memberships.json`; traded ranks use receipts in the player's vanilla data file. Both are included in stopped-world backups. A `.previous` membership copy is retained on updates.
+Bedrock names usually start with a period, such as `.BedrockName`. These commands require the host console or operator level 4. `membership revoke` removes a temporary override, not a permanent rank. `membership grantadmin` grants Admin and OP4 to the selected online player. `membership revokeadmin` removes the role and restores the operator state that its own promotion replaced; a pre-existing OP4 grant or a separately recognized manual operator grant remains. Achievement rank, Admin records and operator-promotion records are stored with the world in `infinity-memberships.json`; traded ranks use receipts in the player's vanilla data file. Vanilla operator permissions are also saved in `ops.json` beside the world. Keep these permission files together when making a private server backup. A `.previous` membership copy is retained on updates.
 
 ## Private Admin setup
 
@@ -42,9 +43,9 @@ Fresh public packages start with **Admin code redemption disabled** and contain 
 
 An existing server's private `fabric/config/infinity-memberships.json` is preserved during an upgrade. In the panel, leaving the new-code field blank keeps that existing code; enabling redemption for a fresh server requires entering one first. Preserve this private config when replacing launcher files.
 
-Players enter **`/admincode <your private code>`** in Minecraft command input. Anyone who knows the configured code can obtain the limited role, so share it only with trusted staff. Admin is free, independent of achievements and item trades, and is not a payment tier.
+Players enter **`/admincode <your private code>`** in Minecraft command input. Successful redemption grants **Admin and actual vanilla OP level 4**, including vanilla commands such as `/give`, `/gamemode`, `/tp`, `/op` and `/stop`. Anyone who knows the configured code can obtain this access, so share it only with trusted staff. Admin is free, independent of achievements and item trades, and is not a payment tier. Existing saved Admin accounts are promoted when they join and checked again during play; a failed permissions save is reported rather than silently granting access.
 
-Admin can use:
+Admin also retains the staff shortcuts:
 
 ```text
 /staff kick PlayerName
@@ -52,10 +53,12 @@ Admin can use:
 /staff unmute PlayerName
 ```
 
-Mutes cover public chat for ten minutes. Other Admin accounts and operators are protected from these commands. Admin does **not** grant `/op`, `/give`, world editing, rank overrides, or access to the owner's control panel. Failed code attempts have a ten-second delay; three failed attempts lock that UUID for fifteen minutes. The lock persists across reconnects and restarts. Admin remains independent of achievement progress.
+Mutes cover public chat for ten minutes. Other Admin accounts and operators are protected from these staff shortcuts. Admin bypasses the mod's achievement/item unlocks for powers, cosmetics, backpacks and gear, plus Infinity weapon and power cooldowns, teleport waits, home-slot limits, and the Hardcore elimination restriction. Mode inventories and backpacks stay separate, trades still require both players' confirmation, and valid equipment, living-player and clear-space checks still apply.
 
-Use the stopped-world panel to disable new redemptions or replace the private code. Disabling redemption does not remove existing Admin roles; revoke those separately. Private configuration is deliberately omitted from release ZIPs. Keep a separate private backup of it; the normal world backup includes membership roles and trade receipts, but excludes private configuration and bridge keys.
+AI server actions, code changes and exact player-target orders still require **the proposing OP4 player's approval and a separate live Codex review**. In-game AI answers cannot replace that review. Admin does not create unlimited AI usage, helper slots or host resources, or grant a browser account or private host-panel login. Failed code attempts have a ten-second delay; three failed attempts lock that UUID for fifteen minutes. The lock persists across reconnects and restarts.
+
+Use the stopped-world panel to disable new redemptions or replace the private code. Disabling redemption does not remove existing Admin roles; revoke those separately. De-opping an account while leaving its Admin role active allows the role to restore OP4, so use `membership revokeadmin` to remove the role first. If the account also has an independent operator grant, remove that separately with `deop`. Change or disable the code to prevent redemption again. Private configuration is deliberately omitted from release ZIPs. Keep a separate private backup of it; the normal world backup includes membership roles and trade receipts, but excludes private configuration and bridge keys.
 
 ## Full operators
 
-A level-4 operator receives an **OP** badge and unrestricted access to the mod's powers, cosmetics, mode switching, and in-world helpers. This display does not permanently award achievement ranks or trade receipts. Removing OP returns the account to its actual earned rank or separate Admin role. Code redemption stays limited to staff tools. See [AGENTS_GUIDE.md](AGENTS_GUIDE.md).
+A level-4 operator without the Admin role receives an **OP** badge; an Admin keeps the **ADMIN** badge. Both have full vanilla level-4 command access and the mod's operator gameplay privileges. Admin also removes Infinity weapon ability cooldowns. This access does not permanently award achievement ranks or trade receipts. After Admin and any independent OP grant are removed, the account returns to its earned unlocks. See [AGENTS_GUIDE.md](AGENTS_GUIDE.md) for helper controls and the two AI approval gates.

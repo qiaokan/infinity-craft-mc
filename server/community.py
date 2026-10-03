@@ -40,7 +40,7 @@ def configure_admin_code(root, enabled, code):
         temporary.unlink(missing_ok=True)
 
 
-AI_DEFAULTS = {"enabled": False, "model": "gpt-6-luna", "ownerOnly": True, "dailyRequestLimit": 50}
+AI_DEFAULTS = {"enabled": False, "provider": "openai", "codexExecutable": "", "model": "gpt-6-luna", "ownerOnly": True, "dailyRequestLimit": 50}
 
 
 def ai_values(data):
@@ -49,6 +49,15 @@ def ai_values(data):
     values = {key: data.get(key, default) for key, default in AI_DEFAULTS.items()}
     if type(values["enabled"]) is not bool or type(values["ownerOnly"]) is not bool:
         raise ValueError("Choose who can use AI chat and whether it is enabled.")
+    if not isinstance(values["provider"], str) or values["provider"] not in ("openai", "codex"):
+        raise ValueError("Choose OpenAI API or Codex CLI as the AI provider.")
+    executable = values["codexExecutable"]
+    if not isinstance(executable, str) or len(executable) > 4096 or any(ord(c) < 32 or ord(c) == 127 for c in executable):
+        raise ValueError("Enter one absolute Codex executable path without control characters or command arguments.")
+    if executable and not Path(executable).is_absolute():
+        raise ValueError("The Codex executable must be an absolute file path, without command arguments.")
+    if values["provider"] == "codex" and not values["ownerOnly"]:
+        raise ValueError("Codex uses the host's signed-in account and must be restricted to operators with level 4.")
     model = values["model"]
     if not isinstance(model, str) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._:-]{0,99}", model):
         raise ValueError("Enter a valid AI model name.")
@@ -84,6 +93,8 @@ def configure_ai(root, data):
     secret = data.get("apiKey", "")
     if not isinstance(secret, str) or (secret and (not 16 <= len(secret) <= 4096 or any(not 33 <= ord(c) <= 126 for c in secret))):
         raise ValueError("Enter a valid API key without spaces or control characters.")
+    if values["provider"] == "codex" and secret:
+        raise ValueError("Codex uses its existing CLI login. Leave the API key blank; your saved API key will be kept.")
     config = root / "fabric/config/infinity-ai.json"
     key = root / "fabric/config/infinity-ai-key.txt"
     existing = {}
@@ -93,8 +104,13 @@ def configure_ai(root, data):
             ai_values(existing)
         except (ValueError, TypeError):
             raise ValueError("Invalid private AI configuration; original file kept.") from None
-    if values["enabled"] and not secret and not (key.is_file() and key.stat().st_size > 0):
-        raise ValueError("Enter an API key before enabling AI chat.")
+    if values["enabled"]:
+        if values["provider"] == "codex":
+            executable = Path(values["codexExecutable"])
+            if not values["codexExecutable"] or not executable.is_file() or not os.access(executable, os.X_OK):
+                raise ValueError("Choose an existing executable Codex file by its absolute path before enabling Codex chat. Do not include command arguments.")
+        elif not secret and not (key.is_file() and key.stat().st_size > 0):
+            raise ValueError("Enter an API key before enabling OpenAI API chat.")
     if secret:
         private_write(key, secret)
     private_write(config, json.dumps({**existing, **values}, indent=2) + "\n")

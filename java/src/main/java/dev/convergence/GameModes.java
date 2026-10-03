@@ -79,7 +79,7 @@ public final class GameModes {
         return switch(current(p)) {
             case CREATIVE -> GameMode.CREATIVE;
             case MINIGAMES,ADVENTURE,HUB -> GameMode.ADVENTURE;
-            case HARDCORE -> state(p).getBoolean("eliminated",false)&&!operator(p)?GameMode.SPECTATOR:GameMode.SURVIVAL;
+            case HARDCORE -> state(p).getBoolean("eliminated",false)&&!Memberships.gameplayBypass(p)?GameMode.SPECTATOR:GameMode.SURVIVAL;
             default -> GameMode.SURVIVAL;
         };
     }
@@ -150,11 +150,12 @@ public final class GameModes {
     static int request(ServerPlayerEntity p, Mode mode, String map) {
         if(CourseSelector.supports(mode) && (ModeMaps.defaultMap(mode)==null || map!=null && !ModeMaps.available(map)))
             return CommunityServer.say(p,"This course is unavailable because its map region could not be verified. Ask the host to check the server log.");
-        if(!operator(p)&&mode==Mode.HARDCORE && state(p).getBoolean("eliminated",false)) return CommunityServer.say(p,"Your Hardcore life has ended. Choose another mode with /play.");
+        if(!Memberships.gameplayBypass(p)&&mode==Mode.HARDCORE && state(p).getBoolean("eliminated",false)) return CommunityServer.say(p,"Your Hardcore life has ended. Choose another mode with /play.");
         if(!p.getLeftShoulderNbt().isEmpty() || !p.getRightShoulderNbt().isEmpty()) return CommunityServer.say(p,"Let your shoulder pets dismount before changing modes.");
         if(!p.isAlive() || p.hasVehicle() || p.isSleeping()) return CommunityServer.say(p,"Respawn, wake up, and leave your vehicle first.");
         var c=CommunityServer.get(p.getEntityWorld().getServer());
-        if(operator(p)) {
+        if(Memberships.gameplayBypass(p)) {
+            if(TRANSITIONS.contains(p.getUuid())||OPERATOR_TRANSFERS.containsKey(p.getUuid())) return CommunityServer.say(p,"Finish your current mode transition first.");
             PENDING.remove(p.getUuid());c.pending.remove(p.getUuid());
             if(current(p)==mode){if(mode==Mode.HUB)return LobbyServer.arrive(p,map==null?"main":map);if(map!=null)ModeMaps.begin(p,map);}
             else switchNow(p,mode,map);
@@ -180,7 +181,7 @@ public final class GameModes {
             CommunityServer.say(p,"This course is unavailable because its map region could not be verified. Ask the host to check the server log.");return;
         }
         if(!p.getLeftShoulderNbt().isEmpty() || !p.getRightShoulderNbt().isEmpty() || p.hasVehicle()) { CommunityServer.say(p,"Dismount and let shoulder pets down first.");return; }
-        var s=state(p); if(!operator(p)&&mode==Mode.HARDCORE && s.getBoolean("eliminated",false)) return;
+        var s=state(p); if(!Memberships.gameplayBypass(p)&&mode==Mode.HARDCORE && s.getBoolean("eliminated",false)) return;
         var profiles=s.getCompoundOrEmpty("profiles"); var next=profiles.getCompoundOrEmpty(mode.name());
         CommunityServer.Place place=null;
         if(mode!=Mode.MINIGAMES && mode!=Mode.ADVENTURE && mode!=Mode.HUB && next.contains("place")) place=CommunityServer.GSON.fromJson(next.getString("place", ""),CommunityServer.Place.class);
@@ -210,7 +211,7 @@ public final class GameModes {
     }
     static void death(ServerPlayerEntity p) {
         PENDING.remove(p.getUuid());ModeMaps.RUNS.remove(p.getUuid());
-        if(!operator(p)&&current(p)==Mode.HARDCORE) { state(p).putBoolean("eliminated",true);CommunityServer.say(p,"Your Hardcore life has ended. Respawn to spectate, then /play survival to continue elsewhere."); }
+        if(!Memberships.gameplayBypass(p)&&current(p)==Mode.HARDCORE) { state(p).putBoolean("eliminated",true);CommunityServer.say(p,"Your Hardcore life has ended. Respawn to spectate, then /play survival to continue elsewhere."); }
     }
     static boolean routeFirstVisit(ServerPlayerEntity p) {
         if(operator(p)){FIRST_VISITS.remove(p.getUuid());return false;}
@@ -242,8 +243,10 @@ public final class GameModes {
                 };
             }
             case SURVIVAL -> "Survival: craft and explore; /sethome, /home, /backpack, /trades and /rewards are available. /hub returns to the lobby hub.";
-            case CREATIVE -> "Creative: select the named compass to pick Infinity weapons and tools. A starter sword is added when there is hotbar room. /convergence gear reopens the picker if needed; /hub returns.";
-            case HARDCORE -> state(p).getBoolean("eliminated",false)
+            case CREATIVE -> "Creative: select Infinity Menu to pick weapons, tools, blocks, powers, or AI helpers. A starter sword is added when there is hotbar room. The lobby's INFINITY MENU sign can reopen the menu; /hub returns.";
+            case HARDCORE -> Memberships.gameplayBypass(p)
+                ? "Hardcore: Admin/OP gameplay access lets you re-enter and keep playing. Every mode keeps its own inventory. /hub returns to the lobbies."
+                : state(p).getBoolean("eliminated",false)
                 ? "Hardcore life ended: spectate here, or /play survival to continue in another world. /hub visits the lobbies."
                 : "Hardcore: one life in this world. /play survival or /hub leaves while keeping other world progress separate.";
             case MINIGAMES -> "Minigames: tap the course-start sign or use /play minigames to choose a course; /retry <map> replays. /best shows your records; /leaderboard <map> shows top times. /hub leaves.";
@@ -254,7 +257,7 @@ public final class GameModes {
     static void register() {
         MinigameRecords.register();
         CourseSelector.register();
-        ServerLifecycleEvents.SERVER_STARTED.register(server->{ModeMaps.build(server);LobbyServer.build(server);CourseSelector.installSigns(server);System.out.println("[Infinity] Community and crossplay ready.");});
+        ServerLifecycleEvents.SERVER_STARTED.register(server->{ModeMaps.build(server);LobbyServer.build(server);CourseSelector.installSigns(server);LobbyServer.installMenuSigns(server);System.out.println("[Infinity] Community and crossplay ready.");});
         ServerLifecycleEvents.SERVER_STOPPED.register(server->{PENDING.clear();TRANSITIONS.clear();FIRST_VISITS.clear();OPERATOR_TRANSFERS.clear();ModeMaps.RUNS.clear();});
         ServerPlayConnectionEvents.JOIN.register((handler,sender,server)->{
             var p=handler.player;
@@ -267,7 +270,7 @@ public final class GameModes {
             // The headless TestServer's mock players are spawned for combat tests;
             // their first-login routing is exercised explicitly in LobbyGameTests.
             if(!(server instanceof net.minecraft.test.TestServer) && current(p)==Mode.SURVIVAL && !java.nio.file.Files.exists(savedPlayer)) FIRST_VISITS.add(p.getUuid());
-            CommunityServer.say(p,"/hub opens Main Hub. /lobbies lists five mode lobbies; /play enters a game world. /guide shows commands for where you are.");
+            CommunityServer.say(p,"Select the Infinity Menu recovery compass for gear, powers, games, and AI helpers. Tap an INFINITY MENU lobby sign if you need the menu again. /hub returns to Main Hub.");
             try {MinigameRecords.sync(p);}catch(IllegalStateException e) {CommunityServer.say(p,"Public minigame records are temporarily unavailable; /best still shows your saved times.");}
         });
         ServerPlayConnectionEvents.DISCONNECT.register((handler,server)->{PENDING.remove(handler.player.getUuid());FIRST_VISITS.remove(handler.player.getUuid());ModeMaps.RUNS.remove(handler.player.getUuid());});

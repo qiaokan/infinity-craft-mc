@@ -3,12 +3,16 @@ package dev.convergence;
 import java.nio.file.Files;
 import java.util.*;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerChunkEvents;
 import net.fabricmc.fabric.api.event.player.UseBlockCallback;
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.Blocks;
+import net.minecraft.block.BannerBlock;
+import net.minecraft.block.LeavesBlock;
 import net.minecraft.block.SignBlock;
 import net.minecraft.block.entity.SignBlockEntity;
+import net.minecraft.block.entity.SignText;
 import net.minecraft.item.ItemStack;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.command.CommandManager;
@@ -18,6 +22,7 @@ import net.minecraft.text.ClickEvent;
 import net.minecraft.text.Text;
 import net.minecraft.util.ActionResult;
 import net.minecraft.util.Formatting;
+import net.minecraft.util.DyeColor;
 import net.minecraft.util.Hand;
 import net.minecraft.util.WorldSavePath;
 import net.minecraft.util.math.BlockPos;
@@ -37,10 +42,121 @@ final class LobbyServer {
     }
     static final Map<BlockPos, String> MAIN_SIGNS = new HashMap<>();
     static final Map<BlockPos, String> ENTRY_SIGNS = new HashMap<>();
+    static final Set<BlockPos> MENU_SIGNS = new LinkedHashSet<>();
     static {
         int x = -8;
         for (String id : LOBBIES.keySet()) if (!id.equals("main")) { MAIN_SIGNS.put(new BlockPos(x, 81, -5), id); x += 4; }
         for (var lobby : LOBBIES.values()) if (!lobby.id.equals("main")) ENTRY_SIGNS.put(lobby.center.add(0, 0, -4), lobby.id);
+        for (var lobby : LOBBIES.values()) MENU_SIGNS.add(lobby.center.add(4, 0, -4));
+    }
+    record Palette(Block pillar, Block glass, Block light, Block banner, Block leaves, Block plant) {}
+    record Decoration(Lobby lobby, BlockState state) {}
+    static final Map<BlockPos, Decoration> DECORATIONS = decorations();
+
+    static Palette palette(String id) {
+        return switch (id) {
+            case "survival" -> new Palette(Blocks.SPRUCE_LOG, Blocks.LIME_STAINED_GLASS, Blocks.SHROOMLIGHT, Blocks.LIME_BANNER, Blocks.OAK_LEAVES, Blocks.POTTED_FERN);
+            case "creative" -> new Palette(Blocks.QUARTZ_PILLAR, Blocks.PURPLE_STAINED_GLASS, Blocks.PEARLESCENT_FROGLIGHT, Blocks.PURPLE_BANNER, Blocks.FLOWERING_AZALEA_LEAVES, Blocks.POTTED_ALLIUM);
+            case "hardcore" -> new Palette(Blocks.POLISHED_BLACKSTONE_BRICKS, Blocks.RED_STAINED_GLASS, Blocks.SHROOMLIGHT, Blocks.RED_BANNER, Blocks.DARK_OAK_LEAVES, Blocks.POTTED_CRIMSON_FUNGUS);
+            case "minigames" -> new Palette(Blocks.YELLOW_CONCRETE, Blocks.LIGHT_BLUE_STAINED_GLASS, Blocks.SEA_LANTERN, Blocks.LIGHT_BLUE_BANNER, Blocks.AZALEA_LEAVES, Blocks.POTTED_DANDELION);
+            case "adventure" -> new Palette(Blocks.CHISELED_STONE_BRICKS, Blocks.ORANGE_STAINED_GLASS, Blocks.OCHRE_FROGLIGHT, Blocks.ORANGE_BANNER, Blocks.JUNGLE_LEAVES, Blocks.POTTED_BAMBOO);
+            default -> new Palette(Blocks.QUARTZ_PILLAR, Blocks.CYAN_STAINED_GLASS, Blocks.SEA_LANTERN, Blocks.CYAN_BANNER, Blocks.FLOWERING_AZALEA_LEAVES, Blocks.POTTED_AZURE_BLUET);
+        };
+    }
+
+    /** Fixed vanilla accents: no entities, resource pack, terrain replacement, or generated coordinates. */
+    static Map<BlockPos, Decoration> decorations() {
+        var result = new LinkedHashMap<BlockPos, Decoration>();
+        for (var lobby : LOBBIES.values()) {
+            var colors = palette(lobby.id);
+            // The north gateway frames the entry sign with a five-block-high clear opening.
+            for (int side : new int[]{-1, 1}) {
+                for (int y = 0; y <= 5; y++) accent(result, lobby, side * 5, y, -10, colors.pillar.getDefaultState());
+                accent(result, lobby, side * 5, 6, -10, colors.light.getDefaultState());
+                accent(result, lobby, side * 5, 7, -10, colors.banner.getDefaultState().with(BannerBlock.ROTATION, 8));
+            }
+            for (int x = -4; x <= 4; x++) {
+                accent(result, lobby, x, 5, -10, colors.pillar.getDefaultState());
+                accent(result, lobby, x, 6, -10, (Math.abs(x) == 4 ? colors.light : colors.glass).getDefaultState());
+            }
+            // Side gardens leave all cross paths, the diagonal bridge, and sign approaches open.
+            for (int x : new int[]{-9, 9}) for (int z : new int[]{-5, 5}) {
+                accent(result, lobby, x, 0, z, lobby.trim.getDefaultState());
+                accent(result, lobby, x, 1, z, colors.plant.getDefaultState());
+                for (int offset : new int[]{-1, 1})
+                    accent(result, lobby, x, 0, z + offset, colors.leaves.getDefaultState().with(LeavesBlock.PERSISTENT, true));
+            }
+            // Glass lanterns and flags turn the original corner columns into colored landmarks.
+            for (int x : new int[]{-10, 10}) for (int z : new int[]{-10, 10}) {
+                accent(result, lobby, x, 5, z, colors.glass.getDefaultState());
+                accent(result, lobby, x, 6, z, colors.light.getDefaultState());
+                accent(result, lobby, x, 7, z, colors.banner.getDefaultState().with(BannerBlock.ROTATION, 8));
+            }
+            if (lobby.id.equals("main")) {
+                // An elevated eight-point crown provides a focal point above the untouched arrival.
+                for (int x = -3; x <= 3; x++) for (int z = -3; z <= 3; z++) {
+                    if (Math.abs(x) != 3 && Math.abs(z) != 3) continue;
+                    accent(result, lobby, x, 7, z, ((x + z) % 3 == 0 ? colors.light : colors.glass).getDefaultState());
+                    if ((Math.abs(x) == 3 && Math.abs(z) == 3) || x == 0 || z == 0)
+                        accent(result, lobby, x, 8, z, colors.pillar.getDefaultState());
+                }
+            }
+        }
+        return Collections.unmodifiableMap(result);
+    }
+
+    static void accent(Map<BlockPos, Decoration> result, Lobby lobby, int x, int y, int z, BlockState state) {
+        if (Math.abs(x) > 11 || Math.abs(z) > 11 || y < 0 || y > 8)
+            throw new IllegalArgumentException("Lobby decoration outside its fixed platform");
+        // Keep three blocks of headroom, including the diagonal Main Hub–Adventure approach.
+        boolean crossPath = Math.abs(x) <= 2 || Math.abs(z) <= 2;
+        boolean diagonal = Math.abs(x - z) <= 4 && (lobby.id.equals("main") && x >= 0 && z >= 0
+            || lobby.id.equals("adventure") && x <= 0 && z <= 0);
+        if (y <= 3 && (crossPath || diagonal)) return;
+        result.put(lobby.center.add(x, y, z), new Decoration(lobby, state));
+    }
+
+    static boolean loadedSite(ServerWorld world, BlockPos pos) {
+        return world != null && world.isInBuildLimit(pos) && world.getWorldBorder().contains(pos)
+            && world.isChunkLoaded(pos.getX() >> 4, pos.getZ() >> 4);
+    }
+
+    /** Upgrade loaded original platforms only. Never replace player blocks or rebuild a saved hub. */
+    static int installDecor(ServerWorld world) {
+        return installDecor(world, null);
+    }
+
+    private static int installDecor(ServerWorld world, net.minecraft.util.math.ChunkPos onlyChunk) {
+        if (world == null || GameModes.of(world) != GameModes.Mode.HUB) return 0;
+        int changed = 0;
+        for (var entry : DECORATIONS.entrySet()) {
+            var pos = entry.getKey();
+            if (onlyChunk != null && (pos.getX() >> 4 != onlyChunk.x || pos.getZ() >> 4 != onlyChunk.z)) continue;
+            if (!loadedSite(world, pos) || !world.getBlockState(pos).isAir()) continue;
+            var lobby = entry.getValue().lobby;
+            var floor = new BlockPos(pos.getX(), lobby.center.getY() - 1, pos.getZ());
+            if (!loadedSite(world, floor)) continue;
+            var base = world.getBlockState(floor);
+            if (!base.isOf(lobby.floor) && !base.isOf(Blocks.QUARTZ_BLOCK) && !base.isOf(Blocks.SEA_LANTERN)) continue;
+            var state = entry.getValue().state;
+            var colors = palette(lobby.id);
+            if (state.isOf(colors.plant) || state.isOf(colors.banner)) {
+                var support = pos.down();
+                // Use the actual block's support rule: sea lanterns support banners despite
+                // their false opaque/solidBlock predicate (which is not placement support).
+                if (!loadedSite(world, support) || !state.canPlaceAt(world, pos)) continue;
+            }
+            // Skip neighbor callbacks and shape updates; inert accents must not touch adjacent chunks.
+            if (world.setBlockState(pos, state, Block.NOTIFY_LISTENERS | Block.FORCE_STATE)) changed++;
+        }
+        for (var entry : MAIN_SIGNS.entrySet()) if (inChunk(entry.getKey(), onlyChunk)) changed += refreshSign(world, entry.getKey(), entry.getValue(), false);
+        for (var entry : ENTRY_SIGNS.entrySet()) if (inChunk(entry.getKey(), onlyChunk)) changed += refreshSign(world, entry.getKey(), entry.getValue(), true);
+        for (var pos : MENU_SIGNS) if (inChunk(pos, onlyChunk)) changed += installMenuSign(world, pos);
+        return changed;
+    }
+
+    private static boolean inChunk(BlockPos pos, net.minecraft.util.math.ChunkPos chunk) {
+        return chunk == null || (pos.getX() >> 4 == chunk.x && pos.getZ() >> 4 == chunk.z);
     }
     static CommunityServer.Place place(MinecraftServer server, String id) {
         var world = GameModes.world(server, GameModes.Mode.HUB);
@@ -53,7 +169,7 @@ final class LobbyServer {
         var world = GameModes.world(server, GameModes.Mode.HUB);
         if (world == null) throw new IllegalStateException("Infinity hub dimension is missing. Check the mod data pack and restart.");
         var marker = server.getSavePath(WorldSavePath.ROOT).resolve("infinity-built-in-lobbies.json");
-        if (Files.exists(marker)) return;
+        if (Files.exists(marker)) { installDecor(world); return; }
         var blocks = new LinkedHashMap<BlockPos, BlockState>();
         for (var lobby : LOBBIES.values()) {
             var center = lobby.center;
@@ -94,15 +210,74 @@ final class LobbyServer {
         for (var entry : ENTRY_SIGNS.entrySet()) sign(world,entry.getKey(),entry.getValue(),true);
         try {CommunityServer.atomicJson(marker,Map.of("version",1,"lobbies",LOBBIES.keySet()));}
         catch(java.io.IOException e){throw new IllegalStateException("Cannot save lobby generation marker",e);}
+        installDecor(world);
     }
     static void sign(ServerWorld world, BlockPos pos, String id, boolean entry) {
         if (!(world.getBlockEntity(pos) instanceof SignBlockEntity sign)) throw new IllegalStateException("Lobby sign did not load at " + pos);
-        var lobby=LOBBIES.get(id);
-        var text = sign.getFrontText().withMessage(0,Text.literal(lobby.label.replace(" Lobby","")))
-            .withMessage(1,Text.literal(entry?"ENTER WORLD":"VISIT LOBBY"))
-            .withMessage(2,Text.literal(entry?"/play "+id:"/lobby "+id))
-            .withMessage(3,Text.literal("RIGHT CLICK"));
-        sign.setText(text,true);
+        applySignText(sign, lobbyLines(id, entry));
+    }
+
+    private static String[] lobbyLines(String id, boolean entry) {
+        String detail = switch (id) {
+            case "survival" -> "SURVIVE + CRAFT";
+            case "creative" -> "BUILD + CREATE";
+            case "hardcore" -> "ONE LIFE";
+            case "minigames" -> "CHOOSE A GAME";
+            case "adventure" -> "CHOOSE A MAP";
+            default -> "WELCOME";
+        };
+        return new String[]{LOBBIES.get(id).label.replace(" Lobby", ""), entry ? "ENTER WORLD" : "VISIT LOBBY", detail, "TAP TO OPEN"};
+    }
+
+    private static boolean matches(SignText text, String[] lines) {
+        for (int i = 0; i < 4; i++) if (!text.getMessage(i, false).getString().equals(lines[i])) return false;
+        return true;
+    }
+
+    private static int applySignText(SignBlockEntity sign, String[] lines) {
+        if (matches(sign.getFrontText(), lines) && matches(sign.getBackText(), lines)
+            && sign.getFrontText().isGlowing() && sign.getBackText().isGlowing()
+            && sign.getFrontText().getColor() == DyeColor.WHITE && sign.getBackText().getColor() == DyeColor.WHITE) return 0;
+        var text = new SignText().withGlowing(true).withColor(DyeColor.WHITE);
+        for (int i = 0; i < 4; i++) text = text.withMessage(i, Text.literal(lines[i]));
+        sign.setText(text, true);
+        sign.setText(text, false);
+        return 1;
+    }
+
+    private static int refreshSign(ServerWorld world, BlockPos pos, String id, boolean entry) {
+        if (!loadedSite(world, pos) || !world.getBlockState(pos).isOf(Blocks.OAK_SIGN)
+            || !(world.getBlockEntity(pos) instanceof SignBlockEntity sign)) return 0;
+        var old = new String[]{LOBBIES.get(id).label.replace(" Lobby", ""), entry ? "ENTER WORLD" : "VISIT LOBBY", entry ? "/play " + id : "/lobby " + id, "RIGHT CLICK"};
+        var current = lobbyLines(id, entry);
+        if ((!matches(sign.getFrontText(), old) && !matches(sign.getFrontText(), current))
+            || (!matches(sign.getBackText(), new String[]{"", "", "", ""}) && !matches(sign.getBackText(), old) && !matches(sign.getBackText(), current))) return 0;
+        return applySignText(sign, current);
+    }
+
+    static boolean isMenuSign(ServerWorld world, BlockPos pos) {
+        return world.getBlockEntity(pos) instanceof SignBlockEntity sign
+            && sign.getFrontText().getMessage(0, false).getString().equals("INFINITY MENU");
+    }
+
+    /** Add a menu recovery point without rebuilding lobbies or replacing a player's blocks. */
+    static void installMenuSigns(MinecraftServer server) {
+        var world = GameModes.world(server, GameModes.Mode.HUB);
+        for (var pos : MENU_SIGNS) installMenuSign(world, pos);
+    }
+
+    private static int installMenuSign(ServerWorld world, BlockPos pos) {
+        if (!loadedSite(world, pos) || !loadedSite(world, pos.down())) return 0;
+        var lines = new String[]{"INFINITY MENU", "GEAR + POWERS", "AI HELPERS", "TAP TO OPEN"};
+        if (world.getBlockEntity(pos) instanceof SignBlockEntity existing) {
+            if (matches(existing.getFrontText(), lines) && matches(existing.getBackText(), lines)) return applySignText(existing, lines);
+            return 0;
+        }
+        if (!CourseSelector.canPlaceSign(world, pos)) return 0;
+        world.setBlockState(pos, Blocks.OAK_SIGN.getDefaultState().with(SignBlock.ROTATION, 8), Block.NOTIFY_LISTENERS | Block.FORCE_STATE);
+        if (!(world.getBlockEntity(pos) instanceof SignBlockEntity sign)) return 0;
+        applySignText(sign, lines);
+        return 1;
     }
     static int arrive(ServerPlayerEntity p, String id) {
         if (!LOBBIES.containsKey(id)) return CommunityServer.say(p,"Unknown lobby. /lobbies lists the available areas.");
@@ -127,6 +302,11 @@ final class LobbyServer {
     }
     static ActionResult useSign(ServerPlayerEntity p, BlockPos pos) {
         if (GameModes.current(p)!=GameModes.Mode.HUB || (p.isSpectator()&&!Memberships.operator(p))) return ActionResult.PASS;
+        if (MENU_SIGNS.contains(pos) && isMenuSign(p.getEntityWorld(), pos)) {
+            ServerMenu.ensureNavigator(p);
+            ServerMenu.open(p);
+            return ActionResult.SUCCESS;
+        }
         var hall=MAIN_SIGNS.get(pos);
         if (hall!=null) {arrive(p,hall);return ActionResult.SUCCESS;}
         hall=ENTRY_SIGNS.get(pos);
@@ -143,6 +323,13 @@ final class LobbyServer {
         if (p.getY()<74) arrive(p,GameModes.state(p).getString("last_lobby","main"));
     }
     static void register() {
+        ServerChunkEvents.CHUNK_LOAD.register((world, chunk) -> {
+            if (GameModes.of(world) != GameModes.Mode.HUB) return;
+            // Existing saves load their hub lazily. Upgrade only our fixed platform chunks.
+            boolean known = DECORATIONS.keySet().stream().anyMatch(pos -> inChunk(pos, chunk.getPos()));
+            if (known && Files.exists(world.getServer().getSavePath(WorldSavePath.ROOT).resolve("infinity-built-in-lobbies.json")))
+                installDecor(world, chunk.getPos());
+        });
         UseBlockCallback.EVENT.register((player,world,hand,hit)-> {
             if (!(player instanceof ServerPlayerEntity p) || world.isClient() || hand!=Hand.MAIN_HAND) return ActionResult.PASS;
             return useSign(p,hit.getBlockPos());

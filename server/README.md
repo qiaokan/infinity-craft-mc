@@ -1,18 +1,28 @@
-# Infinity Armor Exploration Server — 2.12.0-explore.7
+# Infinity Armor Exploration Server — 2.12.0-explore.8
 
-Multi-mode build based on Infinity Armor 2.3.0 and the crossplay preview. Updated October 1, 2026.
+Multi-mode build based on Infinity Armor 2.3.0 and the crossplay preview. Updated October 2, 2026.
 
 This server build lets Java and Bedrock players share **one Fabric server with shared game worlds** with Infinity Armor's Java powers. It is a crossplay preview based on your 2.3.0 source. Read VALIDATION.md for the checks and remaining play-test limits.
 
-Start with `/guide` in Minecraft to find the Main Hub and the current mode. Tap or right-click the Minigames or Adventure entry sign in the hub to open a chest-like course menu. `/best` shows your personal times; `/leaderboard <map>` shows the fastest saved times for each minigame. See [EXPLORATION.md](EXPLORATION.md) for navigation and scores.
+Select the named **Infinity Menu** recovery compass in your hotbar to open gear, powers, worlds and AI helpers. Every `/convergence` feature has a menu button; typing that command is optional. If the compass is in your main inventory, move it to the hotbar first. Tap or right-click an **INFINITY MENU** sign in the Main Hub or a mode lobby to reopen the menu and recover a missing compass. Clear one inventory slot if your inventory is full; the server never replaces your items to make room.
+
+Choose **Minigames** or **Adventure maps**, then tap a course icon to play. `/guide` gives directions for your current location, `/best` shows personal times, and `/leaderboard <map>` shows saved minigame records. See [EXPLORATION.md](EXPLORATION.md) for navigation and scores.
 
 ## New blocks, tools, wardrobe and player trading
 
-Six new building textures, two Creative building wands, two wearable cosmetic armor sets and three backpack looks join this release. Creative players receive an Infinity sword and a compass that opens the gear picker automatically. `/convergence kit building` remains an optional compact building kit. `/wardrobe` lists achievements for wearable looks, and `/backpack` opens personal 27-slot storage with a separate inventory in each mode. `/ptrade <player>` starts an item exchange requiring both players to review and confirm. Six minigames include Dropper, Red Light, Crystal Hunt, and Color Rush. See [EXPANSION.md](EXPANSION.md) and [PLAYER_TRADING.md](PLAYER_TRADING.md) for controls, unlocks and crossplay appearance limits.
+Six new building textures, two Creative building wands, two wearable cosmetic armor sets and three backpack looks join this release. Creative players receive an Infinity sword and can choose gear through **Infinity Menu → Weapons, tools and blocks**. **Building kit** supplies a compact set of blocks and both wands; `/convergence kit building` remains an optional shortcut. `/wardrobe` lists achievements for wearable looks, and `/backpack` opens personal 27-slot storage with a separate inventory in each mode. `/ptrade <player>` starts an item exchange requiring both players to review and confirm. Six minigames include Dropper, Red Light, Crystal Hunt, and Color Rush. See [EXPANSION.md](EXPANSION.md) and [PLAYER_TRADING.md](PLAYER_TRADING.md) for controls, unlocks and crossplay appearance limits.
 
 ## Helpers and operator controls
 
-Use `/ai <question>` for built-in server help. Optional OpenAI chat is configured in **Owner: AI chat** while the world is stopped; a fresh download contains no API key. Operators at level 4 can use `/agent menu` to manage up to six named helpers, select six AI profiles and control the squad. Create helpers with `/agent spawn <name>` and control them with `/agent follow`, `/agent guard`, `/agent stay`, `/agent dismiss`, and `/agent list`. Separately, OP4 owners can propose one of six fixed helper actions, such as setting daytime or saving the world. A proposal never runs automatically: the OP4 owner approves its ID, then a live Codex session must review it and dispatch the fixed command from the local console before it expires. See [AGENTS_GUIDE.md](AGENTS_GUIDE.md) for the steps and limits.
+Operators at level 4 can select **Infinity Menu → AI Helpers • open your squad → Create your first helper**. Stand on clear solid ground: the menu closes and a named iron golem appears nearby, with a visible success or failure message. Helpers do not appear until you create them. Reopen **AI Helpers** to manage up to six named helpers, select six profiles and control the squad. Choose a helper to see **Status • profile, location, and health**, **Ask Codex** when connected, and **Back to your squad**. The squad screen has **Back to Infinity Menu**. The Ask button explains the selected helper's state and suggests a next step; `/agent ask <name> <question>` accepts your own question.
+
+Ultimate Finals squads share targets, flank and predict short movements. On clear, loaded terrain they rotate a physical leap-and-dive approach with native golem melee attempts after landing. Low ceilings, walls or unsuitable landings use ordinary ground pursuit. Attacks retain reach, line of sight, target eligibility and cooldown checks. These are golem tactics, not actual spear/mace equipment, elytra flight or a totem-bypass trick.
+
+In the stopped-world panel's **Owner: AI chat**, choose **Codex CLI · signed-in account** and enter the absolute path to an installed Codex executable already signed in with ChatGPT on this host. Enable AI chat and save, then start the world. No API key is required for this provider, and it always requires OP4. Codex uses the host account's usage allowance; this does not promise unlimited or free requests. When enabled, an OP4 player's `/ai <question>` and questions to **all six helper profiles** use Codex. `/ai help` stays local, ordinary players retain built-in help for known server topics, and `/ai status` shows the provider and request count to an OP4 player. The OpenAI API provider remains available with a private API key; a fresh download contains no key or login.
+
+Questions and bounded server facts go to OpenAI. The integration requests text answers using those supplied facts, without giving a helper a server-command or environment-access interface. Its Codex replies are separate from this live Codex chat and cannot approve actions here. Server-changing proposals and exact player targets still need the OP4 owner's approval and a separate live Codex review before local-console dispatch. See [AGENTS_GUIDE.md](AGENTS_GUIDE.md) for setup, data sharing, limits and optional commands.
+
+The Codex connection currently requires the audited native **CLI 0.155.1**; other versions stop pending compatibility review. Use its native executable rather than a Node-dependent launcher shim. Saving checks the executable path, while login/version readiness is checked when asking a question.
 
 ## Three steps to play
 
@@ -38,7 +48,8 @@ Automatic setup supports Mac Apple silicon/Intel, Windows x64, and Linux x64/arm
 - **Setup download fails:** read the error, check the internet connection, then start again. Completed verified downloads are reused.
 - **The launcher was forcibly closed:** make sure both Java processes have stopped before removing `launcher.lock`. A leftover `.runtime/bootstrap.lock` can be removed only after the Python setup process has stopped. Ordinary Save & Stop cleans up automatically.
 - **The panel was closed:** the world keeps running. Open the launcher again to return to the panel and stop it safely.
-- **Creative Infinity picker did not open:** switch to another hotbar slot and back to the named compass, or use `/convergence gear`. Tap an icon in the picker to equip that Infinity item. If the picker is unavailable, `/convergence hold sword` still equips the sword directly. The custom items remain hidden from Bedrock's built-in Creative catalogue because the current bridge cannot reliably move them into the hotbar from there.
+- **Infinity Menu did not open:** close other inventory screens, put away any item on the cursor, and select the named recovery compass from your hotbar. A lobby's **INFINITY MENU** sign or the optional `/menu` shortcut also opens it. If the compass is missing, leave one inventory slot free for its replacement. Choose **Weapons, tools and blocks**, then tap an icon to equip an Infinity item. Gear requires Creative or OP2; the built-in Bedrock Creative catalogue still hides custom items because the bridge cannot reliably move them into the hotbar from there.
+- **I cannot see an AI helper:** creating and controlling helpers requires OP level 4. Open **Infinity Menu → AI Helpers • open your squad**, then tap the green **Create your first helper** button. Stand in an open area with solid ground and room for an iron golem. The menu closes so you can see the named golem or read why spawning failed. Existing helpers marked **Unloaded** need you to return nearby.
 
 ### Optional terminal controls
 
@@ -59,11 +70,15 @@ python3 server.py --console --java /path/to/java --memory 4G
 
 ## Main Hub and mode lobbies
 
-New players arrive at the Main Hub. Follow the bridges to five mode lobbies, then tap or right-click a hall's entry sign. The Minigames and Adventure signs open course menus; the other signs enter their worlds. `/hub`, `/lobbies`, `/lobby <mode>`, and `/play <mode>` remain available. The hub uses a separate empty inventory; mode inventories are saved and restored on each visit. Existing players stay where they were until they choose the hub. See **LOBBIES.md** for details.
+New players arrive at the Main Hub. Follow the bridges to five mode lobbies, then tap or right-click a hall's entry sign. The Minigames and Adventure signs open course menus; the other signs enter their worlds. `/hub`, `/lobbies`, `/lobby <mode>`, and `/play <mode>` remain available. The hub uses a separate inventory with its menu compass; mode inventories are saved and restored on each visit. Existing players stay where they were until they choose the hub. See **LOBBIES.md** for details.
+
+Each lobby has a themed arch, colored glass, banners, lighted columns and planted accents made from vanilla blocks. The Main Hub adds a cyan glass and sea-lantern crown; Survival uses green and spruce, Creative purple and quartz, Hardcore red and blackstone, Minigames yellow and light blue, and Adventure orange and stone. Navigation and menu signs use glowing white text with **TAP TO OPEN** instructions.
+
+Older hub saves receive these accents at startup or when a known lobby chunk loads. The upgrade adds blocks only in empty spaces above recognized original floors and preserves occupied blocks, containers and edited sign text. It does not rebuild terrain, move destinations or force-load distant chunks; modified or occupied areas may omit an accent.
 
 ## Game modes and memberships
 
-In Minecraft, use the hub signs or **`/play`** for Survival, Creative, Hardcore, Minigames, and Adventure. `/play minigames` and `/play adventure` open vanilla chest menus so you can tap a course icon. Inventories and Ender Chests stay separate. Hardcore is one life per player on its own Overworld. Six minigames and two starter adventure maps generate automatically. Your chosen course is restored if you reconnect; an unfinished run starts over. See **MODES.md** for commands and rules.
+In Minecraft, choose a world from **Infinity Menu**, use the hub signs, or use the optional **`/play`** command for Survival, Creative, Hardcore, Minigames, and Adventure. `/play minigames` and `/play adventure` open vanilla chest menus so you can tap a course icon. Inventories and Ender Chests stay separate. Hardcore is one life per player on its own Overworld. Six minigames and two starter adventure maps generate automatically. Your chosen course is restored if you reconnect; an unfinished run starts over. See **MODES.md** for commands and rules.
 
 Ranks are **Free, Go, Plus, Pro, Ultra, and Admin**. Every mode is available on Free. Go through Ultra unlock permanently through **all three** of the rank's achievements, or through its Survival item trade. The achievement route is:
 
@@ -72,11 +87,13 @@ Ranks are **Free, Go, Plus, Pro, Ultra, and Admin**. Every mode is available on 
 - **Pro:** enter the Nether, get a blaze rod, and enter the End.
 - **Ultra:** defeat the Ender Dragon, enter an End gateway, and find an End city.
 
-The highest permanent rank wins; lower groups are not prerequisites. `/rank` shows progress and missing achievements for the next rank. The Java server tracks these advancements for Java and Bedrock players who join through Geyser. Items taken in Creative can trigger item milestones, so the badges are not proof of Survival-only play. Previously earned ranks remain unlocked. Existing owner-granted temporary badge overrides last until their recorded expiry. Admin is free and gives limited moderation tools. Fresh packages have Admin code redemption disabled; the owner can set a private code in the stopped-world host panel. Existing private code settings remain during upgrades. See **MEMBERSHIPS.md**.
+The highest permanent rank wins; lower groups are not prerequisites. `/rank` shows progress and missing achievements for the next rank. The Java server tracks these advancements for Java and Bedrock players who join through Geyser. Items taken in Creative can trigger item milestones, so the badges are not proof of Survival-only play. Previously earned ranks remain unlocked. Existing owner-granted temporary badge overrides last until their recorded expiry.
+
+Admin is free and grants **full vanilla OP level 4**, gameplay unlocks and no Infinity weapon/power cooldowns. It includes vanilla commands such as `/give`, `/gamemode`, `/op` and `/stop`, helper control, instant mode/travel access and Hardcore return. The exact AI action/player-target approval and separate live Codex review remain required; mode inventories and confirmed trades are preserved. Fresh packages have Admin code redemption disabled; the owner can set a private code in the stopped-world host panel. Existing private code settings remain during upgrades, and existing saved Admin accounts receive OP4 on join. Use `membership revokeadmin PlayerName` to remove the role and its own OP promotion; independent OP grants need separate removal. See **MEMBERSHIPS.md**.
 
 ## Earned powers, cosmetics, and trades
 
-Use `/rewards` for **six power presets and eight particle cosmetics**. Rewards have their own unlocks, independent of ranks. **How Did We Get Here?** unlocks `/power hacks` for flight, Night Vision, and Resistance II. **Withering Heights** unlocks `/cosmetic wither`. The other presets cover fire protection, a timed movement boost, exploration, underwater movement, and Nether travel. One preset can be active at a time and powers work only in Survival. Use `/power off` or `/cosmetic off` to stop the selected effect. See [REWARDS.md](REWARDS.md) for every command and achievement.
+Use `/rewards` for **six power presets and eight particle cosmetics**. Rewards have their own unlocks, independent of earned ranks. **How Did We Get Here?** unlocks `/power hacks` for flight, Night Vision, and Resistance II. **Withering Heights** unlocks `/cosmetic wither`. The other presets cover fire protection, a timed movement boost, exploration, underwater movement, and Nether travel. One preset can be active at a time. Ordinary players use powers in Survival; OP4, including Admin, bypasses the unlock and mode restriction. Use `/power off` or `/cosmetic off` to stop the selected effect. See [REWARDS.md](REWARDS.md) for every command and achievement.
 
 `/trades` lists **ten permanent item trades**: four rank offers and one for each power. `/trade <id>` previews a cost without spending; `/trade <id> confirm` pays only in Survival, outside combat. Payment counts ordinary main-inventory/hotbar stacks. An insufficient or already unlocked offer takes no items. The earned ranks remain free and permanent. Optional USD supporter subscriptions are planned, with no checkout or paid grants active yet. See [TRADING.md](TRADING.md) for item costs and [SUBSCRIPTIONS.md](SUBSCRIPTIONS.md) for the proposed monthly prices.
 
@@ -116,19 +133,26 @@ The launcher uses Geyser **2.11.3 build 1245**, reporting support for Bedrock 26
 
 ## Get and use Infinity gear
 
-Enter the shared Creative world through its lobby or `/play creative`. The server puts an Infinity sword in your hand, adds a named compass to the hotbar, and opens an Infinity gear picker. Tap a familiar vanilla icon in that chest-like menu to equip the real Infinity weapon, tool, or building wand. To reopen it, switch to another hotbar slot and back to the compass. This requires no operator access or extra gear command; real Java and Bedrock client playtests are still needed. The server-only Java mod does not add a client Creative tab, and Bedrock's built-in Creative catalogue cannot reliably supply these custom items through the current Geyser bridge.
+Select **Infinity Menu → Play Creative** or use its lobby entry sign. Creative supplies an Infinity sword and still opens the earlier gear picker on entry. For all gear and controls afterward, select the **Infinity Menu** recovery compass. **Weapons, tools and blocks** opens a chest-like catalogue: tap a familiar vanilla icon to equip the actual Infinity item, preserving your previous held item. These controls require no extra client mod. Accept the server resource pack for Infinity textures.
 
-If the picker does not open, use `/convergence gear`. `/convergence hold sword` still equips one item directly; replace `sword` with `mace`, `spear`, `pickaxe`, `axe`, `shovel`, `hoe`, `builder_wand`, or `sculptor_wand`. `/convergence kit` gives the full set in Creative or to an operator with level 2 or higher. Survival players can craft the gear using the original recipes. Accept the server resource pack to see Infinity textures. Grant operator access only to trusted players; the host panel's **Setup progress & host commands** section accepts `op YourJavaName`, and Bedrock names normally have a leading period, such as `.BedrockName` (spaces become underscores).
+| Infinity Menu button | Optional command | Access |
+| --- | --- | --- |
+| Weapons, tools and blocks | `/convergence gear` or `/convergence hold <item>` | Creative or OP2 |
+| Full Infinity kit | `/convergence kit` | Creative or OP2 |
+| Building kit | `/convergence kit building` | Creative or OP4 |
+| Use held power | `/convergence power` | Hold the matching Infinity weapon or tool |
+| Use alternate power | `/convergence altpower` | Hold the matching gear; includes the shield's Ward |
+| Swap main hand and offhand | `/convergence swap` | Ordinary equipment rules |
+| How weapons and tools work | `/convergence help` | Everyone |
+| Server and joining information | `/convergence server` | Everyone |
 
-These commands work for ordinary players holding the corresponding gear; they do not give items or bypass cooldowns:
+To use a power, hold the weapon or tool first, then select **Infinity Menu**. The menu restores your last held hotbar item and shows it at the top; check that it is the intended tool. Tap **Use held power** or **Use alternate power**. The screen closes before the power runs. These buttons keep the targeting and equipment checks; ordinary players keep the original cooldowns, while Admin bypasses Infinity ability cooldowns. **Swap main hand and offhand** works with the equipment shown when the menu opened. If you change equipment while a screen is open, reopen the menu before acting.
 
-- `/convergence power` — the held Infinity weapon/tool's normal Use power.
-- `/convergence altpower` — its crouch + Use power; also casts the Infinity Shield's Ward.
-- `/convergence swap` — swap main hand and offhand, including putting the spear in the offhand for the combo.
-- `/convergence server` — show connection defaults and these controls.
-- `/convergence help` — show the original gear controls.
+For the assisted spear/mace combo, hold the spear, open **Infinity Menu**, and choose **Swap main hand and offhand**. Hold the mace, open the menu again, and choose **Use held power** to arm it. The original airborne targeting and timing checks still apply. Java right-click and sneak + right-click controls remain available.
 
-The power commands are useful on touch devices whose controls do not show a Use button for a custom item. Java right-click controls remain available. For the assisted spear/mace combo, put the spear in the offhand, hold the mace, and use `/convergence power` to arm; the original airborne targeting/timing checks still apply. A real iPad and Java client still need to verify the picker, Creative inventory handling, and weapon controls after this change; automated server tests cannot prove the on-screen experience.
+Survival players can craft gear using the original recipes. The menu does not grant Creative equipment privileges or operator status. The host panel's **Setup progress & host commands** section accepts `op YourJavaName`; Bedrock names normally have a leading period, such as `.BedrockName` (spaces become underscores). Grant operator access only to trusted players. AI helper control requires OP4, even when another player can see the menu's AI Helpers button.
+
+The server-only Java mod does not add a client Creative tab, and Bedrock's built-in Creative catalogue cannot reliably supply these custom items through the current bridge. Real Java and iPad playtests are still needed for the new menu, Creative inventory handling and weapon controls; automated server tests cannot establish the on-screen experience.
 
 ## Crossplay differences
 

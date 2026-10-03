@@ -45,7 +45,7 @@ public final class AgentCompanions {
     static final int GLOBAL_LIMIT = 24;
     static final int MAX_BYTES = 65_536;
     static final long PLAYER_TARGET_LIFETIME_MS = 5 * 60_000L;
-    static final String HELP = "Open /agent or /agent menu for helper controls. /agent spawn <name>, /agent profile <name> <primitive|regular|ultimate_finals|debug|cli|api>, /agent follow <name>, /agent guard <name>, /agent stay <name>, /agent squad <follow|guard|stay>, /agent status <name>, /agent dismiss <name>, /agent list. Names: 1–24 lowercase letters/numbers, - or _. 6 per OP4 owner; 24 server-wide, including unloaded helpers. Primitive proactively attacks nearby hostile mobs; Regular follows/guards and prioritizes owner threats. Ultimate Finals shares squad focus and flanks hostiles. /agent target <player> proposes an exact player target for Primitive and Ultimate Finals, requiring owner approval and live Codex approval before combat. PvP and team rules apply; /agent ceasefire stops it immediately. Player orders expire after five minutes, session/life/dimension or permission changes, owner-target distance beyond 48 blocks, or no usable aggressive helpers. Follow can pursue beyond the 24-block damage limit and around walls; swings require clear sight. Guard waits outside its 14-block anchor range. Helpers never attack pets. Debug, CLI, and API are passive physical profiles. /agent data <name> shows limited live data; /agent ask <name> <question> asks a helper; /agent code <name> <request> queues a code request for owner and live Codex review. Follow pauses beyond 48 blocks; return nearby to resume. Helpers pause while you are offline, dead, without OP4, or in another dimension; they never teleport or load chunks. Safe server actions: /agent suggest <request>, /agent pending, /agent approve <id>, /agent cancel <id>. An action runs only after your approval and live Codex review.";
+    static final String HELP = "Open /agent or /agent menu for helper controls. /agent spawn <name>, /agent profile <name> <primitive|regular|ultimate_finals|debug|cli|api>, /agent follow <name>, /agent guard <name>, /agent stay <name>, /agent squad <follow|guard|stay>, /agent status <name>, /agent dismiss <name>, /agent list. Names: 1–24 lowercase letters/numbers, - or _. 6 per OP4 owner; 24 server-wide, including unloaded helpers. Primitive proactively attacks nearby hostile mobs; Regular follows/guards and prioritizes owner threats. Ultimate Finals shares squad focus, leads moving targets, and takes turns with clear-air leap/dive plus native melee follow-ups. These are golem tactics, not actual spear, mace, or elytra use. /agent target <player> proposes an exact player target for Primitive and Ultimate Finals, requiring owner approval and live Codex approval before combat. PvP and team rules apply; /agent ceasefire stops it immediately. Player orders expire after five minutes, session/life/dimension or permission changes, owner-target distance beyond 48 blocks, or no usable aggressive helpers. Follow can pursue beyond the 24-block damage limit and around walls; swings require clear sight. Guard waits outside its 14-block anchor range. Helpers never attack pets. Debug, CLI, and API are passive physical profiles. /agent data <name> shows limited live data; /agent ask <name> <question> asks a helper; /agent code <name> <request> queues a code request for owner and live Codex review. Follow pauses beyond 48 blocks; return nearby to resume. Helpers pause while you are offline, dead, without OP4, or in another dimension; they never teleport or load chunks. Safe server actions: /agent suggest <request>, /agent pending, /agent approve <id>, /agent cancel <id>. An action runs only after your approval and live Codex review.";
     static final Map<MinecraftServer, AgentCompanions> INSTANCES = new WeakHashMap<>();
     final MinecraftServer server;
     final Path file;
@@ -54,6 +54,17 @@ public final class AgentCompanions {
     final Map<UUID, IronGolemEntity> loaded = new HashMap<>();
     final Map<UUID, Integer> lastAttack = new HashMap<>();
     final Map<UUID, PlayerTarget> playerTargets = new HashMap<>();
+    static final int LEAP_COOLDOWN = 80, LEAP_TIMEOUT = 50;
+    static final double AIR_SPEED = .42, LEAP_HEIGHT = 3;
+    final Map<UUID, Integer> nextLeap = new HashMap<>();
+    final Map<UUID, Aerial> aerial = new HashMap<>();
+    static final class Aerial {
+        final Agent agent; final LivingEntity target; final Vec3d landing; final int started;
+        int firstHit = -1;
+        Aerial(Agent agent, LivingEntity target, Vec3d landing, int started) {
+            this.agent = agent; this.target = target; this.landing = landing; this.started = started;
+        }
+    }
 
     /** Exact connected entity and handler identities prevent orders surviving reconnects or respawns. Never persisted. */
     record PlayerTarget(ServerPlayerEntity owner, ServerPlayNetworkHandler ownerConnection, ServerPlayerEntity target,
@@ -63,7 +74,7 @@ public final class AgentCompanions {
     enum Profile {
         PRIMITIVE("Primitive", "Ready to attack the nearest hostile mob within 12 blocks; shares an explicitly approved player target with its squad. Never attacks pets.", true),
         REGULAR("Regular", "Follows or guards, attacking nearby hostile mobs.", true),
-        ULTIMATE_FINALS("Ultimate Finals", "Shares focus and clear flanking positions with its squad. Player combat requires an exact target plus owner and live Codex approval, with PvP and team rules. Normal golem damage and speed.", true),
+        ULTIMATE_FINALS("Ultimate Finals", "Shares focus, predicts pursuit, and takes turns with clear-air leap/dive and melee follow-up tactics. These are golem movements, not player weapons or elytra. Player combat requires both approvals; normal golem damage, PvP and team rules apply.", true),
         DEBUG("Debug", "Passive helper with read-only status diagnostics. No commands run.", false),
         CLI("CLI", "Saves code-change requests for owner and live Codex review; previews fixed server actions. No shell or automatic edits.", false),
         API("API", "Answers with limited live Minecraft data using optional external AI chat. Replies never run commands.", false);
@@ -169,6 +180,7 @@ public final class AgentCompanions {
         var owner = world.getServer().getPlayerManager().getPlayer(UUID.fromString(agent.owner));
         var order = companions.validPlayerTarget(owner);
         if (companions.pauseReason(owner, golem, agent) != null) return false;
+        if (!golem.isInAttackRange(victim) || !golem.getVisibilityCache().canSee(victim)) return false;
         if (victim instanceof ServerPlayerEntity player) {
             return order != null && order.target == player && companions.playerCombatReady(golem, agent, owner, player)
                 && golem.getVisibilityCache().canSee(player);
@@ -359,7 +371,7 @@ public final class AgentCompanions {
         var entry = owned(owner, name);
         if (entry == null) return reply(owner, "No helper named " + name + " belongs to you.");
         data.agents.remove(entry.getKey()); save(); UUID id = UUID.fromString(entry.getKey());
-        IronGolemEntity golem = loaded.remove(id); lastAttack.remove(id);
+        IronGolemEntity golem = loaded.remove(id); lastAttack.remove(id); nextLeap.remove(id); aerial.remove(id);
         if (golem != null) golem.discard();
         validatePlayerTargets();
         return reply(owner, name + " dismissed." + (golem == null ? " Its saved entity will be removed when the area next loads." : ""));
@@ -397,16 +409,22 @@ public final class AgentCompanions {
         if (agent.mode == Mode.FOLLOW && golem.squaredDistanceTo(owner) > 48 * 48) return "owner beyond 48-block follow range";
         return null;
     }
-    static void halt(IronGolemEntity golem) {
+    void halt(IronGolemEntity golem) {
+        cancelAerial(golem);
         golem.setTarget(null); golem.setAttacker(null); golem.setAngryAt(null); golem.setAngerEndTime(0); golem.getNavigation().stop(); golem.stopMovement();
     }
     void tick() {
         validatePlayerTargets();
+        for (var id : new ArrayList<>(aerial.keySet())) {
+            var golem = loaded.get(id);
+            if (golem == null) aerial.remove(id);
+            else tickAerial(golem, server.getTicks());
+        }
         if (server.getTicks() % 5 != 0) return;
         for (var entry : new ArrayList<>(loaded.entrySet())) {
             var golem = entry.getValue(); var agent = data.agents.get(entry.getKey().toString());
-            if (golem.isRemoved() || !golem.isAlive()) { loaded.remove(entry.getKey()); continue; }
-            if (agent == null) { loaded.remove(entry.getKey()); golem.discard(); continue; }
+            if (golem.isRemoved() || !golem.isAlive()) { aerial.remove(entry.getKey()); loaded.remove(entry.getKey()); continue; }
+            if (agent == null) { aerial.remove(entry.getKey()); loaded.remove(entry.getKey()); golem.discard(); continue; }
             control(golem, agent, server.getTicks());
         }
     }
@@ -421,11 +439,13 @@ public final class AgentCompanions {
         Vec3d center = agent.mode == Mode.FOLLOW ? owner.getEntityPos() : agent.anchor();
         double leash = agent.mode == Mode.FOLLOW ? 48 : 14;
         if (golem.getEntityPos().squaredDistanceTo(center) > leash * leash) {
+            cancelAerial(golem);
             golem.setTarget(null);
             if (agent.mode == Mode.GUARD) golem.getNavigation().startMovingTo(center.x, center.y, center.z, 1);
             else halt(golem);
             return;
         }
+        if (aerial.containsKey(golem.getUuid())) return;
         double sensing = agent.profile == Profile.PRIMITIVE ? 12 : 10;
         LivingEntity target = order != null && playerCombatProfile(agent.profile)
             ? playerPursuitReady(golem, agent, owner, order.target) ? order.target : null
@@ -438,15 +458,133 @@ public final class AgentCompanions {
         golem.setTarget(target);
         if (target != null) {
             golem.lookAtEntity(target, 30, 30);
+            if (agent.profile == Profile.ULTIMATE_FINALS && startAerial(golem, agent, owner, target, ticks)) return;
             Vec3d flank = agent.profile == Profile.ULTIMATE_FINALS ? flankPoint(golem, agent, owner, target) : null;
-            if (flank == null) golem.getNavigation().startMovingTo(target, 1.1);
+            Vec3d intercept = agent.profile == Profile.ULTIMATE_FINALS ? intercept(golem, agent, owner, target) : null;
+            if (flank == null && intercept != null) golem.getNavigation().startMovingTo(intercept.x, intercept.y, intercept.z, 1.1);
+            else if (flank == null) golem.getNavigation().startMovingTo(target, 1.1);
             else golem.getNavigation().startMovingTo(flank.x, flank.y, flank.z, 1.1);
-            if (golem.isInAttackRange(target) && golem.getVisibilityCache().canSee(target) && ticks - lastAttack.getOrDefault(golem.getUuid(), -20) >= 20) {
-                lastAttack.put(golem.getUuid(), ticks); golem.tryAttack(world, target);
-            }
+            strike(golem, target, ticks);
         } else if (golem.getEntityPos().squaredDistanceTo(center) > (agent.mode == Mode.FOLLOW ? 9 : 4)) {
             golem.getNavigation().startMovingTo(center.x, center.y, center.z, 1);
         } else { golem.getNavigation().stop(); golem.stopMovement(); }
+    }
+
+    boolean strike(IronGolemEntity golem, LivingEntity target, int ticks) {
+        if (!golem.isInAttackRange(target) || !golem.getVisibilityCache().canSee(target)
+            || ticks - lastAttack.getOrDefault(golem.getUuid(), -20) < 20) return false;
+        lastAttack.put(golem.getUuid(), ticks);
+        return golem.tryAttack((ServerWorld)golem.getEntityWorld(), target);
+    }
+    boolean insideLeash(Agent agent, ServerPlayerEntity owner, Vec3d point) {
+        return point.squaredDistanceTo(agent.mode == Mode.FOLLOW ? owner.getEntityPos() : agent.anchor())
+            <= (agent.mode == Mode.FOLLOW ? 48 * 48 : 14 * 14);
+    }
+    boolean tacticTarget(IronGolemEntity golem, Agent agent, ServerPlayerEntity owner, LivingEntity target) {
+        if (agent == null || agent.profile != Profile.ULTIMATE_FINALS || pauseReason(owner, golem, agent) != null
+            || !target.isAlive() || target.isRemoved() || target.getEntityWorld() != golem.getEntityWorld()
+            || !insideLeash(agent, owner, golem.getEntityPos()) || !insideLeash(agent, owner, target.getEntityPos())) return false;
+        if (target instanceof ServerPlayerEntity player) {
+            var order = validPlayerTarget(owner);
+            return order != null && order.target == player && playerCombatReady(golem, agent, owner, player);
+        }
+        return hostile(target) && golem.squaredDistanceTo(target) <= 24 * 24;
+    }
+    /** Lead a moving target by at most two blocks; native navigation still resolves obstacles. */
+    Vec3d intercept(IronGolemEntity golem, Agent agent, ServerPlayerEntity owner, LivingEntity target) {
+        Vec3d velocity = target.getVelocity();
+        if (!Double.isFinite(velocity.x) || !Double.isFinite(velocity.z)) return null;
+        Vec3d lead = new Vec3d(velocity.x, 0, velocity.z).multiply(8);
+        if (lead.lengthSquared() > 4) lead = lead.normalize().multiply(2);
+        Vec3d point = target.getEntityPos().add(lead);
+        return insideLeash(agent, owner, point) && landingClear(golem, point) ? point : null;
+    }
+    boolean landingClear(IronGolemEntity golem, Vec3d point) {
+        var world = (ServerWorld)golem.getEntityWorld();
+        Box box = golem.getBoundingBox().offset(point.subtract(golem.getEntityPos()));
+        if (!loadedRoom(world, box) || !world.isInBuildLimit(BlockPos.ofFloored(point).up(3))
+            || !world.isBlockSpaceEmpty(golem, box)) return false;
+        int y = (int)Math.floor(point.y);
+        for (int x = (int)Math.floor(box.minX); x <= (int)Math.floor(box.maxX); x++)
+            for (int z = (int)Math.floor(box.minZ); z <= (int)Math.floor(box.maxZ); z++) {
+                var feet = new BlockPos(x, y, z); var floor = world.getBlockState(feet.down());
+                if (!world.getWorldBorder().contains(feet) || !floor.isFullCube(world, feet.down())
+                    || floor.isOf(Blocks.MAGMA_BLOCK) || !floor.getFluidState().isEmpty()
+                    || !world.getBlockState(feet).getFluidState().isEmpty()) return false;
+            }
+        return true;
+    }
+    /** Conservative full-height corridor avoids low ceilings and never inspects unloaded chunks. */
+    boolean airClear(IronGolemEntity golem, Agent agent, ServerPlayerEntity owner, Vec3d from, Vec3d to, double extraHeight) {
+        var world = (ServerWorld)golem.getEntityWorld();
+        int steps = Math.max(1, (int)Math.ceil(from.distanceTo(to) * 2));
+        if (steps > 40) return false;
+        for (int i = 0; i <= steps; i++) {
+            Vec3d point = from.lerp(to, i / (double)steps);
+            Box box = golem.getBoundingBox().offset(point.subtract(golem.getEntityPos())).stretch(0, extraHeight, 0);
+            if (!insideLeash(agent, owner, point) || !insideLeash(agent, owner, point.add(0, extraHeight, 0))
+                || !loadedRoom(world, box) || !world.isInBuildLimit(BlockPos.ofFloored(box.minX, box.minY, box.minZ))
+                || !world.isInBuildLimit(BlockPos.ofFloored(box.maxX, box.maxY, box.maxZ))
+                || !world.getWorldBorder().contains(BlockPos.ofFloored(box.minX, box.minY, box.minZ))
+                || !world.getWorldBorder().contains(BlockPos.ofFloored(box.maxX, box.maxY, box.maxZ))
+                || !world.isBlockSpaceEmpty(golem, box)) return false;
+            for (BlockPos at : BlockPos.iterate(BlockPos.ofFloored(box.minX, box.minY, box.minZ), BlockPos.ofFloored(box.maxX, box.maxY, box.maxZ)))
+                if (!world.getFluidState(at).isEmpty()) return false;
+        }
+        return true;
+    }
+    boolean startAerial(IronGolemEntity golem, Agent agent, ServerPlayerEntity owner, LivingEntity target, int ticks) {
+        if (!tacticTarget(golem, agent, owner, target) || !golem.isOnGround() || golem.isTouchingWater()
+            || ticks < nextLeap.getOrDefault(golem.getUuid(), 0) || !golem.getVisibilityCache().canSee(target)
+            || Math.abs(target.getY() - golem.getY()) > .25 || golem.squaredDistanceTo(target) < 16 || golem.squaredDistanceTo(target) > 49
+            || aerial.values().stream().anyMatch(a -> a.agent.owner.equals(agent.owner) && a.target == target)) return false;
+        var peers = loaded.values().stream().filter(peer -> {
+            var record = data.agents.get(peer.getUuidAsString());
+            return record != null && record.owner.equals(agent.owner) && tacticTarget(peer, record, owner, target)
+                && (peer.getTarget() == null || peer.getTarget() == target);
+        }).sorted(Comparator.comparing(peer -> data.agents.get(peer.getUuidAsString()).name)).toList();
+        if (peers.isEmpty() || peers.get(Math.floorMod(ticks / LEAP_COOLDOWN, peers.size())) != golem) return false;
+        Vec3d predicted = intercept(golem, agent, owner, target);
+        if (predicted == null) predicted = target.getEntityPos();
+        Vec3d direction = predicted.subtract(golem.getEntityPos()).multiply(1, 0, 1).normalize();
+        Vec3d landing = new Vec3d(predicted.x - direction.x * 1.6, golem.getY(), predicted.z - direction.z * 1.6);
+        if (!landingClear(golem, landing) || !airClear(golem, agent, owner, golem.getEntityPos(), landing, LEAP_HEIGHT)) return false;
+        nextLeap.put(golem.getUuid(), ticks + LEAP_COOLDOWN);
+        aerial.put(golem.getUuid(), new Aerial(agent, target, landing, ticks));
+        golem.getNavigation().stop(); golem.setVelocity(direction.x * AIR_SPEED, .62, direction.z * AIR_SPEED);
+        golem.setOnGround(false); golem.velocityDirty = true;
+        return true;
+    }
+    void cancelAerial(IronGolemEntity golem) {
+        if (aerial.remove(golem.getUuid()) != null) {
+            golem.getNavigation().stop();
+            golem.setVelocity(0, Math.min(0, golem.getVelocity().y), 0); golem.velocityDirty = true;
+        }
+    }
+    void tickAerial(IronGolemEntity golem, int ticks) {
+        var move = aerial.get(golem.getUuid()); if (move == null) return;
+        var owner = server.getPlayerManager().getPlayer(UUID.fromString(move.agent.owner));
+        if (data.agents.get(golem.getUuidAsString()) != move.agent || !tacticTarget(golem, move.agent, owner, move.target)
+            || ticks - move.started > LEAP_TIMEOUT || !golem.getVisibilityCache().canSee(move.target)) { cancelAerial(golem); return; }
+        if (move.firstHit >= 0) {
+            golem.getNavigation().startMovingTo(move.target, 1.1);
+            if (ticks - move.firstHit >= 20) { strike(golem, move.target, ticks); cancelAerial(golem); }
+            return;
+        }
+        if (golem.isOnGround() && ticks > move.started) {
+            if (strike(golem, move.target, ticks)) move.firstHit = ticks;
+            else cancelAerial(golem);
+            return;
+        }
+        Vec3d delta = move.landing.subtract(golem.getEntityPos()).multiply(1, 0, 1);
+        Vec3d horizontal = delta.lengthSquared() > AIR_SPEED * AIR_SPEED ? delta.normalize().multiply(AIR_SPEED) : delta;
+        double vertical = ticks - move.started >= 7 ? Math.min(golem.getVelocity().y, -.35) : golem.getVelocity().y;
+        Vec3d velocity = new Vec3d(horizontal.x, vertical, horizontal.z);
+        Vec3d next = golem.getEntityPos().add(velocity);
+        // Let vanilla collide with the checked landing floor rather than cancelling just before touchdown.
+        next = new Vec3d(next.x, Math.max(move.landing.y, next.y), next.z);
+        if (!landingClear(golem, move.landing) || !airClear(golem, move.agent, owner, golem.getEntityPos(), next, 0)) { cancelAerial(golem); return; }
+        golem.setVelocity(velocity); golem.velocityDirty = true;
     }
     int sharedFocusRank(IronGolemEntity self, Agent agent, ServerPlayerEntity owner, MobEntity target) {
         for (var entry : loaded.entrySet()) {
@@ -472,6 +610,7 @@ public final class AgentCompanions {
         if (slot < 0 || peers.size() < 2) return null;
         double angle = slot * (Math.PI * 2 / peers.size());
         Vec3d point = target.getEntityPos().add(Math.cos(angle) * 1.6, 0, Math.sin(angle) * 1.6);
+        if (!insideLeash(agent, owner, point)) return null;
         BlockPos feet = BlockPos.ofFloored(point); ServerWorld world = owner.getEntityWorld();
         Box room = new Box(point.x - .7, point.y, point.z - .7, point.x + .7, point.y + 2.7, point.z + .7);
         if (!loadedRoom(world, room)) return null;
@@ -501,7 +640,7 @@ public final class AgentCompanions {
         ServerLifecycleEvents.SERVER_STOPPED.register(INSTANCES::remove);
         ServerEntityEvents.ENTITY_LOAD.register((entity, world) -> { if (isAgent(entity)) get(world.getServer()).load(entity); });
         ServerEntityEvents.ENTITY_UNLOAD.register((entity, world) -> {
-            if (isAgent(entity)) { var helpers = get(world.getServer()); helpers.loaded.remove(entity.getUuid()); helpers.lastAttack.remove(entity.getUuid()); }
+            if (isAgent(entity)) { var helpers = get(world.getServer()); helpers.aerial.remove(entity.getUuid()); helpers.loaded.remove(entity.getUuid()); helpers.lastAttack.remove(entity.getUuid()); }
         });
         ServerPlayerEvents.LEAVE.register(player -> get(player.getEntityWorld().getServer()).invalidatePlayer(player));
         ServerPlayerEvents.AFTER_RESPAWN.register((oldPlayer, player, alive) -> get(player.getEntityWorld().getServer()).invalidatePlayer(oldPlayer));
@@ -510,7 +649,7 @@ public final class AgentCompanions {
             if (entity instanceof ServerPlayerEntity player) get(player.getEntityWorld().getServer()).invalidatePlayer(player);
             if (isAgent(entity) && entity.getEntityWorld() instanceof ServerWorld world) {
                 var helpers = get(world.getServer());
-                helpers.loaded.remove(entity.getUuid()); helpers.lastAttack.remove(entity.getUuid());
+                helpers.loaded.remove(entity.getUuid()); helpers.lastAttack.remove(entity.getUuid()); helpers.nextLeap.remove(entity.getUuid()); helpers.aerial.remove(entity.getUuid());
                 if (helpers.data.agents.remove(entity.getUuidAsString()) != null) helpers.save();
             }
         });

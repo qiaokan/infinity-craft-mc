@@ -16,6 +16,7 @@ import net.minecraft.entity.player.PlayerInventory;
 import net.minecraft.inventory.SimpleInventory;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
+import net.minecraft.network.packet.s2c.play.UpdateSelectedSlotS2CPacket;
 import net.minecraft.screen.GenericContainerScreenHandler;
 import net.minecraft.screen.ScreenHandlerType;
 import net.minecraft.screen.SimpleNamedScreenHandlerFactory;
@@ -92,6 +93,7 @@ final class CreativeGearPicker {
             if (slot >= 0) {
                 inventory.setStack(slot, new ItemStack(Convergence.ITEMS.get("convergence:sword")));
                 inventory.setSelectedSlot(slot);
+                player.networkHandler.sendPacket(new UpdateSelectedSlotS2CPacket(slot));
                 swordGranted = true;
             }
         }
@@ -150,6 +152,7 @@ final class CreativeGearPicker {
         inventory.setStack(slot, new ItemStack(item, item.getMaxCount() > 1 ? 64 : 1));
         if (!previous.isEmpty()) inventory.offerOrDrop(previous);
         inventory.setSelectedSlot(slot);
+        player.networkHandler.sendPacket(new UpdateSelectedSlotS2CPacket(slot));
         player.playerScreenHandler.syncState();
         SELECTED.remove(player.getUuid());
         player.sendMessage(Text.literal("Holding " + label(name.substring("convergence:".length())) + ". Tap the compass to choose again."), false);

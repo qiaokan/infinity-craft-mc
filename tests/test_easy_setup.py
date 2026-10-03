@@ -115,7 +115,7 @@ class EasySetupTests(unittest.TestCase):
         self.assertEqual(config.stat().st_mode & 0o777, 0o600)
         self.assertNotIn("test-only-ai-key-123", config.read_text())
         snapshot = panel.snapshot()
-        self.assertEqual(snapshot["ai"], {"enabled": True, "model": "gpt-6-luna", "ownerOnly": True, "dailyRequestLimit": 50, "hasKey": True})
+        self.assertEqual(snapshot["ai"], {"enabled": True, "provider": "openai", "codexExecutable": "", "model": "gpt-6-luna", "ownerOnly": True, "dailyRequestLimit": 50, "hasKey": True})
         self.assertNotIn("test-only-ai-key-123", json.dumps(snapshot))
         self.assertNotIn("apiKey", json.dumps(snapshot))
         self.assertFalse(list(config.parent.glob("*.tmp")))
@@ -160,6 +160,86 @@ class EasySetupTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "Stop"):
             panel.ai_config({"enabled": True})
         self.assertEqual(key.read_text(), "test-only-ai-key-123")
+
+    def test_codex_configuration_needs_no_api_key_and_preserves_unknown_fields(self):
+        panel = self.panel()
+        config = self.root / "fabric/config/infinity-ai.json"
+        config.parent.mkdir(parents=True)
+        config.write_text(json.dumps({"timeoutSeconds": 73, "future": {"enabled": True}}))
+        executable = str(Path(sys.executable).resolve())
+        with patch("subprocess.run") as run:
+            panel.ai_config({"enabled": True, "provider": "codex", "codexExecutable": executable})
+            run.assert_not_called()
+        saved = json.loads(config.read_text())
+        self.assertEqual(saved["provider"], "codex")
+        self.assertEqual(saved["codexExecutable"], executable)
+        self.assertEqual(saved["future"], {"enabled": True})
+        self.assertEqual(saved["timeoutSeconds"], 73)
+        self.assertEqual(config.stat().st_mode & 0o777, 0o600)
+        self.assertFalse((self.root / "fabric/config/infinity-ai-key.txt").exists())
+        self.assertFalse(panel.snapshot()["ai"]["hasKey"])
+        self.assertTrue(panel.snapshot()["ai"]["ownerOnly"])
+        self.assertNotIn("future", panel.snapshot()["ai"])
+
+    def test_codex_invalid_provider_path_or_public_access_preserves_saved_secrets(self):
+        panel = self.panel()
+        panel.ai_config({"enabled": True, "apiKey": "test-only-ai-key-123"})
+        config = self.root / "fabric/config/infinity-ai.json"
+        key = self.root / "fabric/config/infinity-ai-key.txt"
+        original = config.read_text()
+        executable = str(Path(sys.executable).resolve())
+        plain_file = self.root / "not-executable"
+        plain_file.write_text("not a program")
+        plain_file.chmod(0o600)
+        base = {"enabled": True, "provider": "codex", "codexExecutable": executable}
+        for invalid in [{"provider": "unknown"}, {"provider": []}, {"ownerOnly": False},
+                        {"codexExecutable": ""}, {"codexExecutable": "codex"},
+                        {"codexExecutable": executable + " --help"},
+                        {"codexExecutable": str(self.root / "missing")},
+                        {"codexExecutable": str(self.root)}, {"codexExecutable": str(plain_file)},
+                        {"codexExecutable": executable + "\n"}, {"codexExecutable": None}]:
+            with self.subTest(invalid=invalid), self.assertRaises(ValueError):
+                panel.ai_config({**base, **invalid})
+            self.assertEqual(config.read_text(), original)
+            self.assertEqual(key.read_text(), "test-only-ai-key-123")
+        with self.assertRaisesRegex(ValueError, "existing CLI login"):
+            panel.ai_config({**base, "apiKey": "replacement-test-only-key"})
+        self.assertEqual(config.read_text(), original)
+        self.assertEqual(key.read_text(), "test-only-ai-key-123")
+
+    def test_codex_switch_keeps_api_key_and_missing_executable_can_be_disabled(self):
+        panel = self.panel()
+        panel.ai_config({"enabled": True, "apiKey": "test-only-ai-key-123"})
+        key = self.root / "fabric/config/infinity-ai-key.txt"
+        executable = self.root / "codex with spaces"
+        executable.write_text("#!/bin/sh\nexit 99\n")
+        executable.chmod(0o700)
+        options = {"enabled": True, "provider": "codex", "codexExecutable": str(executable)}
+        panel.ai_config(options)
+        self.assertEqual(key.read_text(), "test-only-ai-key-123")
+        executable.unlink()
+        self.assertEqual(panel.snapshot()["ai"]["provider"], "codex")
+        with self.assertRaisesRegex(ValueError, "existing executable"):
+            panel.ai_config(options)
+        panel.ai_config({**options, "enabled": False})
+        self.assertFalse(panel.snapshot()["ai"]["enabled"])
+        self.assertEqual(key.read_text(), "test-only-ai-key-123")
+        panel.ai_config({"enabled": True, "provider": "openai"})
+        self.assertEqual(panel.snapshot()["ai"]["provider"], "openai")
+        self.assertEqual(key.read_text(), "test-only-ai-key-123")
+
+    def test_codex_configuration_is_blocked_while_world_or_backup_is_active(self):
+        panel = self.panel()
+        options = {"enabled": True, "provider": "codex", "codexExecutable": str(Path(sys.executable).resolve())}
+        for state in ("starting", "running", "stopping", "backing_up"):
+            panel.state = state
+            with self.subTest(state=state), self.assertRaisesRegex(ValueError, "Stop"):
+                panel.ai_config(options)
+        panel.state = "stopped"
+        (self.root / "launcher.lock").write_text("running")
+        with self.assertRaisesRegex(ValueError, "Stop"):
+            panel.ai_config(options)
+        self.assertFalse((self.root / "fabric/config/infinity-ai.json").exists())
 
     def test_panel_reports_worker_failure(self):
         panel = self.panel()

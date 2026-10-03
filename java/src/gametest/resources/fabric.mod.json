@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "convergence_tests",
-  "version": "2.12.0-explore.1",
+  "version": "2.12.0-explore.8",
   "name": "Infinity Armor Tests",
   "environment": "*",
   "entrypoints": {
@@ -20,8 +20,12 @@
       "dev.convergence.EquipmentGameTests",
       "dev.convergence.MinigameGameTests",
       "dev.convergence.AgentMenuGameTests",
+      "dev.convergence.ServerMenuGameTests",
       "dev.convergence.AgentCodeGameTests",
-      "dev.convergence.AgentActionsGameTests"
+      "dev.convergence.AgentActionsGameTests",
+      "dev.convergence.CodexTransportGameTests",
+      "dev.convergence.AdminGameplayGameTests",
+      "dev.convergence.AgentTacticsGameTests"
     ]
   },
   "depends": {

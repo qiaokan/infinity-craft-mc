@@ -37,6 +37,9 @@ public final class ServerAssistant {
     static final int MAX_QUESTION=256, MAX_OUTPUT=900, MAX_LINES=4, COOLDOWN=60;
     static final String PREFIX="[Server helper] ";
     static final String AI_PREFIX="[Server helper / OpenAI] ";
+    static boolean codexEnabled(MinecraftServer server) {
+        var service=AI.get(server);return service!=null&&!service.closed&&service.valid&&service.config.enabled&&service.config.codex();
+    }
     static final String UNKNOWN="I don't know that from this server's built-in guide. I can help with commands, modes, achievements, rewards, trades, joining, homes, and helpers.";
     static final UUID CONSOLE=new UUID(0,0);
     static final Map<MinecraftServer,Session> SESSIONS=new WeakHashMap<>();
@@ -76,20 +79,24 @@ public final class ServerAssistant {
         return List.copyOf(output);
     }
     static List<String> overview() {
-        return bounded("I am the Server helper. Known server questions use the built-in command guide; other questions can use an optional owner-configured OpenAI connection.",
-            "Ask about lobbies, game modes, achievements, ranks, powers, cosmetics, trades, joining, homes, or golem helpers.",
+        return bounded("I am the Server helper. An owner can connect real Codex for questions, or use the built-in guide and optional OpenAI API.",
+            "Select the recovery compass named Infinity Menu, or tap an INFINITY MENU sign in a lobby, for gear, powers, worlds and AI Helpers. No /convergence command is needed.",
             "Try /ai how do I unlock flight, /ai what does Plus need, or /ai how do I join from Bedrock.",
-            "Useful commands: /hub, /play, /rank, /rewards, /trades, /ptrade, /backpack, /wardrobe, and /serverhelp.");
+            "Ask about achievements, ranks, powers, cosmetics, trades, joining, homes or helpers. /menu and the older commands remain optional shortcuts.");
     }
     static List<String> answer(ServerCommandSource source,String question) {
         String error=invalid(question);if(error!=null)return bounded(error);
         String q=Normalizer.normalize(question,Normalizer.Form.NFKC).toLowerCase(Locale.ROOT).strip();
         var w=words(q);boolean op=owner(source);
         if(q.isEmpty()||any(w,"hello","hi","help","overview"))return overview();
-        if(any(w,"chatgpt","llm","api","apikey","openai")||q.contains("are you ai")||q.contains("real ai")||q.contains("connect ai"))
-            return bounded("This answer uses the built-in server guide. Other questions can use an optional OpenAI connection if the owner enables it. An owner can check /ai status.",
-                "I do not execute commands, build structures, or access accounts. An external answer is labeled OpenAI. Use /ai for supported server topics.");
+        if(any(w,"chatgpt","llm","api","apikey","openai","codex")||q.contains("are you ai")||q.contains("real ai")||q.contains("connect ai"))
+            return bounded("This answer uses the built-in server guide. An owner can enable Codex using the host’s existing login, or the OpenAI API. /ai status identifies the configured provider.",
+                "I do not execute commands, build structures, or access accounts. External answers are labeled Codex or OpenAI for the provider actually used. Use /ai for supported server topics.");
         if(any(w,"agent","agents","helper","helpers","golem","golems","npc","hive","hivemind","ceasefire"))return agents(op);
+        if(any(w,"menu","menus","compass","convergence","controls"))return bounded(
+            "Select or use the recovery compass named Infinity Menu. A lobby INFINITY MENU sign also opens it. Clear one inventory slot if your compass is missing; /menu is an optional fallback.",
+            "Its buttons open weapons, tools, building blocks, game modes, backpacks, AI Helpers, instructions and server information. Gear and owner-only buttons still check your permissions.",
+            "For a held tool, hold it first, then select Infinity Menu and choose Use held power, Use alternate power, or Swap main hand and offhand. Your previous held slot is restored when the menu opens.");
         if(any(w,"operator","operators","op","admin","admincode","permissions","permission","ban","kick","mute","whitelist","allowlist","give","gamemode","execute","settings","memory","backup","backups","restore","restart","shutdown","logs","lag","performance"))return operator(q,w,op);
         if(any(w,"join","joining","bedrock","java","ip","address","localhost","port","ports","connection","connect")||q.contains("can't connect"))
             return bounded("Copy the actual join addresses from the host panel. Java uses the server's TCP port (default 25565); Bedrock uses its UDP port (default 19132).",
@@ -104,9 +111,9 @@ public final class ServerAssistant {
             "/ptrade offer <slot> <count> uses main-inventory slots 1–36. /ptrade review shows both offers in a read-only chest; both players tap Confirm or use /ptrade confirm <revision>.",
             "Offer changes clear both confirmations; nothing moves until both agree to the same revision. /ptrade cancel keeps your items. Moving away, death, disconnect or changing mode cancels the exchange.");
         if(any(w,"wand","wands","builder","sculptor","blocks","textures"))return bounded(
-            "Creative has six new building styles: Aurora Tiles, Obsidian Lattice, Copper Circuit, Moonstone, Sunstone Lamp and Verdant Mosaic. /convergence kit building supplies the blocks and wands to OP4.",
+            "Creative has Aurora Tiles, Obsidian Lattice, Copper Circuit, Moonstone, Sunstone Lamp and Verdant Mosaic. Select the Infinity Menu compass and choose Building kit; it requires Creative or OP4.",
             "Builder Wand uses the block in your offhand to place a 3×3 plane. Sculptor Wand clears a 3×3 target plane. Both require actual Creative and work in the Creative world (OP4 can build elsewhere).",
-            "Containers, unbreakable blocks and occupied placement cells are protected. Hold the wand and /convergence power on iPad; /convergence swap manages offhand. Ordinary Infinity tools also work in Creative.");
+            "Hold the wand, select Infinity Menu, then tap Use held power. Swap main hand and offhand manages building blocks. Containers, unbreakable blocks and occupied cells stay protected; ordinary Infinity tools work in Creative too.");
         if(any(w,"subscribe","subscription","subscriptions","supporter","supporters","tebex","usd","monthly","checkout","dollars")
             ||((any(w,"price","prices","cost","costs","buy","money","paid","payment")||q.contains("how much"))
                 &&any(w,"rank","ranks","membership","memberships","go","plus","pro","ultra")
@@ -134,9 +141,9 @@ public final class ServerAssistant {
             "/tpa <player> requests a visit. They use /tpaccept or /tpdeny within 30 seconds. Players must be in the same mode.",
             op?"OP4 has unlimited homes and instant home/warp/spawn travel.":"You have three named homes across modes. Travel takes three seconds, cancels on movement or damage, and has a ten-second cooldown. Use /play for another mode.");
         if(any(w,"gear","armor","armour","weapon","weapons","sword","mace","spear","kit","craft","crafting"))return bounded(
-            "Infinity gear uses the existing crafting recipes. /convergence help explains its controls; /convergence power activates a held item's normal power.",
-            "/convergence altpower uses its alternate power; /convergence swap exchanges main hand and offhand. These commands work on Java and Bedrock.",
-            op?"Operators can use /convergence kit to obtain gear.":"Ask the owner about a kit; ordinary Survival players craft the gear. Earned /power presets are separate from the gear's /convergence controls.");
+            "Hold your Infinity item, then select the Infinity Menu compass. Tap Use held power, Use alternate power, or Swap main hand and offhand. These controls work on Java and Bedrock.",
+            "Weapons, tools and blocks opens the gear picker; Full Infinity kit requires Creative or OP2. How weapons and tools work explains each item's controls. Ordinary Survival players still craft their gear.",
+            "Earned /power presets are separate from held gear powers. /convergence power, /convergence altpower and /convergence swap remain optional command fallbacks.");
         if(any(w,"achievement","achievements","advancement","advancements","unlock","unlocks","reward","rewards","progress"))return bounded(
             "/rank shows your rank progress and missing milestones; /ranks lists all four groups. /rewards shows separate power and cosmetic achievements.",
             "The server checks Java advancements for both editions, not Bedrock platform achievements. Permanent unlocks follow your authenticated UUID.",
@@ -180,7 +187,7 @@ public final class ServerAssistant {
         return bounded("Free has every game mode. Go, Plus, Pro, and Ultra are permanent cosmetic badges from three achievements per rank OR Survival item trades. Optional USD supporter plans are planned, but checkout is unavailable.",
             "Go: stone pickaxe, iron ingot, monster kill. Plus: iron pickaxe, diamond, enchanted item.",
             "Pro: Nether, blaze rod, End. Ultra: Ender Dragon, End gateway, End city. Complete all three in the chosen group; lower groups are not prerequisites.",
-            "/rank shows progress; /ranks lists goals; /trades lists item alternatives; /subscribe shows planned prices. Powers and particle cosmetics have their own unlocks. Admin is a separate limited moderation role.");
+            "/rank shows progress; /ranks lists goals; /trades lists item alternatives; /subscribe shows planned prices. Powers and particle cosmetics have their own unlocks. Admin is a free owner-controlled role that grants full OP4 access.");
     }
     static List<String> trades(String q,Set<String> w) {
         for(var trade:RewardTrades.TRADES)if(w.contains(trade.id())||(trade.rank()!=null&&w.contains(trade.rank().name().toLowerCase(Locale.ROOT))))
@@ -196,7 +203,7 @@ public final class ServerAssistant {
         if(w.contains("hardcore"))return bounded("/play hardcore enters a separate hard-difficulty Overworld with one life per player. Death leads to Spectator; /play survival lets you continue elsewhere.",
             "Hardcore has no Nether or End in this build. Ranks and earned Survival presets give no extra life.",
             op?"OP4 can enter despite elimination and use vanilla /gamemode; normal one-life restrictions still apply to other players.":"The elimination flag remains when visiting a lobby or another world. Your Hardcore inventory stays separate.");
-        if(w.contains("creative"))return bounded("/play creative enters a separate flat building world with ordinary Creative flight, unlimited blocks, and a vanilla-icon Infinity gear picker. Select its named compass to reopen it.",
+        if(w.contains("creative"))return bounded("Select the Infinity Menu compass, then Play Creative, for a separate flat world with Creative flight and unlimited blocks. Choose Weapons, tools and blocks to equip Infinity gear; the named Infinity Gear Picker compass also works.",
             "Items, Ender Chest, XP, and other mode profiles stay separate. Use /play survival to restore your Survival items; Creative items do not transfer.",
             "Creative inventory items can trigger some vanilla item achievements. Cosmetic ranks are not proof of Survival-only play.");
         if(any(w,"minigame","minigames","parkour","sprint","adventure","ruins","maze","dropper","redlight","crystalhunt","colorrush"))return bounded(
@@ -208,16 +215,16 @@ public final class ServerAssistant {
             "Minigames has six courses, including Crystal Hunt and Color Rush; Adventure has ruins and maze. Each mode has separate inventory, Ender Chest, XP, and potion effects.");
     }
     static List<String> agents(boolean op) {
-        if(!op)return bounded("Golem helpers are managed by the server owner or an operator with level 4. They are ordinary server-controlled iron golems, not language-model agents.",
-            "They can follow, guard a location, or stay put. Ask the owner to create or manage one. /ai answers your server questions without spawning entities.");
-        return bounded("OP4 controls: /agent menu, /agent spawn <name>, /agent follow <name>, /agent guard <name>, /agent list. The menu also has Stay and Dismiss.",
-            "Names use 1–24 lowercase letters, digits, _ or -. Each owner has at most six helpers including unloaded helpers; server cap 24. /agent profile <name> <profile> selects a profile; /agent profiles lists all six.",
-            "/agent ask <name> <question>: Primitive, Regular and Ultimate Finals give local guidance; Debug shows status; CLI previews proposals; API sends your question and a live Minecraft snapshot to optional OpenAI.",
-            "Player hunt: /agent target <player>, /agent approve <id>, then live Codex review. /agent ceasefire stops it. I only give advice and do not run these commands.");
+        if(!op)return bounded("Golem helpers are managed by the server owner or an operator with level 4. Their bodies are server-controlled iron golems; the owner can connect their chat to real Codex.",
+            "Infinity Menu has an AI Helpers button; only OP4 can create or manage a squad. Helpers can follow, guard or stay. /ai answers server questions without spawning entities.");
+        return bounded("OP4: select the Infinity Menu recovery compass, or tap a lobby INFINITY MENU sign. Choose AI Helpers, then Create your first helper: a named iron golem appears beside you.",
+            "Select its icon for profiles, Follow, Guard, Stay or Dismiss. Each owner has at most six helpers including unloaded ones; server cap 24. Stand on clear solid ground when creating one.",
+            "/agent ask <name> <question> talks to a helper. Codex, when enabled, answers in every profile using limited game facts. Otherwise local profiles guide and API uses optional OpenAI. /agent menu remains a fallback.",
+            "Player targeting needs /agent target <player>, /agent approve <id> and live Codex review. /agent ceasefire stops it. I only give advice and do not run these commands.");
     }
     static List<String> operator(String q,Set<String> w,boolean op) {
-        if(!op)return bounded("Owner controls require operator level 4. A rank badge or the private-code Admin role does not grant operator permissions.",
-            "Admin is limited to staff moderation; the owner configures its private code in the stopped-world local panel. I cannot supply that code or change permissions.",
+        if(!op)return bounded("Owner controls require operator level 4. Earned rank badges do not grant it; the owner-controlled Admin role does.",
+            "Admin grants full OP4 commands and gameplay unlock/cooldown overrides; the owner configures its private code in the stopped-world local panel. I cannot supply that code or change permissions.",
             "Ask the server owner for host settings or operator actions. /serverhelp and /ai cover the commands available to players.");
         if(any(w,"settings","memory","logs","lag","performance","backup","backups","restore","restart","shutdown"))return bounded(
             "Use the local host panel for memory, ports, name, difficulty, allowlist, and private Admin-code settings. Save & Stop before changing settings or restoring files.",
@@ -242,28 +249,34 @@ public final class ServerAssistant {
             return 1;
         }
         var local=answer(source,question);
-        if(local.isEmpty()||!local.getFirst().equals(UNKNOWN)||service==null) {send(source,local,PREFIX);return 1;}
+        if(question.isBlank()||question.strip().equalsIgnoreCase("help")||service==null||(!(codexEnabled(source.getServer())&&owner(source))&&(local.isEmpty()||!local.getFirst().equals(UNKNOWN)))) {send(source,local,PREFIX);return 1;}
         return askExternal(source,question,PREFIX,AI_PREFIX,instructions(owner(source)),()->true,false);
     }
     /** Shared usage and transport limits also cover named API helpers. Never dispatches model output. */
     static int askExternal(ServerCommandSource source,String question,String prefix,String externalPrefix,String instructions,BooleanSupplier stillValid,boolean requireOwner) {
         var service=AI.get(source.getServer());
         if(service==null) {send(source,bounded(List.of("External AI is not initialized. Built-in /ai help remains available."),prefix),prefix);return 0;}
-        UUID id=source.getEntity() instanceof ServerPlayerEntity p?p.getUuid():CONSOLE;
-        var pending=service.ask(id,owner(source),question,instructions);
-        if(pending.future()==null) {send(source,bounded(List.of(pending.reason(),"An OP4 owner can check /ai status and configure the optional connection in the local host panel. Built-in /ai help still works."),prefix),prefix);return 0;}
-        send(source,bounded(List.of("Asking the configured OpenAI model. This sends your question to OpenAI; it does not run commands."),prefix),prefix);
+        String provider=service.config.codex()?"Codex":"OpenAI";
+        String answerPrefix=externalPrefix.replace("/ OpenAI", "/ "+provider);
         var server=source.getServer();var caller=source.getEntity() instanceof ServerPlayerEntity p?p:null;
+        UUID id=caller==null?CONSOLE:caller.getUuid();
+        if(caller!=null&&server.getPlayerManager().getPlayer(id)!=caller)return 0;
+        boolean actualOwner=owner(source)&&(caller==null||owner(caller.getCommandSource()));
+        if(requireOwner&&!actualOwner){send(source,bounded("This helper requires current OP4 access."),prefix);return 0;}
+        var pending=service.ask(id,actualOwner,question,instructions);
+        if(pending.future()==null) {send(source,bounded(List.of(pending.reason(),"An OP4 owner can check /ai status and configure the optional connection in the local host panel. Built-in /ai help still works."),prefix),prefix);return 0;}
+        send(source,bounded(List.of("Asking "+provider+". Your question and supplied game facts go to OpenAI. This does not execute or approve commands."),prefix),prefix);
         pending.future().whenComplete((text,error)->{
-            if(service.closed||pending.future().isCancelled())return;
+            if(service.closed)return;
             try {server.execute(()->{
                 service.finish(id,pending.future());
+                if(pending.future().isCancelled())return;
                 if(service.closed||AI.get(server)!=service||!server.isRunning())return;
                 if(caller!=null&&server.getPlayerManager().getPlayer(id)!=caller)return;
-                if((requireOwner||service.config.ownerOnly)&&!owner(caller==null?source:caller.getCommandSource()))return;
+                if((requireOwner||service.config.ownerOnly||service.config.codex())&&!owner(caller==null?source:caller.getCommandSource()))return;
                 if(!stillValid.getAsBoolean())return;
-                if(error!=null)send(source,bounded(List.of("OpenAI could not answer right now. Built-in help is still available; try again later."),prefix),prefix);
-                else send(source,externalLines(text,externalPrefix),externalPrefix);
+                if(error!=null)send(source,bounded(List.of(provider+" could not answer right now. Built-in help is still available; check /ai status and try later."),prefix),prefix);
+                else send(source,externalLines(text,answerPrefix),answerPrefix);
             });}catch(RuntimeException ignored) { /* A closing server must not deliver a late response. */ }
         });
         return 1;
@@ -290,8 +303,9 @@ public final class ServerAssistant {
     }
     static final class AiConfig {
         boolean enabled=false,ownerOnly=true;
-        String model="gpt-6-luna";
+        String model="gpt-6-luna",provider="openai",codexExecutable="";
         int dailyRequestLimit=50;
+        boolean codex(){return "codex".equals(provider);}
     }
     static final class Usage {String day="";int requests=0;}
     record Pending(CompletableFuture<String> future,String reason) {}
@@ -310,23 +324,29 @@ public final class ServerAssistant {
             try {
                 Path file=configDir.resolve("infinity-ai.json");
                 if(Files.exists(file))config=CommunityServer.GSON.fromJson(Files.readString(file),AiConfig.class);
-                if(config==null||config.model==null||!config.model.matches("[A-Za-z0-9._:-]{1,100}")||config.dailyRequestLimit<0||config.dailyRequestLimit>1000)throw new IOException("Invalid configuration");
+                if(config==null||!Set.of("openai","codex").contains(config.provider)||config.codexExecutable==null
+                    ||(config.codex()&&!config.ownerOnly)||config.model==null||!config.model.matches("[A-Za-z0-9._:-]{1,100}")||config.dailyRequestLimit<0||config.dailyRequestLimit>1000)throw new IOException("Invalid configuration");
                 if(Files.exists(usageFile))usage=CommunityServer.GSON.fromJson(Files.readString(usageFile),Usage.class);
                 if(usage==null||usage.day==null||usage.requests<0||(!usage.day.isEmpty()&&!usage.day.matches("\\d{4}-\\d{2}-\\d{2}")))throw new IOException("Invalid usage record");
             }catch(Exception error){valid=false;config=new AiConfig();}
         }
+        boolean backendReady() {
+            if(!config.codex())return hasKey();
+            try {var executable=Path.of(config.codexExecutable);return executable.isAbsolute()&&Files.isRegularFile(executable)&&Files.isExecutable(executable);}
+            catch(RuntimeException error){return false;}
+        }
         boolean hasKey() {try{return Files.isRegularFile(keyFile)&&Files.size(keyFile)>0&&Files.size(keyFile)<=4096;}catch(IOException e){return false;}}
         void resetDay() {String today=LocalDate.now(clock).toString();if(!today.equals(usage.day)){usage.day=today;usage.requests=0;}}
         List<String> status() {
-            resetDay();return bounded("External AI: "+(!valid?"configuration unavailable":config.enabled?hasKey()?"configured":"key unavailable":"disabled")+". Built-in help remains available.",
-                "Model: "+config.model+"; owner-only: "+config.ownerOnly+"; requests today (UTC): "+usage.requests+"/"+config.dailyRequestLimit+"; in flight: "+inflight.size()+".",
-                "The limit counts accepted attempts, including failed requests. Known server questions are answered locally. AI answers never execute commands.");
+            resetDay();return bounded("External AI: "+(!valid?"configuration unavailable":config.enabled?backendReady()?"configured":"connection setup missing":"disabled")+". Built-in help remains available.",
+                "Provider: "+(config.codex()?"Codex (host login)":"OpenAI API")+"; model: "+config.model+"; owner-only: "+config.ownerOnly+"; requests today (UTC): "+usage.requests+"/"+config.dailyRequestLimit+"; in flight: "+inflight.size()+".",
+                "The limit counts accepted attempts, including failures. Codex uses host account usage and an isolated answer-only session; it is not this live chat. Answers cannot execute or approve changes.");
         }
         Pending ask(UUID id,boolean owner,String question,String instructions) {
             if(closed||!valid||!config.enabled)return new Pending(null,"External AI is disabled or unavailable. I don't know that from the built-in server guide.");
-            if(config.ownerOnly&&!owner)return new Pending(null,"External AI is available only to an OP4 owner; your server questions can still use the built-in guide.");
+            if((config.ownerOnly||config.codex())&&!owner)return new Pending(null,"External AI is available only to an OP4 owner; your server questions can still use the built-in guide.");
             if(invalid(question)!=null)return new Pending(null,invalid(question));
-            if(!hasKey())return new Pending(null,"The optional AI key is unavailable. Built-in server help still works.");
+            if(!backendReady())return new Pending(null,config.codex()?"The configured Codex executable is unavailable. Set its full path in the host panel and sign in with Codex on the host.":"The optional AI key is unavailable. Built-in server help still works.");
             if(inflight.containsKey(id))return new Pending(null,"Your previous AI answer is still pending. Wait for it before asking another.");
             if(inflight.size()>=MAX_INFLIGHT||clock.millis()<globalReadyAt)return new Pending(null,"The AI connection is busy. Wait ten seconds before trying again.");
             resetDay();if(usage.requests>=config.dailyRequestLimit)return new Pending(null,"The server's daily AI request limit has been reached. Built-in help is still available.");
@@ -334,13 +354,21 @@ public final class ServerAssistant {
             try {CommunityServer.atomicJson(usageFile,usage);}catch(IOException e){usage.requests--;return new Pending(null,"AI usage could not be saved, so no external request was started. Built-in help is available.");}
             globalReadyAt=clock.millis()+10_000;
             CompletableFuture<String> future;
-            try {future=transport.ask(config,keyFile,question,instructions).orTimeout(15,TimeUnit.SECONDS);}
+            try {future=transport.ask(config,keyFile,question,instructions).orTimeout(config.codex()?60:15,TimeUnit.SECONDS);}
             catch(RuntimeException e){future=CompletableFuture.failedFuture(new IOException("AI transport unavailable"));}
             inflight.put(id,future);return new Pending(future,"");
         }
         void finish(UUID id,CompletableFuture<String> future) {inflight.remove(id,future);}
         void cancel(UUID id) {var future=inflight.remove(id);if(future!=null)future.cancel(true);}
         void close() {closed=true;for(var future:inflight.values())future.cancel(true);inflight.clear();transport.close();}
+    }
+    static final class RoutingTransport implements Transport {
+        final Transport api=new HttpTransport(URI.create("https://api.openai.com/v1/responses"));
+        final Transport codex=new CodexTransport();
+        public CompletableFuture<String> ask(AiConfig config,Path keyFile,String question,String instructions) {
+            return (config.codex()?codex:api).ask(config,keyFile,question,instructions);
+        }
+        public void close(){api.close();codex.close();}
     }
     static JsonObject requestBody(AiConfig config,String question,String instructions) {
         var body=new JsonObject();body.addProperty("model",config.model);body.addProperty("input",question);body.addProperty("instructions",instructions);
@@ -411,7 +439,7 @@ public final class ServerAssistant {
         }
     }
     public static void initialize() {
-        ServerLifecycleEvents.SERVER_STARTED.register(server->AI.put(server,new AiService(server.getRunDirectory().resolve("config"),server.getSavePath(net.minecraft.util.WorldSavePath.ROOT).resolve("infinity-ai-usage.json"),new HttpTransport(URI.create("https://api.openai.com/v1/responses")),Clock.systemUTC())));
+        ServerLifecycleEvents.SERVER_STARTED.register(server->AI.put(server,new AiService(server.getRunDirectory().resolve("config"),server.getSavePath(net.minecraft.util.WorldSavePath.ROOT).resolve("infinity-ai-usage.json"),new RoutingTransport(),Clock.systemUTC())));
         ServerLifecycleEvents.SERVER_STOPPING.register(server->{var service=AI.get(server);if(service!=null)service.close();});
         ServerLifecycleEvents.SERVER_STOPPED.register(server->{SESSIONS.remove(server);AI.remove(server);});
         ServerPlayConnectionEvents.DISCONNECT.register((handler,server)->{var s=SESSIONS.get(server);if(s!=null)s.readyAt.remove(handler.player.getUuid());var service=AI.get(server);if(service!=null)service.cancel(handler.player.getUuid());});

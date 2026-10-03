@@ -2,7 +2,7 @@
 
 Everyone plays on the same Java-hosted server. The new **Main Hub** has five walkable, themed lobby areas: Survival, Creative, Hardcore, Minigames, and Adventure. They share one dedicated hub dimension, separate from all gameplay worlds. A new player begins at the Main Hub; existing players keep their current location until they choose to visit.
 
-Use the same short commands on Java and Bedrock:
+Select your **Infinity Menu** compass for modes, gear, powers, cosmetics and helpers, or tap an **INFINITY MENU** sign in a lobby. The following commands remain optional shortcuts on Java and Bedrock:
 
 | Command | Result |
 |---|---|
@@ -22,6 +22,8 @@ Changing from a gameplay world into the hub, or from the hub into another gamepl
 The hub is Adventure mode, protected from damage, and uses a clean, temporary inventory. Survival, Creative, and Hardcore items, armor, Ender Chest contents, health and experience are saved in their own profiles before a hub visit and restored when the player returns. Items found or granted in the hub do not enter gameplay profiles. The server also returns an item held on the cursor to the old profile before leaving it. Hardcore elimination remains in force even when that player visits its lobby.
 
 Use `/rewards` or `/trades` in a lobby to browse unlocks and exact item costs. A lobby visit does not activate a power or spend items. Earned powers turn off before leaving Survival, and item trades require entering Survival before confirmation. Particle cosmetics are separate and can remain visible in the hub.
+
+The six areas now have themed gateway arches, colored glass lanterns and flags, planted corners, and brighter two-sided navigation signs. A floating crown marks the Main Hub. The upgrade adds accents only in empty spaces above recognizable original platforms as their chunks load; it skips occupied blocks, edited signs and changed ground, and keeps the arrival points, bridges and five-block-wide paths clear. It does not replace player builds or force-load distant chunks.
 
 The built-in hub appears automatically once and is recorded by `fabric/world/infinity-built-in-lobbies.json`. Keep that marker with the world. The hub is inside the same world backup as all player profiles and game-mode areas. A later restart does not rebuild over changes to the hub. If a third-party mod has already placed blocks in the reserved hub area before its first generation, setup stops without replacing them.
 

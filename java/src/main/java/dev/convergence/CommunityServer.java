@@ -154,7 +154,7 @@ final class CommunityServer {
         ServerMessageEvents.ALLOW_CHAT_MESSAGE.register((message, player, parameters) -> get(player.getEntityWorld().getServer()).allowChat(player));
         CommandRegistrationCallback.EVENT.register((dispatcher, access, environment) -> {
             dispatcher.register(CommandManager.literal("serverhelp").executes(c -> info(c.getSource(),
-                "Infinity: /hub, /lobbies, /lobby <mode>, /play <mode>, /ranks, /rank, /spawn, /sethome [name], /home [name], /homes, /delhome <name>, /warps, /warp <name>, /tpa <player>, /tpaccept, /tpdeny, /rules. Powers: /convergence help. /ai <question> answers server questions; OP4: /agent help. Teleports take 3 seconds; stay still.")));
+                "Infinity: /hub, /lobbies, /lobby <mode>, /play <mode>, /ranks, /rank, /spawn, /sethome [name], /home [name], /homes, /delhome <name>, /warps, /warp <name>, /tpa <player>, /tpaccept, /tpdeny, /rules. Infinity Menu has gear and power controls. /ai <question> answers server questions; OP4: /agent help. Ordinary teleports take 3 seconds; Admin/OP skips that delay. Player visits still require acceptance.")));
             dispatcher.register(CommandManager.literal("rules").executes(c -> info(c.getSource(), String.join("\n", get(c.getSource().getServer()).settings.rules))));
             dispatcher.register(CommandManager.literal("spawn").executes(c -> get(c.getSource().getServer()).spawn(c.getSource().getPlayerOrThrow())));
             dispatcher.register(CommandManager.literal("sethome").executes(c -> get(c.getSource().getServer()).setHome(c.getSource().getPlayerOrThrow(), "home"))
@@ -162,7 +162,7 @@ final class CommunityServer {
             dispatcher.register(CommandManager.literal("home").executes(c -> get(c.getSource().getServer()).home(c.getSource().getPlayerOrThrow(), "home"))
                 .then(CommandManager.argument("name", StringArgumentType.word()).executes(c -> get(c.getSource().getServer()).home(c.getSource().getPlayerOrThrow(), StringArgumentType.getString(c, "name")))));
             dispatcher.register(CommandManager.literal("homes").executes(c -> {
-                var p = c.getSource().getPlayerOrThrow(); return say(p, (Memberships.operator(p)?"Your homes (OP has no limit): ":"Your homes (3 max): ") + String.join(", ", get(c.getSource().getServer()).homes(p).keySet()));
+                var p = c.getSource().getPlayerOrThrow(); return say(p, (Memberships.gameplayBypass(p)?"Your homes (Admin/OP has no limit): ":"Your homes (3 max): ") + String.join(", ", get(c.getSource().getServer()).homes(p).keySet()));
             }));
             dispatcher.register(CommandManager.literal("delhome").then(CommandManager.argument("name", StringArgumentType.word()).executes(c -> {
                 var p = c.getSource().getPlayerOrThrow(); var s = get(c.getSource().getServer());
@@ -206,7 +206,7 @@ final class CommunityServer {
     int setHome(ServerPlayerEntity p, String name) {
         if (!Memberships.operator(p)&&GameModes.current(p) == GameModes.Mode.HUB) return say(p, "Use /lobbies or /play from the Hub. Homes are saved in game worlds.");
         if (!validName(name)) return say(p, "Home names use 1–24 lowercase letters/numbers, - or _.");
-        if (!Memberships.operator(p)&&!homes(p).containsKey(name) && homes(p).size() >= HOME_LIMIT) return say(p, "You have 3 homes. Use /delhome <name> first.");
+        if (!Memberships.gameplayBypass(p)&&!homes(p).containsKey(name) && homes(p).size() >= HOME_LIMIT) return say(p, "You have 3 homes. Use /delhome <name> first.");
         if (!Place.of(p).valid()||(!Memberships.operator(p)&&(p.isSpectator() || !p.isAlive() || !safe(p.getEntityWorld(), Place.of(p))))) return say(p, "Stand on safe solid ground to save a home.");
         homes(p).put(name, Place.of(p)); save(); return say(p, "Home saved: " + name);
     }
@@ -278,7 +278,7 @@ final class CommunityServer {
         ServerPlayerEntity sender = server.getPlayerManager().getPlayer(request.sender);
         if (sender == null) return say(target, "That player left the server.");
         if (!accept || !target.isAlive() || target.isSpectator()) { say(sender, "Teleport request declined."); return say(target, "Request declined."); }
-        say(target, Memberships.operator(sender)?"Request accepted. The OP visitor teleports immediately.":"Request accepted. The visitor starts a 3-second countdown to your current location.");
+        say(target, Memberships.gameplayBypass(sender)?"Request accepted. The Admin/OP visitor teleports immediately if the destination is valid.":"Request accepted. The visitor starts a 3-second countdown to your current location.");
         return queue(sender, Place.of(target), target.getUuid());
     }
     boolean allowChat(ServerPlayerEntity player) {
