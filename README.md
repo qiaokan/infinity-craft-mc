@@ -2,13 +2,22 @@
 
 Infinity Armor for one shared Minecraft Java + Bedrock world. The Java Fabric server runs the game; Geyser and Floodgate let Bedrock players join it. The public guide and downloads are at [Infinity Armor Hub](https://infinity-armor-hub.vercel.app/).
 
-## Start playing
+## Join Infinity Craft
+
+| Edition | Server address | Port |
+| --- | --- | --- |
+| Java 1.21.11 | `infinity-craft.remotewire.net:25565` | Included in address |
+| Bedrock / iPad | `infinity-craft.remotewire.net` | `19132` |
+
+See [JOIN.md](JOIN.md) for connection steps. The owner confirmed a successful iPad/Bedrock join, and the Java TCP port passed an external check. A full Java player join still needs verification. You only need Minecraft on the device you play on. The host Mac must be awake and the Minecraft server running; the public website provides the guide and downloads.
+
+## Host your own world
 
 1. Download the **server ZIP** from the [GitHub releases page](https://github.com/qiaokan/infinity-craft-mc/releases) or the website and extract it to a folder you will keep. Choose the newest exploration preview if you want the new minigames and menus. The source folders in this repository are for development; they are not a ready-to-run server on their own.
 2. On Mac, open `Start-Mac.command` in the extracted folder. On Windows 10/11, run `start.bat`; on Linux, run `bash start.sh`.
 3. The local browser panel guides you through agreeing to the [Minecraft EULA](https://www.minecraft.net/eula), starting the world, and copying the current join addresses. The first launch downloads checksum-pinned Python/Java components and needs an Internet connection. You do not need Minecraft installed on the host computer.
 
-Java players use **Minecraft Java 1.21.11** and the Java address and port shown in the panel. Bedrock players, including iPad players, use **Add Server** with the separate Bedrock address and port shown there. Accept the offered server resource pack. Players on the same local network can use the host's LAN address. For friends outside your network, follow [`server/PINGGY_JOINING.md`](server/PINGGY_JOINING.md) for temporary, sign-in-free addresses on an Apple Silicon Mac, or [`server/HOSTING.md`](server/HOSTING.md) for other hosting options. These public addresses change; the website cannot display a permanent server IP. The host Mac must remain on and the server launcher must stay open while people play.
+Java players use **Minecraft Java 1.21.11** and the Java address and port shown in the panel. Bedrock players, including iPad players, use **Add Server** with the separate Bedrock address and port shown there. Accept the offered server resource pack. Players on the same local network can use the host's LAN address. For friends outside your network, follow [`server/PINGGY_JOINING.md`](server/PINGGY_JOINING.md) for temporary, sign-in-free addresses on an Apple Silicon Mac, [`server/DYNU_JOINING.md`](server/DYNU_JOINING.md) for a fixed hostname with router forwarding, or [`server/HOSTING.md`](server/HOSTING.md) for other hosting options. Free Pinggy tunnel addresses are temporary. A fixed DNS hostname requires its own setup. The host Mac must remain on and the server launcher must stay open while people play.
 
 The local owner panel controls the server; it is not a public website. Back up a stopped world before upgrading, and keep your world, `fabric/config`, and `settings.json` private. See [`server/README.md`](server/README.md) for full setup and upgrade instructions.
 

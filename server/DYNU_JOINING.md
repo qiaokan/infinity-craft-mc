@@ -64,4 +64,4 @@ Optional controls from this server folder:
 .runtime/python/bin/python3 dynu_joining.py update --watch --interval 300
 ```
 
-`status` reads local metadata only and never contacts Dynu or prints the key. There is no automatic startup job or persistent background service: reopen the companion when you host. [Dynu's Dynamic DNS FAQ](https://www.dynu.com/en-US/FAQ/Dynamic-DNS-Service) explains IP updating, DNS caching, and router requirements.
+`status` reads local metadata only and never contacts Dynu or prints the key. The downloadable companion does not install an automatic startup job or persistent background service: reopen it when you host, unless you have separately configured a background updater. Run only one watcher for the same server folder. [Dynu's Dynamic DNS FAQ](https://www.dynu.com/en-US/FAQ/Dynamic-DNS-Service) explains IP updating, DNS caching, and router requirements.
