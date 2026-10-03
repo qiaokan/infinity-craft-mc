@@ -1,4 +1,4 @@
-INFINITY ARMOR — EXPLORATION SERVER 2.12.0-explore.8
+INFINITY ARMOR — EXPLORATION SERVER 2.12.0-explore.9
 
 1. Extract the entire ZIP into a folder you will keep.
 2. Double-click Start-Mac.command (Mac) or start.bat (Windows).
@@ -30,6 +30,7 @@ For outside-network friends on an Apple Silicon Mac, open Start-Pinggy-Mac.comma
 For a fixed joining name on Mac, follow DYNU_JOINING.md: reserve your own free Dynu hostname, save its private API key locally, and forward Java TCP 25565 plus Bedrock UDP 19132 in your router. Start-Dynu-Mac.command keeps that name's IPv4 current while open. Keep the Mac awake and test both editions from another Internet connection. DNS alone does not make the games reachable or guarantee a name forever.
 
 IN MINECRAFT
+Admin/OP4: Infinity Menu > Admin editor > choose a player or loaded AI helper > choose a stat > Review > Confirm. Edit health, max health, speed, damage, armor, size, hunger, XP and other supported stats. Equipment bonuses remain separate; reset restores recorded attribute bases. Setting health to zero kills the selected target. AI helpers have their own supported stats; hunger and XP apply to players.
 Select the Infinity Menu compass for modes, gear, powers, cosmetics and helpers. INFINITY MENU signs in the themed lobbies open the same controls. /menu remains a shortcut.
 New players start in the Main Hub. Existing players can use /hub.
 /lobbies — list mode lobbies; /lobby <mode> — visit one.

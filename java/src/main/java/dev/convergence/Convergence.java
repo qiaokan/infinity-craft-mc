@@ -299,6 +299,8 @@ public class Convergence implements ModInitializer {
       AgentCompanions.initialize();
       ServerAssistant.initialize();
       ServerMenu.register();
+      AdminStats.setMenuOpener(AdminStatsMenu::open);
+      AdminStats.register();
       Registry.register(
          Registries.ITEM_GROUP,
          Identifier.of("convergence", "powers"),

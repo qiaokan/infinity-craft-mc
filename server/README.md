@@ -1,12 +1,24 @@
-# Infinity Armor Exploration Server — 2.12.0-explore.8
+# Infinity Armor Exploration Server — 2.12.0-explore.9
 
-Multi-mode build based on Infinity Armor 2.3.0 and the crossplay preview. Updated October 2, 2026.
+Multi-mode build based on Infinity Armor 2.3.0 and the crossplay preview. Updated October 3, 2026.
 
 This server build lets Java and Bedrock players share **one Fabric server with shared game worlds** with Infinity Armor's Java powers. It is a crossplay preview based on your 2.3.0 source. Read VALIDATION.md for the checks and remaining play-test limits.
 
 Select the named **Infinity Menu** recovery compass in your hotbar to open gear, powers, worlds and AI helpers. Every `/convergence` feature has a menu button; typing that command is optional. If the compass is in your main inventory, move it to the hotbar first. Tap or right-click an **INFINITY MENU** sign in the Main Hub or a mode lobby to reopen the menu and recover a missing compass. Clear one inventory slot if your inventory is full; the server never replaces your items to make room.
 
 Choose **Minigames** or **Adventure maps**, then tap a course icon to play. `/guide` gives directions for your current location, `/best` shows personal times, and `/leaderboard <map>` shows saved minigame records. See [EXPLORATION.md](EXPLORATION.md) for navigation and scores.
+
+## Admin health and stat editor
+
+Select **Infinity Menu → Admin editor • players and AI**. An Admin or OP4 can choose themselves, another online player or a loaded AI helper, select a stat, adjust the proposed value, then review and confirm it. Values do not change while browsing. The confirmation identifies the exact target and change; setting health to zero kills that target. A target that dies, disconnects, unloads or changes worlds must be selected again. AI behavior/profile changes also cancel an open review.
+
+The editor includes current health, food, saturation, exhaustion, absorption and XP level, plus the attributes supported by that player: maximum health, movement and attack speed, attack damage, armor, toughness, size, reach, jump strength and more. It edits attribute **base values** while retaining equipment and potion modifiers, and shows the resulting effective value. Two health points equal one heart. Minecraft's valid numeric ranges are shown in the editor; they are engine limits, not rank restrictions.
+
+Attribute base changes persist across reconnects and respawns and apply in every game mode. **Reset original attribute** restores the base value from before this editor first changed it; resetting all attributes reviews the recorded changes first. Health, hunger and XP edits happen once and continue to follow normal damage, regeneration and the server's separate mode profiles. Normal gameplay is not frozen. The editor cannot run shell commands, read private keys or approve AI actions.
+
+Registered AI golem helpers offer health, absorption and their supported combat/body attributes. Their edited bases and original-value reset records save together with the entity. Wild golems are not editable through this menu, and unloaded helpers are not force-loaded. Food and XP apply only to players. Existing AI follow/guard/profile controls remain in **AI Helpers**.
+
+For an exact value, an OP4 player can also use the optional command `/adminstats PlayerName set max_health 100`. This gives a base of 50 hearts; it does not also heal the player. `/adminstats PlayerName view` shows the stat IDs and values, and `/adminstats PlayerName reset max_health` restores the recorded original. Bedrock names include their prefix, such as `.PlayerName`. For a registered AI, use `/adminstats ai <entity UUID> view` or `/adminstats ai <entity UUID> set attack_damage 30`; the menu avoids needing its UUID.
 
 ## New blocks, tools, wardrobe and player trading
 

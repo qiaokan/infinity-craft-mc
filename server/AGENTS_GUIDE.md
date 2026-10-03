@@ -1,4 +1,6 @@
-# Helper squads, AI modes, and full operator controls — 2.12.0-explore.8
+# Helper squads, AI modes, and full operator controls — 2.12.0-explore.9
+
+Admins can edit a loaded helper through **Infinity Menu → Admin editor • players and AI**. Select its golem icon, change health, damage, speed, armor, size or another supported base attribute, then Review and Confirm. Original attribute values can be restored. The edits and reset values save with the entity; helper behavior/profile changes invalidate an open stat review. Follow, guard and profile controls remain in **AI Helpers**, and player-target orders still require both approvals.
 
 Helpers are vanilla iron golems controlled by this server. They work with Java and Bedrock without a client mod. **Only an operator with level 4 can create, change, dismiss, or ask a helper.** The free Admin role now grants actual OP4 when obtained through the private code or a trusted owner grant.
 

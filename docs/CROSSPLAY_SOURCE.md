@@ -1,4 +1,4 @@
-# Infinity Armor Exploration Server source — 2.12.0-explore.8
+# Infinity Armor Exploration Server source — 2.12.0-explore.9
 
 This is a server-only Java and Bedrock crossplay build derived from the user-supplied Infinity Armor v2.3.0 source. The original Java and Bedrock downloads remain unchanged. Start with `server/README.md` for installation, menus, optional commands, and current limitations.
 
@@ -35,3 +35,5 @@ python3 tools/package_crossplay.py
 Run each command only after the previous one succeeds. The redirected logs are required packaging evidence; inspect them if a command fails. The native GameTest driver builds the mod, checks dimension fixture drift, and starts a disposable Minecraft world with release dependencies. The Python suite checks the launcher and packaging behavior. Geyser and full-stack smoke checks verify startup, Bedrock UDP response, shutdown, and a stopped-world backup. The full-stack check requires EULA acceptance already present in the local host folder; it never accepts the EULA itself. Neither smoke check establishes authenticated player login. See `server/VALIDATION.md` for the exact coverage and remaining device play-test work.
 
 The packager writes server and source ZIPs under `dist/lobbies`. It includes explicit release files and reports, excluding worlds, keys, EULA files, account data, runtime downloads, and local panel tokens. Do not archive the whole `server` or `research` directory after running a world. The original powers guide is included as `ORIGINAL_GUIDE_2.3.0.md`.
+
+The Admin editor is implemented in `AdminStats.java` and `AdminStatsMenu.java`. It enumerates supported player and AI golem attributes, changes finite values within native ranges, preserves modifiers, and records original base values in the existing player `InfinityModes` data for reset. Registered helpers save their originals in the same entity NBT through `AdminStatGolemMixin`; no separate reset database is used. OP4, actor/target identity, helper registration, connection and menu context are rechecked on mutation. There is no background stat pinning or AI approval shortcut.

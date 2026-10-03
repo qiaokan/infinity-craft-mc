@@ -62,3 +62,5 @@ Use the stopped-world panel to disable new redemptions or replace the private co
 ## Full operators
 
 A level-4 operator without the Admin role receives an **OP** badge; an Admin keeps the **ADMIN** badge. Both have full vanilla level-4 command access and the mod's operator gameplay privileges. Admin also removes Infinity weapon ability cooldowns. This access does not permanently award achievement ranks or trade receipts. After Admin and any independent OP grant are removed, the account returns to its earned unlocks. See [AGENTS_GUIDE.md](AGENTS_GUIDE.md) for helper controls and the two AI approval gates.
+
+Admin/OP4 can open **Infinity Menu → Admin editor • players and AI** to edit themselves, another online player or a registered loaded AI helper. Changes require a review and confirmation. Attribute bases (health capacity, speed, damage, armor, size and other supported attributes) persist without removing equipment or potion modifiers and can be reset to their recorded originals. Current health, hunger and XP are one-time changes; normal gameplay and mode profiles continue. See [README.md](README.md) for controls and exact-value commands.

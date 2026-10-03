@@ -1,4 +1,4 @@
-# Infinity Armor expansion — 2.12.0-explore.8
+# Infinity Armor expansion — 2.12.0-explore.9
 
 Use the existing launcher and world. Your iPad can join the same server using the host panel's Bedrock address and accept its resource pack. Reconnect after an upgrade to refresh textures. No Minecraft installation is needed on the Mac host.
 
