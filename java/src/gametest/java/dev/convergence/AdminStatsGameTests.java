@@ -127,7 +127,8 @@ public class AdminStatsGameTests {
             c.assertEquals(GameModes.state(target), before.getCompoundOrEmpty("InfinityModes"), "Invalid input never leaves a persistence entry");
             c.assertEquals(target.getMaxHealth(), 20f, "Invalid input leaves actual health limit intact");
             set(c, source, target, "health", target.getMaxHealth() + 1);
-            c.assertEquals(target.getHealth(), target.getMaxHealth(), "Oversized heal stops at the effective health maximum");
+            c.assertEquals(target.getMaxHealth(),21f,"Direct health entry automatically increases capacity");
+            c.assertEquals(target.getHealth(),21f,"Direct entry applies the amount rather than silently truncating it");
         } finally { cleanup(actor); cleanup(target); }
         c.complete();
     }
@@ -306,6 +307,77 @@ public class AdminStatsGameTests {
             c.assertEquals(target.getHungerManager().getFoodLevel(),100,"Food survives native save/load");
             c.assertEquals(AdminStats.value(target,AdminStats.find(target,"exhaustion")).base(),100d,"Exhaustion survives native save/load");
         } finally { cleanup(actor);cleanup(target); }
+        c.complete();
+    }
+
+    @GameTest public void directVitalEntryRaisesCapacityAndReloadKeepsConsumedAbsorption(TestContext c) {
+        var actor=owner(c,"reserve-auto-op");var target=player(c,"reserve-auto");
+        try {
+            var preview=AdminStats.planSet(target,"absorption",5000);
+            c.assertEquals(preview.size(),2,"One edit reviews capacity and absorption together");
+            c.assertEquals(preview.getFirst().id(),"max_absorption","Capacity appears before the dependent amount");
+            c.assertEquals(target.getMaxAbsorption(),0f,"A preview never changes the target");
+            set(c,actor.getCommandSource(),target,"health",5000);
+            set(c,actor.getCommandSource(),target,"absorption",5000);
+            c.assertEquals(target.getHealth(),5000f,"Health needs only one direct edit");
+            c.assertEquals(target.getAbsorptionAmount(),5000f,"Absorption needs only one direct edit");
+            target.damage(c.getWorld(),target.getDamageSources().generic(),10);
+            c.assertEquals(target.getAbsorptionAmount(),4990f,"Normal damage consumes the actual reserve");
+            var saved=save(target);
+            c.assertTrue(AdminStats.resetAll(actor.getCommandSource(),target).success(),"Capacity originals can be restored together");
+            read(target,saved);
+            c.assertEquals(target.getMaxAbsorption(),5000f,"Expanded capacity survives native read");
+            c.assertEquals(target.getAbsorptionAmount(),4990f,"Native reload preserves the remaining reserve without clipping or refilling it");
+            c.assertEquals(AdminStats.original(target,AdminStats.find(target,"max_absorption")),0d,"First capacity original remains resettable");
+        } finally {cleanup(actor);cleanup(target);}
+        c.complete();
+    }
+
+    @GameTest public void automaticCapacityPreservesModifiersAndImpossibleEditsAreAtomic(TestContext c) {
+        var actor=owner(c,"reserve-mod-op");var target=player(c,"reserve-mod");
+        var capacity=target.getAttributeInstance(EntityAttributes.MAX_ABSORPTION);
+        var id=Identifier.of("infinity_test","capacity_penalty");
+        var modifier=new EntityAttributeModifier(id,-100,EntityAttributeModifier.Operation.ADD_VALUE);
+        try {
+            capacity.addPersistentModifier(modifier);
+            set(c,actor.getCommandSource(),target,"absorption",5000);
+            c.assertEquals(target.getAbsorptionAmount(),5000f,"Automatic increase accounts for a negative external modifier");
+            c.assertEquals(capacity.getModifier(id),modifier,"External modifiers are untouched");
+            c.assertTrue(AdminStats.resetAll(actor.getCommandSource(),target).success(),"Reset remains available");
+            capacity.removeModifier(id);
+            var blocked=new EntityAttributeModifier(id,-1,EntityAttributeModifier.Operation.ADD_MULTIPLIED_TOTAL);
+            capacity.addPersistentModifier(blocked);
+            var before=save(target);
+            c.assertFalse(AdminStats.set(actor.getCommandSource(),target,"absorption",100).success(),"A zero capacity multiplier cannot be satisfied by any base");
+            c.assertEquals(capacity.getBaseValue(),0d,"Failure does not partially raise the base");
+            c.assertEquals(target.getAbsorptionAmount(),0f,"Failure does not apply the amount");
+            c.assertEquals(GameModes.state(target),before.getCompoundOrEmpty("InfinityModes"),"Failure creates no reset history");
+            c.assertFalse(AdminStats.set(actor.getCommandSource(),target,"health",Math.nextUp((double)Float.MAX_VALUE)).success(),"Nonrepresentable health is refused before changing capacity");
+            c.assertEquals(target.getMaxHealth(),20f,"Invalid health leaves capacity intact");
+        } finally {cleanup(actor);cleanup(target);}
+        c.complete();
+    }
+
+    @GameTest public void expandedArmorChangesActualProtectionAndResetRestoresVanilla(TestContext c) {
+        var actor=owner(c,"armor-protect-op");var target=player(c,"armor-protect");var ordinary=player(c,"armor-ordinary");
+        try {
+            set(c,actor.getCommandSource(),target,"armor",500);
+            var attacker=net.minecraft.entity.EntityType.ZOMBIE.create(c.getWorld(),net.minecraft.entity.SpawnReason.COMMAND);
+            var source=target.getDamageSources().mobAttack(attacker);
+            c.assertEquals(net.minecraft.entity.DamageUtil.getDamageLeft(target,10,source,500,0),0f,"Expanded armor exceeds the native 80 percent ceiling without negative damage");
+            ordinary.getAttributeInstance(EntityAttributes.ARMOR).setBaseValue(500);
+            c.assertTrue(net.minecraft.entity.DamageUtil.getDamageLeft(ordinary,10,source,30,0)>1.9f,"An unedited instance keeps vanilla protection");
+            target.damage(c.getWorld(),source,10);
+            c.assertEquals(target.getHealth(),20f,"Real damage uses expanded armor protection");
+            var saved=save(target);read(target,saved);
+            c.assertEquals(target.getAttributeValue(EntityAttributes.ARMOR),500d,"Native reload keeps the edited armor number");
+            c.assertEquals(net.minecraft.entity.DamageUtil.getDamageLeft(target,10,source,500,0),0f,"Reload keeps expanded protection enabled");
+            target.timeUntilRegen=0;
+            target.damage(c.getWorld(),target.getDamageSources().genericKill(),2);
+            c.assertEquals(target.getHealth(),18f,"Native damage that bypasses armor still bypasses it");
+            c.assertTrue(AdminStats.reset(actor.getCommandSource(),target,"armor").success(),"Armor reset succeeds");
+            c.assertEquals(net.minecraft.entity.DamageUtil.getDamageLeft(target,10,source,0,0),10f,"Reset restores normal armor calculations");
+        } finally {cleanup(actor);cleanup(target);cleanup(ordinary);}
         c.complete();
     }
 

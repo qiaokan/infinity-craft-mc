@@ -95,9 +95,13 @@ final class Memberships {
     Tier tier(UUID id) {
         var player=server.getPlayerManager().getPlayer(id);if(player!=null&&operator(player))return Tier.ULTRA;
         var a=account(id);var override=a.expires>System.currentTimeMillis()?a.tier:Tier.FREE;
-        Tier earned=a.earned;
-        if(player!=null&&RewardTrades.rank(player).ordinal()>earned.ordinal())earned=RewardTrades.rank(player);
+        Tier earned=permanentTier(id);
         return override.ordinal()>earned.ordinal()?override:earned;
+    }
+    Tier permanentTier(UUID id) {
+        var earned=account(id).earned;var player=server.getPlayerManager().getPlayer(id);
+        if(player!=null&&RewardTrades.rank(player).ordinal()>earned.ordinal())earned=RewardTrades.rank(player);
+        return earned;
     }
     String label(UUID id) {if(account(id).admin)return "ADMIN";var player=server.getPlayerManager().getPlayer(id);if(player!=null&&operator(player))return "OP";return tier(id).name();}
     void save() {try {if(Files.exists(file))Files.copy(file,file.resolveSibling(file.getFileName()+".previous"),java.nio.file.StandardCopyOption.REPLACE_EXISTING);CommunityServer.atomicJson(file,data);}catch(Exception e){throw new IllegalStateException("Cannot save memberships",e);}}

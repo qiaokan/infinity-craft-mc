@@ -141,6 +141,7 @@ public class Convergence implements ModInitializer {
    static Item register(String name, Item base, int count, float attack, int durability, int protection) {
       Identifier id = Identifier.of(name);
       Settings s = new Settings().registryKey(RegistryKey.of(RegistryKeys.ITEM, id));
+      s.component(DataComponentTypes.ITEM_NAME,GearNames.text(id.getPath()));
 
       for (Component<?> c : base.getComponents()) {
          if (c.type() != DataComponentTypes.ITEM_NAME && c.type() != DataComponentTypes.ITEM_MODEL) {

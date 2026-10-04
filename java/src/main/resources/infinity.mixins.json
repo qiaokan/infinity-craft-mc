@@ -10,6 +10,7 @@
     "AgentConsoleSourceAccess",
     "AdminStatGolemMixin",
     "AdminAttributeMixin",
+    "AdminArmorMixin",
     "AgentFlightAccess",
     "AgentWeaponMixin",
     "AgentPierceMixin",

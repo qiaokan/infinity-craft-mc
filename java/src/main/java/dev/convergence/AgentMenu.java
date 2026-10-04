@@ -117,7 +117,7 @@ final class AgentMenu {
                 } else {
                     icon(view, slot, Items.LIME_DYE, roster.isEmpty() && index == 0
                         ? "Create your first helper" : "Create a helper • slot " + (index + 1));
-                    description(view, slot, "Tap to summon a named iron golem beside you. Stand on clear solid ground.");
+                    description(view, slot, "Tap to summon a named AI player avatar beside you. Stand on clear solid ground.");
                 }
             }
             movement(view, "Squad");

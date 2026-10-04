@@ -44,7 +44,7 @@ final class CrossplaySupport {
     static final Map<String, BlockState> BLOCK_STATES = new LinkedHashMap<>();
     // Bedrock custom items cannot reproduce all native shield/glider/projectile behavior.
     // Preserve those native controls, at the cost of native Bedrock artwork for these items.
-    static final Set<String> NATIVE_BEDROCK = Set.of("chestplate", "shield", "totem", "bow", "crossbow",
+    static final Set<String> NATIVE_BEDROCK = Set.of("helmet", "chestplate", "leggings", "boots", "shield", "totem", "bow", "crossbow",
         "infinity_arrow", "void_arrow", "starfire_arrow", "backpack",
         "aurora_helmet","aurora_chestplate","aurora_leggings","aurora_boots",
         "ember_helmet","ember_chestplate","ember_leggings","ember_boots");
@@ -114,6 +114,7 @@ final class CrossplaySupport {
                         ? entry.getValue().getComponents().get(DataComponentTypes.ITEM_MODEL) : stack.get(DataComponentTypes.ITEM_MODEL);
                 }
                 public void modifyBasePolymerItemStack(ItemStack out,ItemStack stack,PacketContext context) {
+                    out.set(DataComponentTypes.ITEM_NAME,GearNames.text(entry.getKey()));
                     // A custom Java equipment asset is invisible/missing when its pack
                     // was declined, and unsupported for native Bedrock wearable mappings.
                     // Keep a complete native wearable asset until the Java pack is loaded.
@@ -190,14 +191,14 @@ final class CrossplaySupport {
             definition.addProperty("type", "definition");
             definition.addProperty("bedrock_identifier", "convergence:" + path);
             definition.addProperty("model", "convergence:" + path);
-            definition.addProperty("display_name", stack.getName().getString());
+            definition.addProperty("display_name", GearNames.label(path));
             var options = new JsonObject();
             options.addProperty("icon", "convergence_" + path);
             options.addProperty("allow_offhand", true);
             options.addProperty("display_handheld", POWER_ITEMS.contains(path));
             // Geyser 2.11 cannot translate a Bedrock Creative-list drag for custom
             // definitions back to a Java item. Keep the item mapping and texture,
-            // but grant Creative gear from the server with /convergence hold.
+            // but grant real gear into the player inventory from server controls.
             int protection = switch (path) { case "helmet", "boots" -> 6; case "leggings" -> 8; default -> 0; };
             options.addProperty("protection_value", protection);
             definition.add("bedrock_options", options);
@@ -224,7 +225,7 @@ final class CrossplaySupport {
             String path = entry.getKey();
             var definition = new JsonObject();
             definition.addProperty("name", "infinity_" + path);
-            definition.addProperty("display_name", Convergence.ITEMS.get("convergence:" + path).getName().getString());
+            definition.addProperty("display_name", GearNames.label(path));
             definition.addProperty("only_override_states", true);
             definition.addProperty("unit_cube", true);
             definition.addProperty("destructible_by_mining", ExpandedGear.hardness(path));

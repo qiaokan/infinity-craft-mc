@@ -109,12 +109,7 @@ final class CreativeGearPicker {
     }
 
     private static String label(String path) {
-        StringBuilder result = new StringBuilder("Infinity ");
-        for (String word : path.split("_")) {
-            if (word.isEmpty()) continue;
-            result.append(word.substring(0, 1).toUpperCase(Locale.ROOT)).append(word.substring(1)).append(' ');
-        }
-        return result.toString().trim();
+        return GearNames.label(path);
     }
 
     static int open(ServerPlayerEntity player) {

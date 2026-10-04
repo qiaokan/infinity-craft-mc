@@ -309,6 +309,47 @@ public class AdminStatsMenuGameTests {
         c.complete();
     }
 
+    @GameTest public void directJavaAbsorptionEntryReviewsBothChangesAndDoesNotNeedCapacityScreen(TestContext c) {
+        var admin=player(c,"auto-java-op",true);var target=player(c,"auto-java-target",false);
+        try {
+            edit(admin,target,"absorption");click(admin,AdminStatsMenu.EXACT);
+            AdminStatsMenu.consumeChat(admin,"5000");click(admin,AdminStatsMenu.REVIEW);
+            c.assertEquals(menu(admin).changes.size(),2,"One review includes capacity and absorption");
+            c.assertEquals(menu(admin).changes.getFirst().id(),"max_absorption","The capacity change is visible");
+            c.assertEquals(target.getMaxAbsorption(),0f,"Review does not change either value");
+            click(admin,AdminStatsMenu.CANCEL);
+            c.assertEquals(target.getMaxAbsorption(),0f,"Cancel preserves capacity");
+            edit(admin,target,"absorption");click(admin,AdminStatsMenu.PLUS_LARGE);
+            c.assertEquals(menu(admin).pending,100d,"Buttons no longer stop at a zero capacity");
+            click(admin,AdminStatsMenu.REVIEW);click(admin,AdminStatsMenu.CONFIRM);
+            c.assertEquals(target.getAbsorptionAmount(),100f,"One confirmed edit raises capacity and grants the actual reserve");
+            c.assertEquals(target.getMaxAbsorption(),100f,"Capacity matches the confirmed plan");
+        } finally {cleanup(admin);cleanup(target);}
+        c.complete();
+    }
+
+    @GameTest public void bedrockDirectAbsorptionAndArmorPersistAndCapacityChangeCancelsBoth(TestContext c) {
+        var admin=player(c,"auto-form-op",true);var target=player(c,"auto-form-target",false);
+        var forms=new java.util.ArrayList<org.geysermc.cumulus.form.Form>();
+        java.util.function.Predicate<org.geysermc.cumulus.form.Form> sender=f->{forms.add(f);return true;};
+        try {
+            BedrockStatsMenu.open(admin,target,"absorption",sender);formReply(forms.getLast(),"[null,\"5000\",0]");
+            var confirm=(org.geysermc.cumulus.form.ModalForm)forms.getLast();
+            c.assertTrue(confirm.content().contains("max_absorption")&&confirm.content().contains("absorption"),"Native confirmation shows both exact changes");
+            c.assertEquals(target.getMaxAbsorption(),0f,"Typing a value never raises capacity before approval");
+            target.getAttributeInstance(EntityAttributes.MAX_ABSORPTION).setBaseValue(1);
+            formReply(confirm,"true");
+            c.assertEquals(target.getMaxAbsorption(),1f,"Stale capacity cancels the whole transaction");
+            c.assertEquals(target.getAbsorptionAmount(),0f,"Stale approval does not apply the dependent amount");
+            BedrockStatsMenu.open(admin,target,"absorption",sender);formReply(forms.getLast(),"[null,\"5000\",0]");formReply(forms.getLast(),"true");
+            c.assertEquals(target.getAbsorptionAmount(),5000f,"Bedrock input raises capacity in the same confirmed edit");
+            BedrockStatsMenu.open(admin,target,"armor",sender);formReply(forms.getLast(),"[null,\"500\",0]");formReply(forms.getLast(),"true");
+            c.assertEquals(target.getAttributeValue(EntityAttributes.ARMOR),500d,"Bedrock form accepts armor above the native attribute bound");
+            c.assertEquals(target.getAbsorptionAmount(),5000f,"Editing armor does not reset a high absorption reserve");
+        } finally {cleanup(admin);cleanup(target);}
+        c.complete();
+    }
+
     @GameTest public void touchArmorMenuGrantsAllAuroraPiecesIncludingChestplate(TestContext c) {
         var admin=player(c,"armor-touch",true);
         try {

@@ -284,4 +284,20 @@ public class ServerMenuGameTests {
         }
         c.complete();
     }
+    @GameTest public void ranksMenuShowsActualRoleAndEarnedTierSeparately(TestContext c) {
+        var p=player(c,"ranks-menu14");
+        try {
+            var members=Memberships.get(c.getWorld().getServer());members.account(p.getUuid()).earned=Memberships.Tier.PLUS;
+            ServerMenu.open(p);click(p,ServerMenu.RANKS);
+            c.assertEquals(menu(p).page,ServerMenu.Page.RANKS,"Rank button opens real progression menu");
+            c.assertTrue(p.currentScreenHandler.getSlot(4).getStack().getName().getString().contains("PLUS"),"Rank menu recognizes earned rank");
+            c.assertTrue(ServerAssistant.instructions(p.getCommandSource()).contains("Caller current badge: PLUS; permanently unlocked rank: PLUS"),"AI receives actual caller rank");
+            p.closeHandledScreen();OperatorGameTests.level(p,LeveledPermissionPredicate.OWNERS);members.account(p.getUuid()).admin=true;
+            ServerMenu.open(p);click(p,ServerMenu.RANKS);
+            c.assertTrue(p.currentScreenHandler.getSlot(4).getStack().getName().getString().contains("ADMIN"),"Owner role is not confused with paid Ultra");
+            c.assertEquals(members.permanentTier(p.getUuid()),Memberships.Tier.PLUS,"Admin access does not replace earned rank");
+        } finally {Memberships.get(c.getWorld().getServer()).account(p.getUuid()).admin=false;cleanup(p);}
+        c.complete();
+    }
+
 }

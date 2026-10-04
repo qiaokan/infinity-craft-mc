@@ -118,7 +118,7 @@ final class BedrockStatsMenu {
     private static void stats(ServerPlayerEntity actor,LivingEntity target,Predicate<Form> sender) {
         var choices=AdminStats.list(target);var t=begin(actor,target);
         var form=SimpleForm.builder().title("Stats: "+AdminStats.displayName(target))
-            .content("Tap a stat, type its exact value, then Confirm. Health capacity sets how much Current health you can fill.");
+            .content("Tap a stat, type its value, then Confirm. Health and absorption automatically include any needed capacity increase. The numbers here are authoritative even when the client bars stop growing.");
         for(var stat:choices)form.button(stat.label()+" = "+AdminStatsMenu.number(AdminStats.value(target,stat).base()));
         form.button("Restore all edited attributes").button("Back to Infinity Menu");
         form.validResultHandler(r->response(t,()->{
@@ -139,9 +139,9 @@ final class BedrockStatsMenu {
         var stat=AdminStats.find(target,id);
         if(stat==null) {message(actor,"That stat is no longer available.");return;}
         var t=begin(actor,target);
-        String extra=stat.id().equals("health")?"\nFor more health, raise Health capacity first.":"";
+        String range=AdminStats.inputMaximum(stat)==Float.MAX_VALUE ? "Enter a finite value of at least "+AdminStatsMenu.number(stat.minimum())+"." : "Range: "+AdminStatsMenu.number(stat.minimum())+" to "+AdminStatsMenu.number(stat.maximum());
         var form=CustomForm.builder().title(stat.label()+" • "+AdminStats.displayName(target))
-            .label("Current: "+AdminStatsMenu.number(AdminStats.value(target,stat).base())+"\nRange: "+AdminStatsMenu.number(stat.minimum())+" to "+AdminStatsMenu.number(stat.maximum())+"\n"+AdminStats.boundsHint(stat)+extra)
+            .label("Current: "+AdminStatsMenu.number(AdminStats.value(target,stat).base())+"\nEffective: "+AdminStatsMenu.number(AdminStats.value(target,stat).effective())+"\n"+range+"\n"+AdminStats.boundsHint(stat))
             .input("Exact new value","Example: 5000",AdminStatsMenu.number(AdminStats.value(target,stat).base()))
             .dropdown("Action",stat.attribute()?List.of("Set exact value","Restore original attribute"):List.of("Set exact value"));
         form.validResultHandler(r->response(t,()->{
@@ -152,11 +152,12 @@ final class BedrockStatsMenu {
             try {amount=Double.parseDouble(r.asInput(1).trim());}
             catch(NumberFormatException invalid) {message(actor,"Enter a numeric value. Nothing changed.");edit(actor,target,id,sender);return;}
             var current=AdminStats.find(target,id);
-            if(current==null || !Double.isFinite(amount) || amount<current.minimum() || amount>current.maximum() || current.integer() && amount!=Math.rint(amount)) {
+            if(current==null || !Double.isFinite(amount) || amount<current.minimum() || amount>AdminStats.inputMaximum(current) || current.integer() && amount!=Math.rint(amount)) {
                 message(actor,"That value is outside the current range. Nothing changed.");edit(actor,target,id,sender);return;
             }
             amount=AdminStats.normalizedValue(current,amount);
-            review(actor,target,AdminStatsMenu.Operation.SET,id,amount,List.of(new AdminStatsMenu.Change(id,AdminStats.value(target,current).base(),amount)),sender);
+            try {review(actor,target,AdminStatsMenu.Operation.SET,id,amount,AdminStatsMenu.plannedChanges(target,id,amount),sender);}
+            catch(IllegalArgumentException invalid){message(actor,invalid.getMessage());edit(actor,target,id,sender);}
         })).closedOrInvalidResultHandler(()->cancel(t));
         send(t,form.build(),sender);
     }

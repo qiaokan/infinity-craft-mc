@@ -46,6 +46,7 @@ final class ServerMenu {
     static final int SURVIVAL = 37, CREATIVE = 39, HARDCORE = 41, HUB = 43;
     static final int ADMIN = 47;
     static final int SELF_STATS = 51, CRATES = 46, ARMOR = 48;
+    static final int INVENTORY_GEAR = 50, RANKS = 52;
     static final int PREVIOUS = 45, BACK = 49, NEXT = 53, PAGE_SIZE = 45;
     private static final String MARKER = "infinity_server_menu";
     private static final String OWNER = "owner";
@@ -53,7 +54,7 @@ final class ServerMenu {
     private static final Map<UUID, Integer> READY_AT = new HashMap<>();
     private static final Map<UUID, Integer> SELECTED_CONTROL = new HashMap<>();
     private static final Set<UUID> FULL_NOTICE = new HashSet<>();
-    enum Page { MAIN, GEAR, ARMOR, HELP, INFO }
+    enum Page { MAIN, GEAR, ARMOR, RANKS, HELP, INFO }
     private record Selection(GameModes.Mode mode, int slot) {}
 
     private ServerMenu() {}
@@ -155,12 +156,7 @@ final class ServerMenu {
     }
 
     private static String label(String path) {
-        var result = new StringBuilder("Infinity ");
-        for (String word : path.split("_")) {
-            if (word.isEmpty()) continue;
-            result.append(Character.toUpperCase(word.charAt(0))).append(word.substring(1)).append(' ');
-        }
-        return result.toString().trim();
+        return GearNames.label(path);
     }
 
     /** Short tooltip cards avoid a single help tooltip extending beyond small iPad screens. */
@@ -225,6 +221,8 @@ final class ServerMenu {
             icon(view,SELF_STATS,Items.APPLE,"My stats • quick edit","OP4: jump straight to your own health and attributes.");
             icon(view,CRATES,Items.PURPLE_SHULKER_BOX,"Convergence Set • inventory boxes","Places the complete set into two labeled gear boxes.","Place and open the boxes to take items. Requires Creative or gear permission.");
             icon(view,ARMOR,Items.LEATHER_CHESTPLATE,"Armor sets • includes chestplates","Claim Aurora or Ember with all four pieces.","The Infinity winged chestplate uses an elytra on Bedrock.");
+            icon(view,INVENTORY_GEAR,Items.NETHERITE_CHESTPLATE,"Armor & tools → inventory","Adds real equipment directly to empty inventory slots.","Keeps your existing items; Creative, Admin or OP2 required.");
+            icon(view,RANKS,Items.EMERALD,"Ranks & subscriptions","Your badge, permanent rank and all milestone requirements.");
         } else if (page == Page.GEAR) {
             title = "Infinity Gear • " + (pageIndex + 1);
             for (int slot = 0, pathIndex = pageIndex * PAGE_SIZE; slot < PAGE_SIZE && pathIndex < paths.size(); slot++, pathIndex++) {
@@ -242,6 +240,20 @@ final class ServerMenu {
             icon(view,10,Items.LEATHER_CHESTPLATE,"Aurora • all four pieces","Helmet, chestplate, leggings and boots.","Earn Enchanter or use Admin access. Clear four inventory slots.");
             icon(view,12,Items.LEATHER_CHESTPLATE,"Ember • all four pieces","Helmet, chestplate, leggings and boots.","Earn Into Fire or use Admin access. Clear four inventory slots.");
             icon(view,14,Items.ELYTRA,"Infinity winged chestplate","Uses native elytra artwork and flight on Bedrock.","Choose Aurora or Ember above for a chestplate appearance.","Requires Creative, Admin or OP2.");
+        } else if(page==Page.RANKS) {
+            title="Ranks & subscriptions";var memberships=Memberships.get(player.getEntityWorld().getServer());
+            memberships.syncAchievements(player);
+            icon(view,4,Items.PLAYER_HEAD,"Your badge: "+memberships.label(player.getUuid()),"Permanent rank: "+memberships.permanentTier(player.getUuid()),"Admin and OP4 are owner roles; viewing this menu does not grant them.");
+            icon(view,9,Items.STONE,"FREE","Every game mode is included. No payment required.");
+            int slot=11;
+            for(var goal:Memberships.GOALS) {
+                var lines=new ArrayList<String>();
+                for(var milestone:goal.milestones())lines.add((memberships.done(player,milestone)?"✓ ":"• ")+milestone.task());
+                lines.add("Complete all three, or use the Survival item trade.");
+                icon(view,slot,Items.EMERALD,goal.tier().name(),lines.toArray(String[]::new));slot+=2;
+            }
+            icon(view,28,Items.GOLD_INGOT,"Optional USD/month plans","Go $50 • Plus $75 • Pro $100 • Ultra $200","Checkout is off until the owner connects Tebex.");
+            icon(view,30,Items.COMMAND_BLOCK,"ADMIN / OP4","Free owner-controlled access. Cannot be purchased or earned by viewing a menu.");
         } else if (page == Page.HELP) {
             title = "Infinity Controls";
             information(view, "Controls", Convergence.helpText());
@@ -343,6 +355,8 @@ final class ServerMenu {
             if (slot == ARMOR) { navigate(Page.ARMOR, 0); return; }
             if (slot == HELP) { navigate(Page.HELP, 0); return; }
             if (slot == INFO) { navigate(Page.INFO, 0); return; }
+            if(slot==RANKS){navigate(Page.RANKS,0);return;}
+            if(slot==INVENTORY_GEAR){owner.closeHandledScreen();GearCrates.giveDirect(owner);return;}
             if (slot == CRATES) {
                 if(!gearAllowed(owner)) { locked(slot,"Creative or gear permission required.");return; }
                 owner.closeHandledScreen();GearCrates.give(owner);return;

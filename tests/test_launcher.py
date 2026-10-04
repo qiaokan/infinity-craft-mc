@@ -195,9 +195,12 @@ class LauncherTests(unittest.TestCase):
             self.skipTest("Generated crossplay mapping exports are unavailable in this source-only checkout")
         mappings = json.loads((exports / "infinity-items.json").read_text())
         definitions = [entry for entries in mappings["items"].values() for entry in entries]
-        self.assertEqual(len(definitions), 23)
-        self.assertEqual(len({entry["bedrock_identifier"] for entry in definitions}), 23)
+        self.assertEqual(len(definitions), 20)
+        self.assertEqual(len({entry["bedrock_identifier"] for entry in definitions}), 20)
         self.assertTrue(all(entry["type"] == "definition" for entry in definitions))
+        native_wearables={"helmet","chestplate","leggings","boots","backpack",*(outfit+"_"+piece for outfit in ("aurora","ember") for piece in ("helmet","chestplate","leggings","boots"))}
+        self.assertTrue(native_wearables.isdisjoint({entry["bedrock_identifier"].split(":")[-1] for entry in definitions}), "Native equipment assets must not be replaced by broken custom wearable definitions")
+        self.assertTrue(all(not entry["display_name"].startswith(("item.","block.")) for entry in definitions), "Custom mappings use literal human names")
         blocks = json.loads((exports / "infinity-blocks.json").read_text())
         self.assertEqual(len(blocks["blocks"]["minecraft:note_block"]["state_overrides"]), 10)
         with zipfile.ZipFile(root / "server/geyser/packs/Infinity_Armor_Crossplay.mcpack") as pack:

@@ -16,6 +16,7 @@ import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.passive.IronGolemEntity;
 import net.minecraft.entity.attribute.ClampedEntityAttribute;
 import net.minecraft.entity.attribute.EntityAttribute;
+import net.minecraft.entity.attribute.EntityAttributeInstance;
 import net.minecraft.entity.attribute.EntityAttributes;
 import net.minecraft.item.Item;
 import net.minecraft.item.Items;
@@ -38,6 +39,7 @@ public final class AdminStats {
     public record Stat(String id,String label,Item icon,double minimum,double maximum,double step,boolean integer,boolean attribute) {}
     public record Value(double base,double effective,boolean edited) {}
     public record Result(boolean success,String message) {}
+    public record Adjustment(String id,double before,double after) {}
     public static final int MAX_XP_LEVEL=maximumXpLevel();
     // Client physics/interaction protocols use these native bounds. Extending them
     // only on the server desynchronizes clients and can make collision queries enormous.
@@ -45,7 +47,8 @@ public final class AdminStats {
         "step_height", "block_interaction_range", "entity_interaction_range", "movement_efficiency", "water_movement_efficiency", "sneaking_speed", "camera_distance", "luck", "follow_range");
     public static boolean expanded(Stat stat) { return stat.attribute() && !PHYSICS.contains(stat.id()); }
     public static String boundsHint(Stat stat) {
-        return expanded(stat) ? "Admin range: finite numbers; normal attribute cap removed. Clients may display a capped bar."
+        return capacityId(stat.id())!=null ? "Enter the amount directly. Any needed capacity increase is included in the confirmation. 2 points = 1 heart. Damage still consumes hearts."
+            : expanded(stat) ? "Normal attribute cap removed. The menu's number is authoritative; client bars may stop growing."
             : stat.attribute() ? "Minecraft movement, size and interaction limits apply on unmodified clients."
             : stat.id().equals("xp_level") ? "XP must fit Minecraft's total experience integer."
             : "Current values continue to change during gameplay.";
@@ -136,6 +139,43 @@ public final class AdminStats {
         return stat.attribute()?stat.id().equals("movement_speed")?(double)(float)amount:amount:
             stat.integer()?amount:(double)(float)amount;
     }
+    public static String capacityId(String id) {
+        return switch(id) {case "health"->"max_health";case "absorption"->"max_absorption";default->null;};
+    }
+    /** Direct vital entry can grow its capacity; no separate capacity edit is required. */
+    public static double inputMaximum(Stat stat) {return capacityId(stat.id())!=null?Float.MAX_VALUE:stat.maximum();}
+    public static List<Adjustment> planSet(LivingEntity target,String id,double amount) {
+        var stat=find(target,id);
+        if(stat==null)throw new IllegalArgumentException("Unknown or unsupported stat: "+id);
+        if(!Double.isFinite(amount)||amount<stat.minimum()||amount>inputMaximum(stat)||stat.integer()&&amount!=Math.rint(amount))
+            throw new IllegalArgumentException("Use "+(stat.integer()?"a whole number":"a finite number")+" from "+stat.minimum()+" to "+inputMaximum(stat)+" for "+stat.label()+".");
+        amount=normalizedValue(stat,amount);
+        var changes=new ArrayList<Adjustment>();
+        String capacity=capacityId(stat.id());
+        if(capacity!=null && amount>stat.maximum()) {
+            var limit=find(target,capacity);
+            if(limit==null)throw new IllegalArgumentException("This target has no editable capacity for "+stat.label()+".");
+            var current=target.getAttributeInstance(attribute(capacity));
+            // Evaluate a detached copy so equipment/effect modifiers are preserved and
+            // a draft never changes the real entity, even with a negative multiplier.
+            var probe=new EntityAttributeInstance(attribute(capacity),ignored->{});
+            probe.setFrom(current);((AdminAttribute)probe).infinity$expanded(true);
+            double base=Math.max(current.getBaseValue(),amount);
+            probe.setBaseValue(base);
+            if((float)probe.getValue()<amount) {
+                double low=base,high=limit.maximum();probe.setBaseValue(high);
+                if((float)probe.getValue()<amount)throw new IllegalArgumentException("Equipment or effects prevent this capacity. Nothing changed.");
+                for(int i=0;i<128;i++) {
+                    double mid=low+(high-low)/2;probe.setBaseValue(mid);
+                    if((float)probe.getValue()>=amount)high=mid;else low=mid;
+                }
+                base=high;
+            }
+            changes.add(new Adjustment(capacity,current.getBaseValue(),base));
+        }
+        changes.add(new Adjustment(stat.id(),value(target,stat).base(),amount));
+        return List.copyOf(changes);
+    }
     private static boolean online(ServerPlayerEntity player) {
         return player!=null&&player.networkHandler!=null&&player.networkHandler.player==player&&!player.isDisconnected()
             &&!player.isRemoved()&&player.getEntityWorld().getServer().getPlayerManager().getPlayer(player.getUuid())==player;
@@ -164,9 +204,13 @@ public final class AdminStats {
     public static Result set(ServerCommandSource actor,LivingEntity target,String id,double amount) {
         String error=accessError(actor,target);if(error!=null)return new Result(false,error);
         var stat=find(target,id);if(stat==null)return new Result(false,"Unknown or unsupported stat: "+id);
-        if(!Double.isFinite(amount)||amount<stat.minimum()||(!stat.id().equals("health")&&amount>stat.maximum())
-            ||stat.integer()&&amount!=Math.rint(amount))return new Result(false,"Use "+(stat.integer()?"a whole number":"a finite number")+" from "+stat.minimum()+" to "+stat.maximum()+" for "+stat.label()+".");
-        amount=normalizedValue(stat,stat.id().equals("health")?Math.min(amount,stat.maximum()):amount);
+        List<Adjustment> plan;
+        try {plan=planSet(target,id,amount);}catch(IllegalArgumentException invalid){return new Result(false,invalid.getMessage());}
+        if(plan.size()>1) {
+            var capacity=plan.getFirst();var result=set(actor,target,capacity.id(),capacity.after());
+            if(!result.success())return result;
+        }
+        amount=plan.getLast().after();
         if(stat.attribute()) {
             var entry=attribute(stat.id());var instance=target.getAttributeInstance(entry);var records=originals(target);
             if(!records.contains(key(entry))) {
@@ -233,6 +277,8 @@ public final class AdminStats {
         if(view!=null) {
             float health=view.getFloat("Health",target.getHealth());
             if(Float.isFinite(health))target.setHealth(Math.max(0,Math.min(health,target.getMaxHealth())));
+            float absorption=view.getFloat("AbsorptionAmount",target.getAbsorptionAmount());
+            if(Float.isFinite(absorption))target.setAbsorptionAmount(Math.max(0,Math.min(absorption,target.getMaxAbsorption())));
         }
         clampVitals(target);
     }

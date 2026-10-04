@@ -109,7 +109,7 @@ final class AdminStatsMenu {
         double number;
         try { number=Double.parseDouble(text.trim()); }
         catch(NumberFormatException invalid) { message(actor,"Enter a number such as 5000, or type cancel. Nothing changed.");return true; }
-        if(stat==null || !Double.isFinite(number) || number<stat.minimum() || number>stat.maximum() || stat.integer() && number!=Math.rint(number)) {
+        if(stat==null || !Double.isFinite(number) || number<stat.minimum() || number>AdminStats.inputMaximum(stat) || stat.integer() && number!=Math.rint(number)) {
             message(actor,"Use "+(stat!=null&&stat.integer()?"a whole":"a finite")+" number within this stat's range, or type cancel. Nothing changed.");return true;
         }
         if(actor.currentScreenHandler!=actor.playerScreenHandler || !actor.currentScreenHandler.getCursorStack().isEmpty()) {
@@ -215,7 +215,7 @@ final class AdminStatsMenu {
                 icon(view, slot, stat.icon(), stat.label() + " • " + number(value.base()),
                     "Effective: " + number(value.effective()), exactMaximum(stat) ? "Enter any supported finite value with Exact number." : "Range: " + number(stat.minimum()) + " to " + number(stat.maximum()),
                     AdminStats.boundsHint(stat),
-                    stat.id().equals("health") ? "To go above this range, edit Health capacity first. 2 health points = 1 heart."
+                    stat.id().equals("health") ? "Enter your health directly; any needed capacity increase joins the review."
                         : stat.id().equals("max_health") ? "Raise the health limit here, then fill Current health. 2 health points = 1 heart." : "",
                     value.edited() ? "Edited by an admin; original value can be restored." : "Select to prepare an edit.");
             }
@@ -241,13 +241,13 @@ final class AdminStatsMenu {
                 selected.id().equals("health") ? "Prepare a full heal up to the current health capacity. Review and Confirm still required."
                     : exactMaximum(selected) ? "Enter an exact number instead of jumping to the numeric storage ceiling." : AdminStats.boundsHint(selected));
             if (selected.id().equals("health") && AdminStats.find(target, "max_health") != null)
-                icon(view, RELATED_HEALTH, Items.APPLE, "Raise health capacity", "Want more than " + number(selected.maximum()) + " health? Edit the maximum here first.",
+                icon(view, RELATED_HEALTH, Items.APPLE, "Edit health capacity separately", "Optional: exact health entry raises capacity automatically when needed.",
                     "Opens Health capacity without changing any values. Pending edits are discarded.");
             else if (selected.id().equals("max_health"))
                 icon(view, RELATED_HEALTH, Items.RED_DYE, "Edit current health", "After confirming the capacity, choose Fill to capacity here to heal.",
                     "Opens Current health without changing any values. Pending edits are discarded.");
             else if(selected.id().equals("absorption") && AdminStats.find(target,"max_absorption")!=null)
-                icon(view,RELATED_HEALTH,Items.GOLDEN_APPLE,"Raise absorption capacity","Edit the capacity first, then set your absorption hearts. Pending edits are discarded.");
+                icon(view,RELATED_HEALTH,Items.GOLDEN_APPLE,"Edit absorption capacity separately","Optional: exact absorption entry raises capacity automatically when needed.");
             else if(selected.id().equals("max_absorption"))
                 icon(view,RELATED_HEALTH,Items.GOLDEN_APPLE,"Edit absorption hearts","After confirming the capacity, set the current absorption amount. Pending edits are discarded.");
             icon(view, REVIEW, Items.EMERALD, "Review change", selected.id().equals("health") && pending == 0
@@ -282,17 +282,31 @@ final class AdminStatsMenu {
 
     /** Vitals are an absolute assignment: regeneration must not cancel the approved heal. */
     static String reviewError(LivingEntity target, Operation operation, double pending, List<Change> changes) {
+        if(changes.isEmpty())return "No reviewed changes are available. Reopen the editor.";
+        if(operation==Operation.SET) {
+            List<Change> expected;
+            try {expected=plannedChanges(target,changes.getLast().id(),pending);}
+            catch(IllegalArgumentException invalid){return invalid.getMessage();}
+            if(expected.size()!=changes.size())return "The capacity changed during review. Review the updated changes.";
+            for(int i=0;i<expected.size();i++)
+                if(!expected.get(i).id().equals(changes.get(i).id()) || Double.compare(expected.get(i).after(),changes.get(i).after())!=0)
+                    return "The capacity or allowed range changed during review. Review the updated changes.";
+        }
         for (var change : changes) {
             var stat=AdminStats.find(target,change.id());
             if(stat==null || (operation!=Operation.SET || stat.attribute())
                     && Double.compare(AdminStats.value(target,stat).base(),change.before())!=0)
                 return "The attribute changed during review. Reopen its editor and review the updated value.";
-            if(operation==Operation.SET && (!Double.isFinite(pending) || pending<stat.minimum() || pending>stat.maximum()
-                    || stat.integer() && pending!=Math.rint(pending)
-                    || Double.compare(AdminStats.normalizedValue(stat,pending),change.after())!=0))
+            if(operation==Operation.SET && (!Double.isFinite(change.after()) || change.after()<stat.minimum() || change.after()>AdminStats.inputMaximum(stat)
+                    || stat.integer() && change.after()!=Math.rint(change.after())
+                    || Double.compare(AdminStats.normalizedValue(stat,change.after()),change.after())!=0))
                 return "The allowed range changed during review. Reopen the editor and review the updated range.";
         }
         return null;
+    }
+
+    static List<Change> plannedChanges(LivingEntity target,String id,double amount) {
+        return AdminStats.planSet(target,id,amount).stream().map(c->new Change(c.id(),c.before(),c.after())).toList();
     }
 
     static final class Handler extends GenericContainerScreenHandler {
@@ -413,11 +427,11 @@ final class AdminStatsMenu {
                 if(slot==EXACT || slot==MAXIMUM && exactMaximum(stat))exact();
                 else if (multiplier != 0 || slot == MINIMUM || slot == MAXIMUM) {
                     double next = slot == MINIMUM ? stat.minimum() : slot == MAXIMUM ? stat.maximum()
-                        : Math.max(stat.minimum(), Math.min(stat.maximum(), pending + multiplier * stat.step()));
+                        : Math.max(stat.minimum(), Math.min(AdminStats.inputMaximum(stat), pending + multiplier * stat.step()));
                     adjust(AdminStats.normalizedValue(stat, next));
                 } else if (slot == REVIEW) {
-                    var current = AdminStats.value(targetSession.entity(), stat);
-                    show(Page.CONFIRM, 0, statId, pending, Operation.SET, List.of(new Change(statId, current.base(), pending)));
+                    try {show(Page.CONFIRM, 0, statId, pending, Operation.SET, plannedChanges(targetSession.entity(),statId,pending));}
+                    catch(IllegalArgumentException invalid){fail(invalid.getMessage());}
                 } else if (slot == RESET) reviewReset(false);
                 else if (slot == RELATED_HEALTH && List.of("health","max_health","absorption","max_absorption").contains(statId)) {
                     owner.closeHandledScreen();

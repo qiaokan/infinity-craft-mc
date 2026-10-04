@@ -107,6 +107,25 @@ public class AdminHelperStatsGameTests {
         c.complete();
     }
 
+    @GameTest public void directHelperAbsorptionSurvivesNativeReloadAndProfileChange(TestContext c) {
+        var owner=owner(c,"helper-auto-reserve");
+        try {
+            var helper=helper(c,owner,"reserve");
+            set(c,owner,helper,"absorption",5000);
+            c.assertEquals(helper.getMaxAbsorption(),5000f,"One helper edit raises the real capacity");
+            var saved=save(helper);
+            c.assertTrue(AdminStats.resetAll(owner.getCommandSource(),helper).success(),"Helper reset clears expanded capacity");
+            read(helper,saved);
+            c.assertEquals(helper.getAbsorptionAmount(),5000f,"Helper native reload preserves high absorption");
+            var agents=AgentCompanions.get(c.getWorld().getServer());
+            agents.profile(owner,"reserve",AgentCompanions.Profile.ULTIMATE_FINALS);
+            AgentCompanions.prepare(helper);
+            c.assertEquals(helper.getMaxAbsorption(),5000f,"Helper profile changes keep the capacity");
+            c.assertEquals(helper.getAbsorptionAmount(),5000f,"Helper profile changes do not clear the reserve");
+        } finally {cleanup(owner);}
+        c.complete();
+    }
+
     @GameTest public void helperEditingRequiresActualOp4ButCanEditAnotherOwnersHelper(TestContext c) {
         var owner = owner(c, "helper-owning-op");
         var actor = owner(c, "helper-editing-op");

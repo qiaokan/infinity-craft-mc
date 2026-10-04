@@ -302,4 +302,48 @@ public class AgentTacticsGameTests {
         c.complete();
     }
 
+    @GameTest(structure="convergence_tests:combat_arena",maxTicks=140) public void normalServerTicksAcquireHostileAndFinishNativeCombo(TestContext c) {
+        var f=new Arena(c,"tactic-autonomous");
+        f.owner.setPosition(f.start.add(0,0,-4));
+        // Do not call control/startAerial/strike: exercise the installed lifecycle tick path.
+        c.waitAndRun(80,()->{
+            try {
+                c.assertTrue(f.target.getHealth()<500,"Autonomous server ticks cause real hostile damage: hp="+f.target.getHealth()+", target="+f.golem.getTarget()+", weapon="+f.golem.getMainHandStack()+", pos="+f.golem.getEntityPos());
+                c.assertTrue(f.golem.getEquippedStack(net.minecraft.entity.EquipmentSlot.CHEST).isOf(net.minecraft.item.Items.ELYTRA),"Autonomous combat equips native flight gear");
+                c.assertTrue(f.helpers.lastAttack.containsKey(f.golem.getUuid()),"Autonomous combo reaches a real mace/close strike");
+                c.complete();
+            } finally {f.close();}
+        });
+    }
+
+    @GameTest(structure="convergence_tests:combat_arena") public void helperPlayerAvatarUsesNativeProfileAndTypedMetadataOnly(TestContext c) {
+        try(var f=new Arena(c,"tactic-avatar")) {
+            var overlay=eu.pb4.polymer.core.api.entity.PolymerEntity.get(f.golem);
+            c.assertTrue(overlay instanceof AgentAvatars,"Registered helper receives its own player avatar");
+            var avatar=(AgentAvatars)overlay;
+            c.assertEquals(avatar.getPolymerEntityType(xyz.nucleoid.packettweaker.PacketContext.create(f.owner)),EntityType.PLAYER,"Both ordinary clients receive native PLAYER entity type");
+            var packets=new java.util.ArrayList<net.minecraft.network.packet.Packet<?>>();avatar.onBeforeSpawnPacket(f.owner,packets::add);
+            var profile=(net.minecraft.network.packet.s2c.play.PlayerListS2CPacket)packets.getFirst();
+            c.assertEquals(profile.getEntries().getFirst().profileId(),f.golem.getUuid(),"Player profile matches spawn UUID");
+            c.assertFalse(profile.getEntries().getFirst().listed(),"Avatar does not inflate tab roster or online count");
+            c.assertTrue(profile.getEntries().getFirst().profile().name().length()<=16,"Native profile has a legal bounded name");
+            var buf=new net.minecraft.network.RegistryByteBuf(io.netty.buffer.Unpooled.buffer(),c.getWorld().getRegistryManager());
+            try {
+                net.minecraft.network.packet.s2c.play.PlayerListS2CPacket.CODEC.encode(buf,profile);
+                var decoded=net.minecraft.network.packet.s2c.play.PlayerListS2CPacket.CODEC.decode(buf);
+                c.assertEquals(decoded.getEntries().getFirst().profileId(),f.golem.getUuid(),"Player info round-trips the native wire codec");
+            } finally {buf.release();}
+            var metadata=new java.util.ArrayList<net.minecraft.entity.data.DataTracker.SerializedEntry<?>>();
+            for(var entry:eu.pb4.polymer.core.api.entity.PolymerEntityUtils.getDefaultTrackedData(EntityType.IRON_GOLEM))if(entry!=null)metadata.add(entry.toSerialized());
+            avatar.modifyRawTrackedData(metadata,f.owner,true);
+            var human=eu.pb4.polymer.core.api.entity.PolymerEntityUtils.getDefaultTrackedData(EntityType.PLAYER);
+            for(var entry:metadata)c.assertTrue(entry.id()<human.length&&human[entry.id()]!=null&&entry.handler()==human[entry.id()].getData().dataType(),"Every avatar metadata value has the native player's type");
+            var ordinary=EntityType.IRON_GOLEM.create(c.getWorld(),SpawnReason.COMMAND);
+            c.assertTrue(eu.pb4.polymer.core.api.entity.PolymerEntity.get(ordinary)==null,"Ordinary golems are unaffected");
+            f.helpers.dismiss(f.owner,"alpha");
+            c.assertTrue(avatar.viewers.isEmpty(),"Dismissal cleans profile viewers");
+        }
+        c.complete();
+    }
+
 }

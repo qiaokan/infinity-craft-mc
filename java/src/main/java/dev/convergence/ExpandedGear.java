@@ -65,6 +65,7 @@ final class ExpandedGear {
 
    private static Item.Settings settings(String path, Item base, int maxCount, boolean unbreakable) {
       Item.Settings out = new Item.Settings().registryKey(RegistryKey.of(RegistryKeys.ITEM, id(path)));
+      out.component(DataComponentTypes.ITEM_NAME,GearNames.text(path));
       for (Component<?> component : base.getComponents()) {
          if (component.type() != DataComponentTypes.ITEM_NAME && component.type() != DataComponentTypes.ITEM_MODEL) {
             Convergence.copy(out, component);
@@ -96,6 +97,7 @@ final class ExpandedGear {
       Block block = Registry.register(Registries.BLOCK, key, new Block(settings));
       registerItem(path, new BlockItem(block, new Item.Settings()
          .registryKey(RegistryKey.of(RegistryKeys.ITEM, key))
+         .component(DataComponentTypes.ITEM_NAME,GearNames.text(path))
          .useBlockPrefixedTranslationKey()
          .maxCount(64)));
    }

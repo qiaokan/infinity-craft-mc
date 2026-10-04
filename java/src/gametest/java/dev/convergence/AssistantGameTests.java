@@ -296,7 +296,7 @@ public class AssistantGameTests {
         try(var f=new Named(c,"named-snapshot")) {
             f.profile(AgentCompanions.Profile.API);
             var snapshot=AgentChat.snapshot(f.companions,f.player,f.id,f.companions.data.agents.get(f.id));
-            c.assertTrue(snapshot.keySet().equals(java.util.Set.of("helper_name","profile","movement","helper_loaded","helper_dimension","helper_state","owner_mode","owner_position","world_time","weather","online_player_count")),"Snapshot uses a fixed safe field allowlist");
+            c.assertTrue(snapshot.keySet().equals(java.util.Set.of("helper_name","profile","movement","helper_loaded","helper_dimension","helper_state","owner_mode","owner_rank","owner_permanent_rank","owner_position","world_time","weather","online_player_count")),"Snapshot uses a fixed safe field allowlist");
             c.assertTrue(snapshot.toString().length()<800,"Snapshot stays small independent of server files or roster size");
             c.assertFalse(snapshot.toString().contains(f.player.getUuidAsString())||snapshot.toString().contains(f.files.dir.toString()),"Account UUID and host paths are excluded");
             c.assertEquals(AgentChat.data(f.source(),"guide"),1,"Owner can inspect the same snapshot locally");

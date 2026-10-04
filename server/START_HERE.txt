@@ -1,4 +1,4 @@
-INFINITY ARMOR — EXPLORATION SERVER 2.12.0-explore.13
+INFINITY ARMOR — EXPLORATION SERVER 2.12.0-explore.14
 
 1. Extract the entire ZIP into a folder you will keep.
 2. Double-click Start-Mac.command (Mac) or start.bat (Windows).
@@ -30,7 +30,7 @@ For outside-network friends on an Apple Silicon Mac, open Start-Pinggy-Mac.comma
 For a fixed joining name on Mac, follow DYNU_JOINING.md: reserve your own free Dynu hostname, save its private API key locally, and forward Java TCP 25565 plus Bedrock UDP 19132 in your router. Start-Dynu-Mac.command keeps that name's IPv4 current while open. Keep the Mac awake and test both editions from another Internet connection. DNS alone does not make the games reachable or guarantee a name forever.
 
 IN MINECRAFT
-Admin/OP4: Infinity Menu > Admin editor > choose a player or loaded AI helper > choose a stat > Review > Confirm. Edit health, max health, speed, damage, armor, size, hunger, XP and other supported stats. To exceed 20 health, raise Health capacity, confirm, then fill Current health and confirm. Equipment bonuses remain separate; reset restores recorded attribute bases. Setting health to zero kills the selected target. AI helpers have their own supported stats; hunger and XP apply to players.
+Admin/OP4: Infinity Menu > Admin editor > choose a player or loaded AI helper > choose a stat > Review > Confirm. Edit health, max health, speed, damage, armor, size, hunger, XP and other supported stats. Enter health or absorption directly; the same confirmation raises its capacity when needed. Equipment bonuses remain separate; reset restores recorded attribute bases. Setting health to zero kills the selected target. AI helpers have their own supported stats; hunger and XP apply to players.
 Select the Infinity Menu compass for modes, gear, powers, cosmetics and helpers. INFINITY MENU signs in the themed lobbies open the same controls. /menu remains a shortcut.
 New players start in the Main Hub. Existing players can use /hub.
 /lobbies — list mode lobbies; /lobby <mode> — visit one.
@@ -78,3 +78,5 @@ FIXES IN EXPLORE.13
 My stats on Bedrock/iPad now uses native buttons and an exact-number form, then Confirm changes. Manual stat edits do not wait for Codex approval. Change Health capacity first, then Current health.
 Infinity Menu > Armor sets offers Aurora/Ember with all four pieces, including chestplates. Clear four slots. Bedrock uses native dyed-leather wearables; reconnect for the refreshed pack.
 Ultimate Finals equips native spear, mace and elytra mechanics. Golem bodies do not render held gear/wings. Player targeting still requires both approvals.
+
+Creative: real armor, weapons and tools enter empty inventory slots. Infinity Menu > Armor & tools > inventory retries safely. Ranks & subscriptions shows your actual badge and permanent rank. AI Helpers now have native player avatars displaying weapons and elytra; combat remains server AI. Player-target orders still need owner approval and a separate live Codex review.

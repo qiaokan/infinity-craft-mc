@@ -277,4 +277,34 @@ public class EquipmentGameTests {
         c.complete();
     }
 
+    @GameTest public void allGearHasLiteralNamesAndDirectInventoryIncludesChestplatesWithoutLoss(TestContext c) {
+        var p=new ModeGameTests().player(c,"gear-direct14");p.changeGameMode(GameMode.CREATIVE);
+        try {
+            p.closeHandledScreen();p.getInventory().clear();
+            var cherished=new ItemStack(Items.DIAMOND,13);p.getInventory().setStack(0,cherished);
+            c.assertEquals(GearCrates.giveDirect(p),1,"Direct gear goes into actual player inventory");
+            for(String path:GearCrates.STARTER)c.assertTrue(p.getInventory().contains(gear(path)),"Starter gear is directly accessible: "+path);
+            for(String path:ExpandedGear.COSMETIC_ARMOR.keySet())c.assertTrue(p.getInventory().contains(gear(path)),"Every appearance includes its chestplate: "+path);
+            c.assertEquals(p.getInventory().getStack(0).getCount(),13,"Existing occupied slot is preserved");
+            long occupied=p.getInventory().getMainStacks().stream().filter(stack->!stack.isEmpty()).count();
+            c.assertEquals(GearCrates.giveDirect(p),1,"Repeated direct grant finds existing gear");
+            c.assertEquals(p.getInventory().getMainStacks().stream().filter(stack->!stack.isEmpty()).count(),occupied,"Repeated direct grant creates no duplicate gear");
+            var context=xyz.nucleoid.packettweaker.PacketContext.create(p);
+            for(var entry:Convergence.ITEMS.entrySet()) {
+                var stack=new ItemStack(entry.getValue());var path=entry.getKey().split(":")[1];
+                c.assertEquals(stack.getName().getString(),GearNames.label(path),"Server item name is a complete human label");
+                stack.set(DataComponentTypes.CUSTOM_NAME,net.minecraft.text.Text.literal("My own name"));
+                var wire=eu.pb4.polymer.core.api.item.PolymerItemUtils.getPolymerItemStack(stack,context);
+                c.assertEquals(wire.get(DataComponentTypes.ITEM_NAME).getString(),GearNames.label(path),"Native wire item has a literal translated name");
+                c.assertEquals(wire.getName().getString(),"My own name","User anvil name is preserved");
+                if(CrossplaySupport.NATIVE_BEDROCK.contains(path)&&stack.contains(DataComponentTypes.EQUIPPABLE))
+                    c.assertEquals(wire.get(DataComponentTypes.EQUIPPABLE),CrossplaySupport.BASES.get(path).getComponents().get(DataComponentTypes.EQUIPPABLE),"Every native wearable uses a complete client asset");
+            }
+            for(int n=0;n<36;n++)p.getInventory().setStack(n,new ItemStack(Items.DIRT,64));
+            c.assertEquals(GearCrates.giveDirect(p),0,"Full inventory refuses safely");
+            for(int n=0;n<36;n++)c.assertTrue(p.getInventory().getStack(n).isOf(Items.DIRT)&&p.getInventory().getStack(n).getCount()==64,"Full inventory is untouched");
+        } finally {p.closeHandledScreen();p.getEntityWorld().getServer().getPlayerManager().remove(p);}
+        c.complete();
+    }
+
 }

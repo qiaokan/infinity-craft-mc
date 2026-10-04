@@ -46,7 +46,7 @@ public final class AgentCompanions {
     static final int GLOBAL_LIMIT = 24;
     static final int MAX_BYTES = 65_536;
     static final long PLAYER_TARGET_LIFETIME_MS = 5 * 60_000L;
-    static final String HELP = "Open /agent or /agent menu for helper controls. /agent spawn <name>, /agent profile <name> <primitive|regular|ultimate_finals|debug|cli|api>, /agent follow <name>, /agent guard <name>, /agent stay <name>, /agent squad <follow|guard|stay>, /agent status <name>, /agent recall <name>, /agent dismiss <name>, /agent list. Names: 1–24 lowercase letters/numbers, - or _. 6 per OP4 owner; 24 server-wide, including unloaded helpers. Primitive proactively attacks nearby hostile mobs; Regular follows/guards and prioritizes owner threats. Ultimate Finals shares squad focus, charges with a real native spear, briefly glides with an equipped elytra, then stops gliding and switches to a real mace for a falling smash. Golems retain their normal body model, which does not render player-held weapons or wings. /agent target <player> proposes an exact player target for Primitive and Ultimate Finals, requiring owner approval and live Codex approval before combat. PvP and team rules apply; /agent ceasefire stops it immediately. Player orders expire after five minutes, session/life/dimension or permission changes, owner-target distance beyond 48 blocks, or no usable aggressive helpers. Follow can pursue beyond the 24-block damage limit and around walls; swings require clear sight. Guard waits outside its 14-block anchor range. Helpers never attack pets. Debug, CLI, and API are passive physical profiles. /agent data <name> shows limited live data; /agent ask <name> <question> asks a helper; /agent code <name> <request> queues a code request for owner and live Codex review. Follow pauses beyond 48 blocks; return nearby to resume. Helpers pause while you are offline, dead, without OP4, or in another dimension; they never automatically teleport or load chunks. Bring here in the helper menu (or /agent recall <name>) explicitly moves an already loaded helper beside you, preserves its health, stats and profile, and clears your squad's player-target orders and pending target approvals. Safe server actions: /agent suggest <request>, /agent pending, /agent approve <id>, /agent cancel <id>. An action runs only after your approval and live Codex review.";
+    static final String HELP = "Open /agent or /agent menu for helper controls. /agent spawn <name>, /agent profile <name> <primitive|regular|ultimate_finals|debug|cli|api>, /agent follow <name>, /agent guard <name>, /agent stay <name>, /agent squad <follow|guard|stay>, /agent status <name>, /agent recall <name>, /agent dismiss <name>, /agent list. Names: 1–24 lowercase letters/numbers, - or _. 6 per OP4 owner; 24 server-wide, including unloaded helpers. Primitive proactively attacks nearby hostile mobs; Regular follows/guards and prioritizes owner threats. Ultimate Finals shares squad focus, charges with a real native spear, briefly glides with an equipped elytra, then stops gliding and switches to a real mace for a falling smash. Helpers use native player avatars that show their equipped weapons and elytra. /agent target <player> proposes an exact player target for Primitive and Ultimate Finals, requiring owner approval and live Codex approval before combat. PvP and team rules apply; /agent ceasefire stops it immediately. Player orders expire after five minutes, session/life/dimension or permission changes, owner-target distance beyond 48 blocks, or no usable aggressive helpers. Follow can pursue beyond the 24-block damage limit and around walls; swings require clear sight. Guard waits outside its 14-block anchor range. Helpers never attack pets. Debug, CLI, and API are passive physical profiles. /agent data <name> shows limited live data; /agent ask <name> <question> asks a helper; /agent code <name> <request> queues a code request for owner and live Codex review. Follow pauses beyond 48 blocks; return nearby to resume. Helpers pause while you are offline, dead, without OP4, or in another dimension; they never automatically teleport or load chunks. Bring here in the helper menu (or /agent recall <name>) explicitly moves an already loaded helper beside you, preserves its health, stats and profile, and clears your squad's player-target orders and pending target approvals. Safe server actions: /agent suggest <request>, /agent pending, /agent approve <id>, /agent cancel <id>. An action runs only after your approval and live Codex review.";
     static final Map<MinecraftServer, AgentCompanions> INSTANCES = new WeakHashMap<>();
     final MinecraftServer server;
     final Path file;
@@ -78,7 +78,7 @@ public final class AgentCompanions {
     enum Profile {
         PRIMITIVE("Primitive", "Ready to attack the nearest hostile mob within 12 blocks; shares an explicitly approved player target with its squad. Never attacks pets.", true),
         REGULAR("Regular", "Follows or guards, attacking nearby hostile mobs.", true),
-        ULTIMATE_FINALS("Ultimate Finals", "Shares focus, charges with a native spear, briefly glides with an equipped elytra, then stops gliding and switches to a mace smash. Real weapon mechanics; golem models do not render held equipment. Player combat requires both approvals; PvP and team rules apply.", true),
+        ULTIMATE_FINALS("Ultimate Finals", "Shares focus, charges with a native spear, briefly glides with an equipped elytra, then stops gliding and switches to a mace smash. Native player avatars show the equipped weapon and elytra. Player combat requires both approvals; PvP and team rules apply.", true),
         DEBUG("Debug", "Passive helper with read-only status diagnostics. No commands run.", false),
         CLI("CLI", "Saves code-change requests for owner and live Codex review; previews fixed server actions. No shell or automatic edits.", false),
         API("API", "Answers with limited live Minecraft data using optional external AI chat. Replies never run commands.", false);
@@ -231,7 +231,7 @@ public final class AgentCompanions {
         golem.addCommandTag(TAG); golem.addCommandTag("infinity_owner_" + agent.owner);
         golem.addCommandTag("infinity_name_" + agent.name); golem.addCommandTag("infinity_mode_" + agent.mode.name().toLowerCase(Locale.ROOT));
         golem.addCommandTag("infinity_profile_" + agent.profile.id());
-        golem.setCustomName(Text.literal(agent.name + " [" + agent.profile.label + "]")); golem.setCustomNameVisible(true);
+        golem.setCustomName(Text.literal(agent.name + " [" + agent.profile.label + "]")); golem.setCustomNameVisible(true); AgentAvatars.attach(golem);
     }
     void load(Entity entity) {
         if (!isAgent(entity)) return;
@@ -242,6 +242,7 @@ public final class AgentCompanions {
     }
     void unload(Entity entity) {
         if (loaded.remove(entity.getUuid(), entity)) {
+            AgentAvatars.remove((IronGolemEntity)entity);
             aerial.remove(entity.getUuid()); lastAttack.remove(entity.getUuid()); nextLeap.remove(entity.getUuid());
         }
     }
@@ -468,7 +469,7 @@ public final class AgentCompanions {
         String key=entry.getKey();UUID id=UUID.fromString(key);
         data.agents.remove(key); save();
         IronGolemEntity golem = loaded.remove(id); lastAttack.remove(id); nextLeap.remove(id); aerial.remove(id);
-        if (golem != null) golem.discard();
+        if (golem != null) {AgentAvatars.remove(golem);golem.discard();}
         validatePlayerTargets();
         return reply(owner, name + " dismissed." + (golem == null ? " Its saved entity will be removed when the area next loads." : ""));
     }
@@ -777,6 +778,7 @@ public final class AgentCompanions {
             if (entity instanceof ServerPlayerEntity player) get(player.getEntityWorld().getServer()).invalidatePlayer(player);
             if (isAgent(entity) && entity.getEntityWorld() instanceof ServerWorld world) {
                 var helpers = get(world.getServer());
+                AgentAvatars.remove((IronGolemEntity)entity);
                 helpers.loaded.remove(entity.getUuid()); helpers.lastAttack.remove(entity.getUuid()); helpers.nextLeap.remove(entity.getUuid()); helpers.aerial.remove(entity.getUuid());
                 if (helpers.data.agents.remove(entity.getUuidAsString()) != null) helpers.save();
             }

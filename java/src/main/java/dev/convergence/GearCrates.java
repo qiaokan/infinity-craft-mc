@@ -22,6 +22,29 @@ final class GearCrates {
     private static final Map<UUID,GameModes.Mode> CHECKED = new HashMap<>();
     private GearCrates() {}
 
+    static final List<String> STARTER=List.of("sword","mace","spear","pickaxe","axe","shovel","hoe",
+        "helmet","chestplate","leggings","boots","shield","totem","bow","crossbow","builder_wand","sculptor_wand");
+    /** Real equipment goes into empty player slots; never replace or drop owned items. */
+    static int giveDirect(ServerPlayerEntity player) {
+        if(!ServerMenu.gearAllowed(player)||player.currentScreenHandler!=player.playerScreenHandler
+            ||!player.playerScreenHandler.getCursorStack().isEmpty())return 0;
+        var paths=new ArrayList<String>(STARTER);
+        ExpandedGear.COSMETIC_ARMOR.keySet().stream().sorted().forEach(paths::add);paths.add("backpack");
+        int added=0,missing=0;
+        for(var path:paths) {
+            var item=Convergence.ITEMS.get("convergence:"+path);boolean present=false;
+            for(int i=0;i<36;i++)if(player.getInventory().getStack(i).getItem()==item){present=true;break;}
+            if(present)continue;
+            int slot=player.getInventory().getEmptySlot();
+            if(slot<0){missing++;continue;}
+            player.getInventory().setStack(slot,new ItemStack(item));added++;
+        }
+        player.playerScreenHandler.syncState();
+        player.sendMessage(Text.literal("Added "+added+" armor pieces, weapons and tools directly to your inventory."
+            +(missing>0?" Clear "+missing+" slots, then use Armor & tools → inventory to collect the rest.":" Open your inventory to move or equip them; no boxes or command needed.")),false);
+        return missing==0?1:0;
+    }
+
     static List<ItemStack> crates() {
         var gear=new ArrayList<ItemStack>();
         Convergence.ITEMS.entrySet().stream().sorted(Map.Entry.comparingByKey()).forEach(entry->{
@@ -66,6 +89,10 @@ final class GearCrates {
                 if(!player.isCreative() || !ServerMenu.allowed(player)) { CHECKED.remove(player.getUuid());continue; }
                 if(CHECKED.get(player.getUuid())==mode || player.currentScreenHandler!=player.playerScreenHandler)continue;
                 CHECKED.put(player.getUuid(),mode);
+                String direct="direct_gear14_"+mode.name().toLowerCase(java.util.Locale.ROOT);
+                if(!GameModes.state(player).getBoolean(direct,false)) {
+                    giveDirect(player);GameModes.state(player).putBoolean(direct,true);
+                }
                 String flag="gear_crates_"+mode.name().toLowerCase(java.util.Locale.ROOT);
                 boolean present=false;for(int i=0;i<36;i++)if(isCrate(player.getInventory().getStack(i)))present=true;
                 if(present || GameModes.state(player).getBoolean(flag,false))continue;
