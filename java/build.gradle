@@ -12,6 +12,13 @@ dependencies {
  modImplementation 'eu.pb4:polymer-blocks:0.15.2+1.21.11'
  modImplementation 'eu.pb4:polymer-resource-pack:0.15.2+1.21.11'
  modImplementation 'maven.modrinth:floodgate:81EuNxeZ'
+ // Compile against the exact Cumulus library bundled by our pinned Floodgate.
+ // Fabric loads that same nested library at runtime; do not bundle a second copy.
+ compileOnly files(provider {
+  def floodgate = configurations.modImplementation.resolve().find { it.name.startsWith('floodgate-') }
+  assert floodgate != null
+  zipTree(floodgate).matching { include 'META-INF/jars/cumulus-1.1.2.jar' }.singleFile
+ })
 }
 
 tasks.register('gametestJar', Jar) {

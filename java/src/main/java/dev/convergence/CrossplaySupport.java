@@ -50,6 +50,22 @@ final class CrossplaySupport {
         "ember_helmet","ember_chestplate","ember_leggings","ember_boots");
     private static final Set<String> POWER_ITEMS = Set.of("sword", "mace", "spear", "pickaxe", "axe", "shovel", "hoe", "builder_wand", "sculptor_wand");
 
+    static boolean bedrock(ServerPlayerEntity player) {
+        var api=org.geysermc.floodgate.api.FloodgateApi.getInstance();
+        return player!=null && api!=null && api.isFloodgatePlayer(player.getUuid());
+    }
+
+    static boolean nativeAppearance(String path,boolean bedrock,boolean javaPack) {
+        return bedrock ? NATIVE_BEDROCK.contains(path) : !javaPack;
+    }
+
+    static void wearableFallback(ItemStack out,Item base,boolean bedrock,boolean javaPack) {
+        if(bedrock || !javaPack) {
+            var wearable=base.getComponents().get(DataComponentTypes.EQUIPPABLE);
+            if(wearable!=null)out.set(DataComponentTypes.EQUIPPABLE,wearable);
+        }
+    }
+
     static void register() {
         BASES.put("helmet", Items.NETHERITE_HELMET);
         BASES.put("chestplate", Items.ELYTRA);
@@ -91,21 +107,17 @@ final class CrossplaySupport {
             PolymerItem.registerOverlay(item, new PolymerItem() {
                 public Item getPolymerItem(ItemStack stack, PacketContext context) { return entry.getValue(); }
                 public Identifier getPolymerItemModel(ItemStack stack,PacketContext context) {
-                    var api=org.geysermc.floodgate.api.FloodgateApi.getInstance();
-                    boolean bedrock=api!=null && context.getPlayer()!=null && api.isFloodgatePlayer(context.getPlayer().getUuid());
+                    boolean bedrock=bedrock(context.getPlayer());
                     // Bedrock needs the custom model key to select its own resource mapping.
                     // Java without the downloaded pack must use an existing native icon.
-                    return bedrock || PolymerResourcePackUtils.hasMainPack(context) ? stack.get(DataComponentTypes.ITEM_MODEL)
-                        : entry.getValue().getComponents().get(DataComponentTypes.ITEM_MODEL);
+                    return nativeAppearance(entry.getKey(),bedrock,PolymerResourcePackUtils.hasMainPack(context))
+                        ? entry.getValue().getComponents().get(DataComponentTypes.ITEM_MODEL) : stack.get(DataComponentTypes.ITEM_MODEL);
                 }
                 public void modifyBasePolymerItemStack(ItemStack out,ItemStack stack,PacketContext context) {
                     // A custom Java equipment asset is invisible/missing when its pack
                     // was declined, and unsupported for native Bedrock wearable mappings.
                     // Keep a complete native wearable asset until the Java pack is loaded.
-                    if(!PolymerResourcePackUtils.hasMainPack(context)) {
-                        var wearable=entry.getValue().getComponents().get(DataComponentTypes.EQUIPPABLE);
-                        if(wearable!=null)out.set(DataComponentTypes.EQUIPPABLE,wearable);
-                    }
+                    wearableFallback(out,entry.getValue(),bedrock(context.getPlayer()),PolymerResourcePackUtils.hasMainPack(context));
                 }
                 public boolean handleMiningOnServer(ItemStack tool, BlockState state, BlockPos pos, ServerPlayerEntity player) {
                     return true;

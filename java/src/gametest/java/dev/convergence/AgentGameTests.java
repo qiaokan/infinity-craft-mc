@@ -88,6 +88,35 @@ public class AgentGameTests {
         public Instant instant() { return now; }
         void advance(long millis) { now = now.plusMillis(millis); }
     }
+    @GameTest public void dismissalCannotFollowTreeMapSuccessorAndRemoveAnotherOwnersHelper(TestContext c) throws Exception {
+        var owner=player(c,"dismiss-exact-owner");var other=player(c,"dismiss-exact-other");
+        var dir=Files.createTempDirectory("infinity-dismiss-identity-");
+        var isolated=new AgentCompanions(c.getWorld().getServer(),dir.resolve("agents.json"));
+        var ids=new UUID[]{new UUID(0,1),new UUID(0,2),new UUID(0,3)};
+        var mobs=new IronGolemEntity[3];
+        try {
+            for(int i=0;i<3;i++) {
+                mobs[i]=EntityType.IRON_GOLEM.create(c.getWorld(),SpawnReason.COMMAND);mobs[i].setUuid(ids[i]);
+                isolated.loaded.put(ids[i],mobs[i]);
+            }
+            // Deliberately build a root with two children. TreeMap.remove changes
+            // that live Entry to its successor, independent of random UUID order.
+            for(int i:new int[]{1,0,2})isolated.data.agents.put(ids[i].toString(),
+                new AgentCompanions.Agent((i==2?other:owner).getUuidAsString(),i==1?"middle":i==0?"left":"foreign",
+                    AgentCompanions.Mode.FOLLOW,AgentCompanions.Profile.REGULAR,c.getWorld().getRegistryKey().getValue().toString(),0,0,0));
+            isolated.save();isolated.dismiss(owner,"middle");
+            c.assertTrue(mobs[1].isRemoved(),"The exact selected helper is removed");
+            c.assertFalse(mobs[0].isRemoved() || mobs[2].isRemoved(),"Neither a peer nor another owner's helper can be removed by tree-node replacement");
+            c.assertTrue(!isolated.loaded.containsKey(ids[1]) && isolated.loaded.get(ids[0])==mobs[0] && isolated.loaded.get(ids[2])==mobs[2],"Only the selected loaded identity is forgotten");
+            var restored=new AgentCompanions(isolated.server,dir.resolve("agents.json"));
+            c.assertTrue(!restored.data.agents.containsKey(ids[1].toString()) && restored.data.agents.containsKey(ids[0].toString()) && restored.data.agents.containsKey(ids[2].toString()),"Saved roster retains both untouched helpers");
+        } finally {
+            for(var mob:mobs)if(mob!=null)mob.discard();
+            cleanup(AgentCompanions.get(c.getWorld().getServer()),owner);cleanup(AgentCompanions.get(c.getWorld().getServer()),other);removeDirectory(dir);
+        }
+        c.complete();
+    }
+
     @GameTest public void helpersRequirePermissionLevelFour(TestContext c) {
         var root = c.getWorld().getServer().getCommandManager().getDispatcher().getRoot().getChild("agent");
         var source = c.getWorld().getServer().getCommandSource();
@@ -102,6 +131,7 @@ public class AgentGameTests {
         var owner = player(c, "recall-owner");
         var helpers = AgentCompanions.get(c.getWorld().getServer());
         var destination = GameModes.world(helpers.server, GameModes.Mode.HARDCORE);
+        boolean[] waiting={false};
         try {
             var helper = golem(helpers, owner, "traveler");
             var id = helper.getUuid();
@@ -125,7 +155,6 @@ public class AgentGameTests {
             helpers.recall(owner, "traveler");
             var moved = helpers.loaded.get(id);
             c.assertTrue(moved != null && moved != helper && moved.getEntityWorld() == destination, "Native inter-mode transfer rebinds the destination entity");
-            c.assertTrue(c.getWorld().getEntity(id) == null && destination.getEntity(id) == moved, "There is exactly one live world entity with the same UUID");
             c.assertEquals(moved.getHealth(), 280f, "Current health survives recall");
             c.assertEquals(moved.getMaxHealth(), 320f, "Edited capacity survives recall");
             c.assertEquals(moved.getAttributeValue(EntityAttributes.ATTACK_DAMAGE), 50d, "Edited base and independent modifier survive recall");
@@ -140,8 +169,16 @@ public class AgentGameTests {
             c.assertFalse(AgentCompanions.allowRecallTeleport(moved, target), "Permit is cleared after synchronous transfer");
             var back = new TeleportTarget(c.getWorld(), Vec3d.ofBottomCenter(feet), Vec3d.ZERO, 0, 0, TeleportTarget.NO_OP);
             c.assertTrue(moved.teleportTo(back) == null, "Later generic portals remain blocked");
-        } finally { cleanup(helpers, owner); }
-        c.complete();
+            c.waitAndRun(5,()->{
+                try {
+                    var oldWorldEntity=c.getWorld().getEntity(id);
+                    c.assertTrue((oldWorldEntity==null || oldWorldEntity.isRemoved()) && destination.getEntity(id)==moved && !moved.isRemoved(),
+                        "After native chunk/entity tracking updates, exactly one live world entity has the same UUID. source="+oldWorldEntity+" destination="+destination.getEntity(id)+" removed="+moved.isRemoved()+" age="+moved.age+" ready="+destination.shouldTickEntityAt(moved.getBlockPos()));
+                    c.complete();
+                } finally {cleanup(helpers,owner);}
+            });
+            waiting[0]=true;
+        } finally { if(!waiting[0])cleanup(helpers, owner); }
     }
     @GameTest public void recallRefusesForeignRevokedDeadUnloadedAndUnsafeScaledHelpers(TestContext c) throws Exception {
         var owner = player(c, "recall-checks");
@@ -241,8 +278,12 @@ public class AgentGameTests {
         } finally { cleanup(s, p); }
         c.complete();
     }
-    @GameTest(maxTicks = 60) public void helpersActuallyFollowUsingNavigation(TestContext c) {
+    @GameTest(structure="convergence_tests:combat_arena", maxTicks = 60) public void helpersActuallyFollowUsingNavigation(TestContext c) {
         var p = player(c, "helper-follow"); var s = AgentCompanions.get(c.getWorld().getServer());
+        var feet=c.getAbsolutePos(new BlockPos(16,20,16));
+        for(var at:BlockPos.iterate(feet.add(-7,-1,-7),feet.add(7,4,7)))
+            c.getWorld().setBlockState(at,at.getY()==feet.getY()-1?Blocks.STONE.getDefaultState():Blocks.AIR.getDefaultState());
+        p.setPosition(Vec3d.ofBottomCenter(feet));
         // The arena extends outside the tiny GameTest structure's ticketed chunk.
         // Embedded clients do not provide a real player's simulation tickets there.
         // Ticket the complete platform (including the golem's starting chunk) so
@@ -698,9 +739,21 @@ public class AgentGameTests {
         } finally { c.getWorld().getGameRules().setValue(GameRules.PVP, pvp, s.server); cleanup(s, owner); cleanup(s, target); }
         c.complete();
     }
-    @GameTest(maxTicks = 80) public void approvedPlayerPursuitNavigatesAroundWallsButCannotStrikeThroughThem(TestContext c) {
+    @GameTest(structure="convergence_tests:combat_arena", maxTicks = 80) public void approvedPlayerPursuitNavigatesAroundWallsButCannotStrikeThroughThem(TestContext c) {
         var owner = player(c, "hive-corner-owner"); var target = player(c, "hive-corner-target"); var s = AgentCompanions.get(c.getWorld().getServer());
-        boolean pvp = c.getWorld().getGameRules().getValue(GameRules.PVP); Vec3d center = owner.getEntityPos();
+        boolean pvp = c.getWorld().getGameRules().getValue(GameRules.PVP);
+        // This asynchronous arena is larger than the framework's empty structure.
+        // Isolate it from neighboring test placement/cleanup and explicitly tick it.
+        BlockPos feet=c.getAbsolutePos(new BlockPos(16,20,16));
+        for(BlockPos at:BlockPos.iterate(feet.add(-7,-1,-7),feet.add(7,4,7)))
+            c.getWorld().setBlockState(at,at.getY()==feet.getY()-1?Blocks.STONE.getDefaultState():Blocks.AIR.getDefaultState());
+        var tickets=new ArrayList<net.minecraft.util.math.ChunkPos>();
+        var ticket=new net.minecraft.server.world.ChunkTicketType(9000,net.minecraft.server.world.ChunkTicketType.FOR_LOADING|net.minecraft.server.world.ChunkTicketType.FOR_SIMULATION|net.minecraft.server.world.ChunkTicketType.RESETS_IDLE_TIMEOUT);
+        for(int x=(feet.getX()-7)>>4;x<=(feet.getX()+7)>>4;x++)for(int z=(feet.getZ()-7)>>4;z<=(feet.getZ()+7)>>4;z++){
+            var chunk=new net.minecraft.util.math.ChunkPos(x,z);tickets.add(chunk);c.getWorld().getChunkManager().addTicket(ticket,chunk,2);
+        }
+        Runnable releaseTickets=()->{for(var chunk:tickets)c.getWorld().getChunkManager().removeTicket(ticket,chunk,2);};
+        Vec3d center=Vec3d.ofBottomCenter(feet);
         owner.setPosition(center.add(0, 0, -5)); target.setPosition(center.add(3, 0, 0));
         target.getAttributeInstance(EntityAttributes.MAX_HEALTH).setBaseValue(100); target.setHealth(100);
         c.getWorld().getGameRules().setValue(GameRules.PVP, true, s.server); var helper = golem(s, owner, "fighter"); s.profile(owner, "fighter", AgentCompanions.Profile.PRIMITIVE);
@@ -716,7 +769,7 @@ public class AgentGameTests {
             float health = target.getHealth(); c.assertFalse(helper.tryAttack(c.getWorld(), target), "The independent damage gate rejects a forced swing through the wall");
             c.assertEquals(target.getHealth(), health, "Occluded pursuit cannot damage the player through terrain");
         } catch (RuntimeException failure) {
-            c.getWorld().getGameRules().setValue(GameRules.PVP, pvp, s.server); cleanup(s, owner); cleanup(s, target); throw failure;
+            c.getWorld().getGameRules().setValue(GameRules.PVP, pvp, s.server); cleanup(s, owner); cleanup(s, target); releaseTickets.run(); throw failure;
         }
         java.util.function.Supplier<String> pursuitState = () -> "eligibility=" + s.targetEligibility(owner, target)
             + "; pvp=" + c.getWorld().getGameRules().getValue(GameRules.PVP)
@@ -735,7 +788,7 @@ public class AgentGameTests {
                 c.assertTrue(s.validPlayerTarget(owner) != null, "Normal navigation around a wall does not consume the approved order; first lost: " + firstLost[0] + "; final: " + pursuitState.get());
                 c.assertTrue(helper.squaredDistanceTo(target) < initialDistance - 1, "Server ticks actually move the golem around the obstruction toward the approved player");
                 c.assertTrue(helper.getVisibilityCache().canSee(target), "The golem reaches a clear sight line after navigating around the corner");
-            } finally { c.getWorld().getGameRules().setValue(GameRules.PVP, pvp, s.server); cleanup(s, owner); cleanup(s, target); }
+            } finally { c.getWorld().getGameRules().setValue(GameRules.PVP, pvp, s.server); cleanup(s, owner); cleanup(s, target); releaseTickets.run(); }
             c.complete();
         });
     }

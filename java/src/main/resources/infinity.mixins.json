@@ -9,7 +9,11 @@
     "AgentGoalAccess",
     "AgentConsoleSourceAccess",
     "AdminStatGolemMixin",
-    "AdminAttributeMixin"
+    "AdminAttributeMixin",
+    "AgentFlightAccess",
+    "AgentWeaponMixin",
+    "AgentPierceMixin",
+    "AgentMaceMixin"
   ],
   "injectors": {
     "defaultRequire": 1

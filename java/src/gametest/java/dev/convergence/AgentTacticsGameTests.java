@@ -17,9 +17,12 @@ import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.GameMode;
 import net.minecraft.world.rule.GameRules;
 
-/** Actual golem movement and vanilla attacks; no simulated player equipment or custom damage. */
+/** Actual golem movement, vanilla mob weapons, spear charging and native glide physics. */
 public class AgentTacticsGameTests {
     static final class Arena implements AutoCloseable {
+        private static long ticketSequence=1200;
+        final net.minecraft.server.world.ChunkTicketType ticket=new net.minecraft.server.world.ChunkTicketType(++ticketSequence,net.minecraft.server.world.ChunkTicketType.FOR_LOADING | net.minecraft.server.world.ChunkTicketType.FOR_SIMULATION | net.minecraft.server.world.ChunkTicketType.RESETS_IDLE_TIMEOUT);
+        final java.util.List<net.minecraft.util.math.ChunkPos> chunks=new java.util.ArrayList<>();
         final TestContext context;
         final ServerPlayerEntity owner;
         final AgentCompanions helpers;
@@ -31,9 +34,18 @@ public class AgentTacticsGameTests {
             owner = new ModeGameTests().player(context, name);
             OperatorGameTests.level(owner, LeveledPermissionPredicate.OWNERS);
             owner.changeGameMode(GameMode.SURVIVAL);
-            BlockPos feet = context.getAbsolutePos(new BlockPos(4, 55, 4));
+            // The declared structure reserves the complete arena from other tests.
+            BlockPos feet = context.getAbsolutePos(new BlockPos(20, 55, 20));
             for (BlockPos at : BlockPos.iterate(feet.add(-9, -1, -9), feet.add(9, 8, 9)))
                 context.getWorld().setBlockState(at, at.getY() == feet.getY() - 1 ? Blocks.STONE.getDefaultState() : Blocks.AIR.getDefaultState());
+            // Give each fixture its own temporary simulation tickets, including idle reset.
+            // Native tests run with embedded clients instead of ordinary player tickets.
+            // Use
+            // distinct, non-persisted tickets so every participating entity really ticks.
+            for(int x=(feet.getX()-9)>>4;x<=(feet.getX()+9)>>4;x++)for(int z=(feet.getZ()-9)>>4;z<=(feet.getZ()+9)>>4;z++) {
+                var chunk=new net.minecraft.util.math.ChunkPos(x,z);chunks.add(chunk);
+                context.getWorld().getChunkManager().addTicket(ticket,chunk,2);
+            }
             start = Vec3d.ofBottomCenter(feet);
             owner.setPosition(start.add(-5, 0, -5));
             helpers = AgentCompanions.get(context.getWorld().getServer());
@@ -64,10 +76,11 @@ public class AgentTacticsGameTests {
             var names = helpers.data.agents.values().stream().filter(a -> a.owner().equals(owner.getUuidAsString())).map(AgentCompanions.Agent::name).toList();
             for (String name : names) helpers.dismiss(owner, name);
             OperatorGameTests.deop(owner); helpers.server.getPlayerManager().remove(owner);
+            for(var chunk:chunks)context.getWorld().getChunkManager().removeTicket(ticket,chunk,2);
         }
     }
 
-    @GameTest(maxTicks=60) public void ultimateLeapActuallyMovesThenUsesVanillaMelee(TestContext c) {
+    @GameTest(structure="convergence_tests:combat_arena", maxTicks=60) public void ultimateLeapActuallyMovesThenUsesVanillaMelee(TestContext c) {
         var f = new Arena(c, "tactic-air");
         try {
             c.assertTrue(f.launch(f.helpers.server.getTicks()), "Clear ground launches a physical golem leap");
@@ -76,6 +89,8 @@ public class AgentTacticsGameTests {
                 try {
                     c.assertTrue(f.golem.getY() > f.start.y + .3, "Real entity ticks raise the golem above the ground");
                     c.assertTrue(f.golem.getX() > f.start.x + .4, "Real entity ticks pursue the landing point");
+                    c.assertTrue(f.golem.getEquippedStack(net.minecraft.entity.EquipmentSlot.CHEST).isOf(net.minecraft.item.Items.ELYTRA),"Aerial helper has a real vanilla glider equipped");
+                    c.assertTrue(f.golem.isGliding() || f.golem.getGlidingTicks()>0,"Real LivingEntity glide state runs during the arc");
                     c.waitAndRun(25, () -> {
                         try {
                             c.assertTrue(f.target.getHealth() < 500, "Landing closes to native melee range and causes a real golem hit");
@@ -90,7 +105,7 @@ public class AgentTacticsGameTests {
         } catch (Throwable failure) { f.close(); throw failure; }
     }
 
-    @GameTest public void ceilingsAndWallsRejectLeapsAndKeepGroundPursuit(TestContext c) {
+    @GameTest(structure="convergence_tests:combat_arena") public void ceilingsAndWallsRejectLeapsAndKeepGroundPursuit(TestContext c) {
         try (var f = new Arena(c, "tactic-obstacle")) {
             // Follow mode senses hostiles within ten blocks of the owner, not the helper.
             f.owner.setPosition(f.start.add(0, 0, -4));
@@ -99,7 +114,7 @@ public class AgentTacticsGameTests {
             c.assertFalse(f.launch(80), "Low roof prevents the full-height leap corridor");
             f.helpers.control(f.golem, f.record(f.golem), 80);
             c.assertTrue(f.golem.getTarget() == f.target, "The nearby hostile remains the ground pursuit target");
-            c.assertFalse(f.golem.getNavigation().isIdle(), "Blocked aerial route falls back to native ground pursuit");
+            c.assertTrue(f.golem.isUsingItem(), "Blocked aerial route begins the native spear windup before ground pursuit");
             c.assertTrue(f.golem.getVelocity().y <= 0, "Rejected leap adds no upward motion");
             for (BlockPos at : BlockPos.iterate(roof.add(-1, 0, -1), roof.add(6, 0, 1))) c.getWorld().setBlockState(at, Blocks.AIR.getDefaultState());
             BlockPos wall = BlockPos.ofFloored(f.start).east(2);
@@ -112,7 +127,7 @@ public class AgentTacticsGameTests {
         c.complete();
     }
 
-    @GameTest public void aerialRolesLeadBoundsCooldownAndGuardLeashAreDeterministic(TestContext c) {
+    @GameTest(structure="convergence_tests:combat_arena") public void aerialRolesLeadBoundsCooldownAndGuardLeashAreDeterministic(TestContext c) {
         try (var f = new Arena(c, "tactic-roles")) {
             var beta = f.add("beta", f.start.add(0, 0, 2));
             f.golem.setTarget(f.target); beta.setTarget(f.target);
@@ -130,7 +145,7 @@ public class AgentTacticsGameTests {
         c.complete();
     }
 
-    @GameTest public void nativeComboKeepsAttackCadenceAndCancelsOnProfileRevocation(TestContext c) {
+    @GameTest(structure="convergence_tests:combat_arena") public void nativeComboKeepsAttackCadenceAndCancelsOnProfileRevocation(TestContext c) {
         try (var f = new Arena(c, "tactic-cadence")) {
             f.golem.setPosition(f.target.getEntityPos().add(-1.6, 0, 0));
             float before = f.target.getHealth();
@@ -150,7 +165,7 @@ public class AgentTacticsGameTests {
         c.complete();
     }
 
-    @GameTest public void playerDiveNeedsAnActiveOrderAndCeasefireOrDeopStopsIt(TestContext c) {
+    @GameTest(structure="convergence_tests:combat_arena") public void playerDiveNeedsAnActiveOrderAndCeasefireOrDeopStopsIt(TestContext c) {
         try (var f = new Arena(c, "tactic-owner")) {
             var target = new ModeGameTests().player(c, "tactic-player");
             boolean pvp = c.getWorld().getGameRules().getValue(GameRules.PVP);
@@ -192,4 +207,99 @@ public class AgentTacticsGameTests {
         }
         c.complete();
     }
+    @GameTest(structure="convergence_tests:combat_arena") public void ultimateMaceUsesNativeWeaponSmashBonus(TestContext c) {
+        try(var f=new Arena(c,"tactic-mace")) {
+            f.golem.setPosition(f.target.getEntityPos().add(-1.6,0,0));
+            AgentWeapons.mace(f.golem,f.target);
+            f.golem.setOnGround(false);f.golem.fallDistance=4;f.golem.setVelocity(0,-.5,0);
+            c.assertTrue(net.minecraft.item.MaceItem.shouldDealAdditionalDamage(f.golem),"A real falling helper qualifies for native mace bonus");
+            float before=f.target.getHealth();
+            c.assertTrue(f.golem.tryAttack(c.getWorld(),f.target),"Registered Ultimate helper uses MobEntity's actual item attack");
+            c.assertTrue(before-f.target.getHealth()>25,"Native mace fall bonus exceeds an ordinary golem punch");
+            c.assertTrue(f.golem.getMainHandStack().isOf(net.minecraft.item.Items.MACE),"Attack uses a real mace stack");
+        }
+        c.complete();
+    }
+
+    @GameTest(structure="convergence_tests:combat_arena", maxTicks=60) public void ultimateSpearNativeUseActuallyPiercesHostile(TestContext c) {
+        var f=new Arena(c,"tactic-spear");
+        try {
+            f.owner.setPosition(f.start.add(0,0,-4));
+            f.golem.setPosition(f.start);
+            // A low roof deliberately selects native ground spear charging.
+            var roof=net.minecraft.util.math.BlockPos.ofFloored(f.start).up(3);
+            for(var at:net.minecraft.util.math.BlockPos.iterate(roof.add(-1,0,-2),roof.add(7,0,2)))c.getWorld().setBlockState(at,Blocks.STONE.getDefaultState());
+            AgentWeapons.spear(f.golem,f.target);
+            f.golem.getNavigation().startMovingTo(f.target,1.1);
+            c.assertTrue(f.golem.isUsingItem(),"The native spear use countdown starts");
+            boolean[] charged={false};
+            c.runAtEveryTick(()->{
+                if(charged[0] || f.target.getHealth()>=500)return;
+                try {
+                    c.assertTrue(f.golem.getPiercedEntityCount(e->e==f.target)>0,"Vanilla KineticWeaponComponent records the real damaging contact");
+                    c.assertFalse(f.helpers.lastAttack.containsKey(f.golem.getUuid()),"No ordinary melee strike accounts for the charged spear damage");
+                    c.assertTrue(f.golem.getMainHandStack().isOf(net.minecraft.item.Items.NETHERITE_SPEAR),"Damage is delivered while a real spear is charging");
+                    charged[0]=true;c.complete();
+                } finally {f.close();}
+            });
+            c.waitAndRun(35,()->{
+                if(charged[0])return;
+                try {c.assertTrue(charged[0],"Native ground spear charge must cause damage; use="+f.golem.getItemUseTime()+" hp="+f.target.getHealth()+" age="+f.golem.age+" range="+f.golem.isInAttackRange(f.target)+" pos="+f.golem.getEntityPos()+" target="+f.target.getEntityPos());}
+                finally {f.close();}
+            });
+        } catch(Throwable failure) {f.close();throw failure;}
+    }
+
+    @GameTest(structure="convergence_tests:combat_arena") public void ultimateUsesMaceInsideNativeSpearMinimumReach(TestContext c) {
+        try(var f=new Arena(c,"tactic-close")) {
+            f.owner.setPosition(f.start.add(0,0,-4));
+            f.golem.setPosition(f.target.getEntityPos().add(-1.6,0,0));
+            f.helpers.control(f.golem,f.record(f.golem),80);
+            c.assertTrue(f.golem.getMainHandStack().isOf(net.minecraft.item.Items.MACE),"Close combat switches from the spear's dead zone to a real mace: "+f.golem.getMainHandStack().getName().getString());
+            c.assertTrue(f.target.getHealth()<500,"Normal control performs a real close mace hit");
+            float hp=f.target.getHealth();f.helpers.control(f.golem,f.record(f.golem),85);
+            c.assertEquals(f.target.getHealth(),hp,"Weapon switching cannot bypass native attack cadence");
+        }
+        c.complete();
+    }
+
+    @GameTest(structure="convergence_tests:combat_arena") public void nativeWeaponsCannotDamagePushOrDismountUnapprovedPlayers(TestContext c) {
+        try(var f=new Arena(c,"tactic-pierce-guard")) {
+            var player=new ModeGameTests().player(c,"tactic-unapproved");
+            try {
+                player.changeGameMode(GameMode.SURVIVAL);player.setPosition(f.start.add(1.6,0,0));
+                var ride=EntityType.PIG.create(c.getWorld(),SpawnReason.COMMAND);ride.setPosition(player.getEntityPos());c.getWorld().spawnEntity(ride);player.startRiding(ride,true,false);
+                AgentWeapons.spear(f.golem,f.target);
+                var original=f.target.getEntityPos();
+                f.target.setPosition(f.start.add(20,0,0));
+                c.assertFalse(f.golem.pierce(net.minecraft.entity.EquipmentSlot.MAINHAND,f.target,100,true,true,true),"A forced native spear call cannot reach a distant hostile");
+                f.target.setPosition(f.start.add(2.4,0,0));
+                AgentWeapons.aim(f.golem,f.target);
+                var wall=net.minecraft.util.math.BlockPos.ofFloored(f.start).east();
+                for(var at:net.minecraft.util.math.BlockPos.iterate(wall.down().add(0,0,-1),wall.up(3).add(0,0,1)))c.getWorld().setBlockState(at,Blocks.STONE.getDefaultState());
+                c.assertFalse(f.golem.pierce(net.minecraft.entity.EquipmentSlot.MAINHAND,f.target,100,true,true,true),"A forced native spear call cannot pierce through a solid wall");
+                c.assertEquals(f.target.getHealth(),500f,"Rejected distant and occluded spear calls preserve hostile health");
+                for(var at:net.minecraft.util.math.BlockPos.iterate(wall.add(0,0,-1),wall.up(3).add(0,0,1)))c.getWorld().setBlockState(at,Blocks.AIR.getDefaultState());
+                f.target.setPosition(original);f.golem.getVisibilityCache().clear();
+                AgentWeapons.spear(f.golem,player);
+                float hp=player.getHealth();var velocity=player.getVelocity();
+                c.assertFalse(f.golem.pierce(net.minecraft.entity.EquipmentSlot.MAINHAND,player,100,true,true,true),"Native pierce rejects all side effects before an unapproved target is touched");
+                c.assertTrue(player.getVehicle()==ride,"Rejected spear cannot dismount player");
+                c.assertEquals(player.getHealth(),hp,"Rejected spear preserves health");c.assertEquals(player.getVelocity(),velocity,"Rejected spear preserves velocity");
+                AgentWeapons.mace(f.golem,player);f.golem.fallDistance=4;
+                c.assertFalse(f.golem.tryAttack(c.getWorld(),player),"Native mace cannot bypass both approvals");
+                f.golem.setPosition(f.target.getEntityPos().add(-1.6,0,0));
+                ride.setPosition(f.target.getEntityPos().add(2,0,0));player.setPosition(ride.getEntityPos());
+                var beforeSplash=player.getVelocity();f.golem.fallDistance=4;
+                c.assertTrue(f.golem.tryAttack(c.getWorld(),f.target),"A valid native mace smash still hits the hostile");
+                c.assertEquals(player.getVelocity(),beforeSplash,"Native mace splash cannot push an unapproved bystander");
+                c.assertTrue(player.getVehicle()==ride,"Native mace splash does not dismount the bystander");
+                OperatorGameTests.deop(f.owner);f.helpers.control(f.golem,f.record(f.golem),80);
+                c.assertFalse(f.golem.isUsingItem() || f.golem.isGliding(),"Revoking owner permission stops both native use and glide");
+                player.stopRiding();ride.discard();
+            } finally {player.getEntityWorld().getServer().getPlayerManager().remove(player);}
+        }
+        c.complete();
+    }
+
 }

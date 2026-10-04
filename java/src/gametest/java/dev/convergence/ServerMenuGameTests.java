@@ -101,7 +101,7 @@ public class ServerMenuGameTests {
                 ((ScreenHandler)main).onSlotClick(ServerMenu.BACK, 0, SlotActionType.PICKUP, p);
                 c.assertTrue(p.currentScreenHandler == main, "A stale connection cannot even close the current screen");
             } finally { p.networkHandler = originalConnection; }
-            for (var action : new SlotActionType[] { SlotActionType.QUICK_MOVE, SlotActionType.SWAP, SlotActionType.CLONE,
+            for (var action : new SlotActionType[] { SlotActionType.SWAP, SlotActionType.CLONE,
                     SlotActionType.THROW, SlotActionType.QUICK_CRAFT, SlotActionType.PICKUP_ALL }) {
                 ((ScreenHandler)main).onSlotClick(ServerMenu.HELPERS, 0, action, p);
                 c.assertTrue(ItemStack.areItemsAndComponentsEqual(((ScreenHandler)main).getSlot(ServerMenu.HELPERS).getStack(), helperIcon), "Preview icon survives " + action);
@@ -109,7 +109,7 @@ public class ServerMenuGameTests {
             ((ScreenHandler)main).selectBundleStack(ServerMenu.HELPERS, 0);
             c.assertTrue(((ScreenHandler)main).quickMove(p, ServerMenu.HELPERS).isEmpty(), "Shift-move returns no item");
             c.assertTrue(((ScreenHandler)main).getCursorStack().isEmpty(), "No icon reaches the cursor");
-            click(p, ServerMenu.KIT);
+            ((ScreenHandler)main).onSlotClick(ServerMenu.KIT,0,SlotActionType.QUICK_MOVE,p);
             click(p, ServerMenu.BUILDING);
             click(p, ServerMenu.HELPERS);
             c.assertTrue(p.currentScreenHandler == main, "Locked actions do not change screens or grant control");

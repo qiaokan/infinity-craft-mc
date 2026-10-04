@@ -46,7 +46,7 @@ public class AdminStatsMenuGameTests {
             OperatorGameTests.level(admin, LeveledPermissionPredicate.OWNERS);
             admin.changeGameMode(GameMode.CREATIVE);
             admin.getInventory().setStack(0, new ItemStack(Items.EMERALD, 11));
-            ServerMenu.open(admin); click(admin, ServerMenu.ADMIN);
+            ServerMenu.open(admin); quickClick(admin, ServerMenu.ADMIN);
             c.assertEquals(menu(admin).page, AdminStatsMenu.Page.PLAYERS, "OP4 enters target picker without a command");
             quickClick(admin, 0);
             c.assertEquals(menu(admin).page, AdminStatsMenu.Page.STATS, "Self is the first target");
@@ -134,7 +134,7 @@ public class AdminStatsMenuGameTests {
             edit(admin, target, "health"); click(admin, AdminStatsMenu.PLUS_SMALL); click(admin, AdminStatsMenu.REVIEW);
             target.setHealth(9);
             click(admin, AdminStatsMenu.CONFIRM);
-            c.assertEquals(target.getHealth(), 9f, "Live damage after review cannot be overwritten by stale confirmation");
+            c.assertEquals(target.getHealth(), 11f, "An explicitly reviewed absolute heal survives normal live health changes");
         } finally { cleanup(admin); cleanup(target); }
         c.complete();
     }
@@ -242,6 +242,90 @@ public class AdminStatsMenuGameTests {
             c.assertTrue(AdminStatsMenu.consumeChat(admin,"9999"),"A pending entry is consumed and refused after permission revocation");
             c.assertEquals(target.getAttributeBaseValue(EntityAttributes.ATTACK_DAMAGE),1d,"Revoked entry cannot change damage");
         } finally { cleanup(admin);cleanup(target); }
+        c.complete();
+    }
+
+    private void formReply(org.geysermc.cumulus.form.Form form,String payload) {
+        try { org.geysermc.cumulus.form.impl.FormDefinitions.instance().definitionFor(form).handleFormResponse(form,payload); }
+        catch(Exception failure) { throw new RuntimeException(failure); }
+    }
+
+    @GameTest public void bedrockFormsApplyExactCapacityAndHealDespiteLiveDamage(TestContext c) {
+        var admin=player(c,"form-capacity",true);var target=player(c,"form-health",false);
+        var forms=new java.util.ArrayList<org.geysermc.cumulus.form.Form>();
+        java.util.function.Predicate<org.geysermc.cumulus.form.Form> sender=f->{forms.add(f);return true;};
+        try {
+            c.assertEquals(BedrockStatsMenu.open(admin,target,"max_health",sender),1,"Native editor opens");
+            c.assertTrue(forms.getLast() instanceof org.geysermc.cumulus.form.CustomForm,"A native number field replaces chest clicks");
+            formReply(forms.getLast(),"[null,\"5000\",0]");
+            c.assertTrue(forms.getLast() instanceof org.geysermc.cumulus.form.ModalForm,"Input opens an explicit native confirmation");
+            c.assertEquals(target.getMaxHealth(),20f,"Input alone never mutates capacity");
+            var confirm=forms.getLast();formReply(confirm,"true");
+            c.assertEquals(target.getMaxHealth(),5000f,"Native confirm applies exact capacity");
+            int count=forms.size();formReply(confirm,"true");
+            c.assertEquals(forms.size(),count,"Replay cannot open or apply another editor");
+            BedrockStatsMenu.open(admin,target,"health",sender);formReply(forms.getLast(),"[null,\"4500\",0]");
+            target.setHealth(9);formReply(forms.getLast(),"true");
+            c.assertEquals(target.getHealth(),4500f,"Natural changes do not invalidate the approved absolute health value");
+            c.assertTrue(admin.currentScreenHandler==admin.playerScreenHandler,"Forms never put an icon on the inventory cursor");
+        } finally {cleanup(admin);cleanup(target);}
+        c.complete();
+    }
+
+    @GameTest public void bedrockConfirmStillChecksPermissionCapacityAndLatestForm(TestContext c) {
+        var admin=player(c,"form-guards",true);var target=player(c,"form-target",false);
+        var forms=new java.util.ArrayList<org.geysermc.cumulus.form.Form>();
+        java.util.function.Predicate<org.geysermc.cumulus.form.Form> sender=f->{forms.add(f);return true;};
+        try {
+            target.setHealth(10);
+            BedrockStatsMenu.open(admin,target,"health",sender);formReply(forms.getLast(),"[null,\"20\",0]");
+            target.getAttributeInstance(EntityAttributes.MAX_HEALTH).setBaseValue(15);formReply(forms.getLast(),"true");
+            c.assertEquals(target.getHealth(),10f,"A reduced capacity cancels the old amount");
+            BedrockStatsMenu.open(admin,target,"max_health",sender);formReply(forms.getLast(),"[null,\"5000\",0]");
+            var old=forms.getLast();BedrockStatsMenu.open(admin,target,"attack_damage",sender);
+            formReply(old,"true");c.assertEquals(target.getMaxHealth(),15f,"Opening another form invalidates the old confirmation, even in the same tick");
+            formReply(forms.getLast(),"[null,\"100\",0]");OperatorGameTests.deop(admin);formReply(forms.getLast(),"true");
+            c.assertEquals(target.getAttributeBaseValue(EntityAttributes.ATTACK_DAMAGE),1d,"Deopped actor cannot confirm a form");
+        } finally {cleanup(admin);cleanup(target);}
+        c.complete();
+    }
+
+    @GameTest public void bedrockCancelInvalidNumbersAndChangedAttributesPreserveStats(TestContext c) {
+        var admin=player(c,"form-cancel",true);var target=player(c,"form-base",false);
+        var forms=new java.util.ArrayList<org.geysermc.cumulus.form.Form>();
+        java.util.function.Predicate<org.geysermc.cumulus.form.Form> sender=f->{forms.add(f);return true;};
+        try {
+            BedrockStatsMenu.open(admin,target,"max_health",sender);formReply(forms.getLast(),"[null,\"NaN\",0]");
+            c.assertTrue(forms.getLast() instanceof org.geysermc.cumulus.form.CustomForm,"Invalid value returns an explicit input form");
+            formReply(forms.getLast(),"[null,\"5000\",0]");formReply(forms.getLast(),"false");
+            c.assertEquals(target.getMaxHealth(),20f,"Cancel preserves capacity");
+            BedrockStatsMenu.open(admin,target,"max_health",sender);formReply(forms.getLast(),"[null,\"5000\",0]");
+            target.getAttributeInstance(EntityAttributes.MAX_HEALTH).setBaseValue(50);formReply(forms.getLast(),"true");
+            c.assertEquals(target.getMaxHealth(),50f,"Concurrent attribute edits still invalidate review");
+            BedrockStatsMenu.open(admin,target,"health",sender);var input=forms.getLast();
+            target.changeGameMode(GameMode.CREATIVE);formReply(input,"[null,\"40\",0]");
+            c.assertEquals(target.getHealth(),20f,"Changed target session cannot inherit an input form");
+        } finally {cleanup(admin);cleanup(target);}
+        c.complete();
+    }
+
+    @GameTest public void touchArmorMenuGrantsAllAuroraPiecesIncludingChestplate(TestContext c) {
+        var admin=player(c,"armor-touch",true);
+        try {
+            ServerMenu.open(admin);quickClick(admin,ServerMenu.ARMOR);
+            c.assertEquals(((ServerMenu.Handler)admin.currentScreenHandler).page,ServerMenu.Page.ARMOR,"Bedrock-style transfer opens armor sets");
+            quickClick(admin,10);
+            for(String part:java.util.List.of("helmet","chestplate","leggings","boots")) {
+                var item=Convergence.ITEMS.get("convergence:aurora_"+part);
+                c.assertTrue(admin.getInventory().contains(new ItemStack(item)),"Complete set includes "+part);
+                var wire=new ItemStack(CrossplaySupport.BASES.get("aurora_"+part));
+                wire.set(net.minecraft.component.DataComponentTypes.EQUIPPABLE,item.getComponents().get(net.minecraft.component.DataComponentTypes.EQUIPPABLE));
+                CrossplaySupport.wearableFallback(wire,wire.getItem(),true,true);
+                c.assertEquals(wire.get(net.minecraft.component.DataComponentTypes.EQUIPPABLE),wire.getItem().getComponents().get(net.minecraft.component.DataComponentTypes.EQUIPPABLE),"Bedrock always uses native armor assets even if Java pack state is enabled");
+                c.assertTrue(CrossplaySupport.nativeAppearance("aurora_"+part,true,true),"Bedrock cosmetic icon uses its native wearable model");
+            }
+            c.assertFalse(CrossplaySupport.nativeAppearance("sword",true,false),"Mapped weapon artwork remains custom on Bedrock");
+        } finally {cleanup(admin);}
         c.complete();
     }
 

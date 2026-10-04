@@ -45,7 +45,7 @@ final class ServerMenu {
     static final int GAMES = 28, ADVENTURE = 30, BACKPACK = 32, INFO = 34;
     static final int SURVIVAL = 37, CREATIVE = 39, HARDCORE = 41, HUB = 43;
     static final int ADMIN = 47;
-    static final int SELF_STATS = 51, CRATES = 46;
+    static final int SELF_STATS = 51, CRATES = 46, ARMOR = 48;
     static final int PREVIOUS = 45, BACK = 49, NEXT = 53, PAGE_SIZE = 45;
     private static final String MARKER = "infinity_server_menu";
     private static final String OWNER = "owner";
@@ -53,7 +53,7 @@ final class ServerMenu {
     private static final Map<UUID, Integer> READY_AT = new HashMap<>();
     private static final Map<UUID, Integer> SELECTED_CONTROL = new HashMap<>();
     private static final Set<UUID> FULL_NOTICE = new HashSet<>();
-    enum Page { MAIN, GEAR, HELP, INFO }
+    enum Page { MAIN, GEAR, ARMOR, HELP, INFO }
     private record Selection(GameModes.Mode mode, int slot) {}
 
     private ServerMenu() {}
@@ -224,6 +224,7 @@ final class ServerMenu {
                 "Review health, speed, damage and more before applying.", "Base stats and equipment bonuses stay separate.");
             icon(view,SELF_STATS,Items.APPLE,"My stats • quick edit","OP4: jump straight to your own health and attributes.");
             icon(view,CRATES,Items.PURPLE_SHULKER_BOX,"Convergence Set • inventory boxes","Places the complete set into two labeled gear boxes.","Place and open the boxes to take items. Requires Creative or gear permission.");
+            icon(view,ARMOR,Items.LEATHER_CHESTPLATE,"Armor sets • includes chestplates","Claim Aurora or Ember with all four pieces.","The Infinity winged chestplate uses an elytra on Bedrock.");
         } else if (page == Page.GEAR) {
             title = "Infinity Gear • " + (pageIndex + 1);
             for (int slot = 0, pathIndex = pageIndex * PAGE_SIZE; slot < PAGE_SIZE && pathIndex < paths.size(); slot++, pathIndex++) {
@@ -236,6 +237,11 @@ final class ServerMenu {
             }
             if (pageIndex > 0) icon(view, PREVIOUS, Items.ARROW, "Previous gear page");
             if ((pageIndex + 1) * PAGE_SIZE < paths.size()) icon(view, NEXT, Items.ARROW, "Next gear page");
+        } else if (page == Page.ARMOR) {
+            title="Infinity Armor Sets";
+            icon(view,10,Items.LEATHER_CHESTPLATE,"Aurora • all four pieces","Helmet, chestplate, leggings and boots.","Earn Enchanter or use Admin access. Clear four inventory slots.");
+            icon(view,12,Items.LEATHER_CHESTPLATE,"Ember • all four pieces","Helmet, chestplate, leggings and boots.","Earn Into Fire or use Admin access. Clear four inventory slots.");
+            icon(view,14,Items.ELYTRA,"Infinity winged chestplate","Uses native elytra artwork and flight on Bedrock.","Choose Aurora or Ember above for a chestplate appearance.","Requires Creative, Admin or OP2.");
         } else if (page == Page.HELP) {
             title = "Infinity Controls";
             information(view, "Controls", Convergence.helpText());
@@ -306,8 +312,8 @@ final class ServerMenu {
             // A packet for a closed or replaced screen must never close or act through the new one.
             if (player != owner || owner.currentScreenHandler != this || owner.networkHandler != ownerConnection) return;
             if (!canUse(player)) { owner.closeHandledScreen(); return; }
-            if (!getCursorStack().isEmpty() || action != SlotActionType.PICKUP
-                || button != 0 || slot < 0 || slot >= 54) { syncState(); return; }
+            if (!getCursorStack().isEmpty() || (action != SlotActionType.PICKUP && action != SlotActionType.QUICK_MOVE)
+                || button < 0 || button > 1 || slot < 0 || slot >= 54) { syncState(); return; }
             if (slot == BACK) {
                 if (page == Page.MAIN) owner.closeHandledScreen(); else navigate(Page.MAIN, 0);
                 return;
@@ -327,8 +333,14 @@ final class ServerMenu {
                 }
                 return;
             }
+            if(page==Page.ARMOR) {
+                if(slot==10 || slot==12) { owner.closeHandledScreen();BackpackStorage.armor(owner,slot==10?"aurora":"ember"); }
+                else if(slot==14) { owner.closeHandledScreen();Convergence.holdCreativeItem(owner,"chestplate"); }
+                return;
+            }
             if (page != Page.MAIN) return;
             if (slot == GEAR) { navigate(Page.GEAR, 0); return; }
+            if (slot == ARMOR) { navigate(Page.ARMOR, 0); return; }
             if (slot == HELP) { navigate(Page.HELP, 0); return; }
             if (slot == INFO) { navigate(Page.INFO, 0); return; }
             if (slot == CRATES) {

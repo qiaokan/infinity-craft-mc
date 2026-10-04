@@ -81,6 +81,7 @@ final class AdminStatsMenu {
     private AdminStatsMenu() {}
 
     static void register() {
+        BedrockStatsMenu.register();
         ServerPlayConnectionEvents.DISCONNECT.register((handler,server)->INPUTS.remove(handler.player.getUuid()));
         ServerTickEvents.END_SERVER_TICK.register(server->INPUTS.entrySet().removeIf(entry->{
             var input=entry.getValue();
@@ -177,6 +178,7 @@ final class AdminStatsMenu {
             String error = AdminStats.accessError(actor.getCommandSource(), target);
             if (error != null) { message(actor, error); return 0; }
         }
+        if (CrossplaySupport.bedrock(actor)) return BedrockStatsMenu.open(actor, target, statId);
         var targets = new ArrayList<>(actor.getEntityWorld().getServer().getPlayerManager().getPlayerList().stream()
             .sorted(Comparator.comparing((ServerPlayerEntity p) -> p != actor)
                 .thenComparing(p -> p.getName().getString().toLowerCase(Locale.ROOT)).thenComparing(ServerPlayerEntity::getUuid))
@@ -258,7 +260,9 @@ final class AdminStatsMenu {
             icon(view, 4, targetIcon(target), AdminStats.displayName(target) + " • " + changes.size() + " change(s)",
                 "Target ID: " + target.getUuidAsString(), lethal ? "WARNING: health zero kills this " + targetKind(target) + "." : "Apply exactly the changes shown below.");
             icon(view, CONFIRM, lethal ? Items.RED_DYE : Items.LIME_DYE, lethal ? "Confirm • KILL this " + targetKind(target) : "Confirm changes",
-                "Target: " + AdminStats.displayName(target), "Any changed value, player session or AI profile cancels this review.");
+                "Target: " + AdminStats.displayName(target), operation == Operation.SET && changes.stream().allMatch(c -> !AdminStats.find(target,c.id()).attribute())
+                    ? "Sets the exact reviewed amount, even if gameplay changes the current value."
+                    : "Changed attribute bases cancel this review.", "Changed permissions, sessions or allowed ranges always cancel.");
             icon(view, CANCEL, Items.BARRIER, "Cancel • keep current values");
             for (int slot = PREVIEW_START, i = pageIndex * size; slot < PREVIEW_START + size && i < count; slot++, i++) {
                 var change = changes.get(i); var stat = AdminStats.find(target, change.id());
@@ -274,6 +278,21 @@ final class AdminStatsMenu {
         actor.openHandledScreen(new SimpleNamedScreenHandlerFactory((sync, inventory, who) ->
             new Handler(sync, inventory, view, actor, target, page, pageIndex, statId, pending, operation, changes, targets, stats), Text.literal(title)));
         return 1;
+    }
+
+    /** Vitals are an absolute assignment: regeneration must not cancel the approved heal. */
+    static String reviewError(LivingEntity target, Operation operation, double pending, List<Change> changes) {
+        for (var change : changes) {
+            var stat=AdminStats.find(target,change.id());
+            if(stat==null || (operation!=Operation.SET || stat.attribute())
+                    && Double.compare(AdminStats.value(target,stat).base(),change.before())!=0)
+                return "The attribute changed during review. Reopen its editor and review the updated value.";
+            if(operation==Operation.SET && (!Double.isFinite(pending) || pending<stat.minimum() || pending>stat.maximum()
+                    || stat.integer() && pending!=Math.rint(pending)
+                    || Double.compare(AdminStats.normalizedValue(stat,pending),change.after())!=0))
+                return "The allowed range changed during review. Reopen the editor and review the updated range.";
+        }
+        return null;
     }
 
     static final class Handler extends GenericContainerScreenHandler {
@@ -346,18 +365,8 @@ final class AdminStatsMenu {
 
         private void apply() {
             var target = targetSession.entity();
-            for (var change : changes) {
-                var stat = AdminStats.find(target, change.id());
-                if (stat == null || Double.compare(AdminStats.value(target, stat).base(), change.before()) != 0) {
-                    fail("A value changed during review. Open the editor and review the updated values."); return;
-                }
-                if (operation == Operation.SET && (!Double.isFinite(pending)
-                        || pending < stat.minimum() || pending > stat.maximum()
-                        || stat.integer() && pending != Math.rint(pending)
-                        || Double.compare(AdminStats.normalizedValue(stat, pending), change.after()) != 0)) {
-                    fail("The allowed value changed during review. Open the editor and review the updated range."); return;
-                }
-            }
+            String error=reviewError(target,operation,pending,changes);
+            if(error!=null) { fail(error);return; }
             if (operation != Operation.SET && !changes.equals(restorations(operation == Operation.RESET_ALL))) {
                 fail("The saved originals changed during review. Review the restore again."); return;
             }

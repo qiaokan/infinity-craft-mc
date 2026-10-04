@@ -1,4 +1,4 @@
-# Infinity Armor Exploration Server — 2.12.0-explore.12
+# Infinity Armor Exploration Server — 2.12.0-explore.13
 
 Multi-mode build based on Infinity Armor 2.3.0 and the crossplay preview. Updated October 3, 2026.
 
@@ -36,7 +36,7 @@ Six new building textures, two Creative building wands, two wearable cosmetic ar
 
 Operators at level 4 can select **Infinity Menu → AI Helpers • open your squad → Create your first helper**. Stand on clear solid ground: the menu closes and a named iron golem appears nearby, with a visible success or failure message. Helpers do not appear until you create them. Reopen **AI Helpers** to manage up to six named helpers, select six profiles and control the squad. Choose a helper to see **Status • profile, location, and health**, **Ask Codex** when connected, and **Back to your squad**. The squad screen has **Back to Infinity Menu**. The Ask button explains the selected helper's state and suggests a next step; `/agent ask <name> <question>` accepts your own question.
 
-Ultimate Finals squads share targets, flank and predict short movements. On clear, loaded terrain they rotate a physical leap-and-dive approach with native golem melee attempts after landing. Low ceilings, walls or unsuitable landings use ordinary ground pursuit. Attacks retain reach, line of sight, target eligibility and cooldown checks. These are golem tactics, not actual spear/mace equipment, elytra flight or a totem-bypass trick.
+Ultimate Finals squads share targets, flank and predict short movements. On clear, loaded terrain they rotate a spear charge, a short native elytra glide and a mace switch before a falling smash. Low ceilings, walls or unsuitable landings use ordinary ground pursuit. Attacks retain reach, line of sight, target eligibility and cooldown checks. The gear uses vanilla weapon and gliding mechanics. Golems keep their normal body model, which does not render player-held weapons or wings. Damage immunity remains; no totem bypass is promised.
 
 In the stopped-world panel's **Owner: AI chat**, choose **Codex CLI · signed-in account** and enter the absolute path to an installed Codex executable already signed in with ChatGPT on this host. Enable AI chat and save, then start the world. No API key is required for this provider, and it always requires OP4. Codex uses the host account's usage allowance; this does not promise unlimited or free requests. When enabled, an OP4 player's `/ai <question>` and questions to **all six helper profiles** use Codex. `/ai help` stays local, ordinary players retain built-in help for known server topics, and `/ai status` shows the provider and request count to an OP4 player. The OpenAI API provider remains available with a private API key; a fresh download contains no key or login.
 
@@ -195,3 +195,9 @@ The panel is only reachable on this host (127.0.0.1) and protects its actions wi
 If startup fails, read `fabric/launcher.log` and `geyser/launcher.log`. If the launcher was forcibly killed, first ensure both Java processes are stopped before removing `launcher.lock`. Add other server mods only after the base pack works; if additional mods change Polymer's block allocations, the launcher regenerates and copies the mappings before starting Geyser.
 
 Not an official Minecraft product. Not approved by or associated with Mojang or Microsoft.
+
+## Stat confirmation and armor fixes in explore.13
+
+**Infinity Menu → My stats** opens a native Bedrock/iPad button list. Select **Health capacity**, type the number in its input field, submit, then tap **Confirm changes**. Next select **Current health** to heal to that capacity. Manual edits require your own OP4 confirmation, without a separate Codex approval. Java retains its chest editor and private exact-number chat prompt. Absolute vitals edits tolerate natural health/hunger changes; changed attribute bases, ranges, permissions, sessions and reset originals still invalidate review.
+
+**Infinity Menu → Armor sets** offers full Aurora and Ember sets including helmet, chestplate, leggings and boots. Leave four inventory slots free. Admin access bypasses achievement unlocks; other players earn Enchanter for Aurora or Into Fire for Ember. Bedrock wearables always use native dyed-leather models and icons. The Infinity winged chestplate uses a native elytra. Reconnect after the update and accept the refreshed server pack.
