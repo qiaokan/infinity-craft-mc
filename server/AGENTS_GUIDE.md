@@ -1,4 +1,4 @@
-# Helper squads, AI modes, and full operator controls — 2.12.0-explore.11
+# Helper squads, AI modes, and full operator controls — 2.12.0-explore.12
 
 Admins can edit a loaded helper through **Infinity Menu → Admin editor • players and AI**. Select its golem icon, change health, damage, speed, armor, size or another supported base attribute, then Review and Confirm. Original attribute values can be restored. The edits and reset values save with the entity; helper behavior/profile changes invalidate an open stat review. Follow, guard and profile controls remain in **AI Helpers**, and player-target orders still require both approvals.
 
@@ -13,6 +13,8 @@ On your first visit, tap the green **Create your first helper** button. Stand on
 Create up to **six named helpers per owner**, choose one to manage it, select an AI profile, or set **follow**, **guard current area**, or **stay / pause** for the loaded squad. The entire server has **24 slots**, including unloaded helpers. **Unloaded** means a saved helper is outside the currently loaded area; return nearby for movement controls. Menu icons are controls rather than collectible items. Dismissal has a confirmation screen. Everyone can see the Infinity Menu's helper button, but creating and controlling a squad requires **OP level 4**.
 
 Choose a saved helper to see **Status • profile, location, and health** and **Ask Codex** when the Codex provider is enabled (otherwise **Ask helper**). The Ask button sends “Explain my helper's current state and suggest what I should do next.” The screen closes so you can read the answer. **Back to your squad** returns to the roster; its **Back to Infinity Menu** button returns to the main menu. Use `/agent ask <name> <question>` to write a different question.
+
+**AI Helpers → Orders • targets and approvals** opens a player picker and the six fixed action proposals. **Pending orders** opens an exact review with **Approve as owner** and **Cancel**. The menu never provides Codex approval: ask Codex in this chat to review the displayed proposal ID before expiry. Follow, Guard and Stay work directly for loaded helpers in your world.
 
 The following commands remain available for named creation, questions and advanced actions:
 

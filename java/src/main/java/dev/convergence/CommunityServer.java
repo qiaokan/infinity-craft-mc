@@ -151,7 +151,8 @@ final class CommunityServer {
             }
             return true;
         });
-        ServerMessageEvents.ALLOW_CHAT_MESSAGE.register((message, player, parameters) -> get(player.getEntityWorld().getServer()).allowChat(player));
+        ServerMessageEvents.ALLOW_CHAT_MESSAGE.register((message, player, parameters) ->
+            !AdminStatsMenu.consumeChat(player,message.getSignedContent()) && get(player.getEntityWorld().getServer()).allowChat(player));
         CommandRegistrationCallback.EVENT.register((dispatcher, access, environment) -> {
             dispatcher.register(CommandManager.literal("serverhelp").executes(c -> info(c.getSource(),
                 "Infinity: /hub, /lobbies, /lobby <mode>, /play <mode>, /ranks, /rank, /spawn, /sethome [name], /home [name], /homes, /delhome <name>, /warps, /warp <name>, /tpa <player>, /tpaccept, /tpdeny, /rules. Infinity Menu has gear and power controls. /ai <question> answers server questions; OP4: /agent help. Ordinary teleports take 3 seconds; Admin/OP skips that delay. Player visits still require acceptance.")));

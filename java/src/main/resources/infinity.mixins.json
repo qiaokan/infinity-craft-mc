@@ -8,7 +8,8 @@
     "ModeDifficultyMixin",
     "AgentGoalAccess",
     "AgentConsoleSourceAccess",
-    "AdminStatGolemMixin"
+    "AdminStatGolemMixin",
+    "AdminAttributeMixin"
   ],
   "injectors": {
     "defaultRequire": 1

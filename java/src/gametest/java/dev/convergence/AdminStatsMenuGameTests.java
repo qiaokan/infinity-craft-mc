@@ -209,4 +209,40 @@ public class AdminStatsMenuGameTests {
         } finally { cleanup(admin); cleanup(target); }
         c.complete();
     }
+
+    @GameTest public void exactNumberEntryAndRepeatedButtonsKeepEditsStaged(TestContext c) {
+        var admin=player(c,"editor-exact",true);var target=player(c,"editor-exact-target",false);
+        try {
+            edit(admin,target,"max_health");ScreenHandler screen=admin.currentScreenHandler;
+            for(int i=0;i<10;i++)quickClick(admin,AdminStatsMenu.PLUS_LARGE);
+            c.assertTrue(admin.currentScreenHandler==screen,"Repeated taps update the same screen without close/open packets");
+            c.assertEquals(menu(admin).pending,1020d,"Every tap applies to the current pending value");
+            c.assertEquals(target.getMaxHealth(),20f,"Repeated taps are still only a draft");
+            click(admin,AdminStatsMenu.EXACT);
+            c.assertTrue(admin.currentScreenHandler==admin.playerScreenHandler,"Exact entry closes the chest for chat input");
+            c.assertTrue(AdminStatsMenu.consumeChat(admin,"not a number"),"Invalid private input is consumed");
+            c.assertTrue(AdminStatsMenu.consumeChat(admin,"NaN"),"Non-finite private input is consumed without editing");
+            c.assertTrue(AdminStatsMenu.consumeChat(admin,"5000"),"Numeric private input is consumed");
+            c.assertEquals(menu(admin).pending,5000d,"Exact input returns to the editor with the exact draft");
+            c.assertEquals(target.getMaxHealth(),20f,"Typing the number is not approval");
+            click(admin,AdminStatsMenu.REVIEW);click(admin,AdminStatsMenu.CONFIRM);
+            c.assertEquals(target.getMaxHealth(),5000f,"Separate confirmation applies the uncapped server capacity");
+            c.assertFalse(AdminStatsMenu.consumeChat(admin,"hello"),"Normal chat is no longer intercepted");
+            edit(admin,target,"absorption");click(admin,AdminStatsMenu.RELATED_HEALTH);
+            c.assertEquals(menu(admin).statId,"max_absorption","Zero absorption capacity has a direct route to increasing it");
+            click(admin,AdminStatsMenu.EXACT);AdminStatsMenu.consumeChat(admin,"2500");
+            click(admin,AdminStatsMenu.REVIEW);click(admin,AdminStatsMenu.CONFIRM);
+            edit(admin,target,"max_absorption");click(admin,AdminStatsMenu.RELATED_HEALTH);
+            c.assertEquals(menu(admin).statId,"absorption","Capacity links directly back to absorption hearts");
+            click(admin,AdminStatsMenu.EXACT);AdminStatsMenu.consumeChat(admin,"2400");
+            click(admin,AdminStatsMenu.REVIEW);click(admin,AdminStatsMenu.CONFIRM);
+            c.assertEquals(target.getAbsorptionAmount(),2400f,"Confirmed absorption exceeds the native capacity cap");
+            edit(admin,target,"attack_damage");click(admin,AdminStatsMenu.EXACT);
+            OperatorGameTests.deop(admin);
+            c.assertTrue(AdminStatsMenu.consumeChat(admin,"9999"),"A pending entry is consumed and refused after permission revocation");
+            c.assertEquals(target.getAttributeBaseValue(EntityAttributes.ATTACK_DAMAGE),1d,"Revoked entry cannot change damage");
+        } finally { cleanup(admin);cleanup(target); }
+        c.complete();
+    }
+
 }

@@ -1,4 +1,4 @@
-# Infinity Armor Exploration Server — 2.12.0-explore.11
+# Infinity Armor Exploration Server — 2.12.0-explore.12
 
 Multi-mode build based on Infinity Armor 2.3.0 and the crossplay preview. Updated October 3, 2026.
 
@@ -18,7 +18,9 @@ Select **Infinity Menu → Admin editor • players and AI**. An Admin or OP4 ca
 
 **To go above 20 health:** choose **Health capacity (max health)**, raise it, then Review and Confirm. Next open **Current health**, choose **Fill to capacity**, then Review and Confirm to heal. Both stats appear first in the list, and their edit screens link directly to each other. Capacity alone does not heal you. For example, 100 health points equals 50 hearts.
 
-The editor includes current health, food, saturation, exhaustion, absorption and XP level, plus the attributes supported by that player: maximum health, movement and attack speed, attack damage, armor, toughness, size, reach, jump strength and more. It edits attribute **base values** while retaining equipment and potion modifiers, and shows the resulting effective value. Two health points equal one heart. Minecraft's valid numeric ranges are shown in the editor; they are engine limits, not rank restrictions.
+Choose **My stats • quick edit** on the main menu to edit yourself directly. **Enter exact number** closes the chest for private chat input: type a value such as `5000`, then Review and Confirm. Type `cancel` to discard the input; it expires after 90 seconds. Plus/minus buttons update the same screen without reopening it.
+
+The editor includes health, food, saturation, exhaustion, absorption, XP and every attribute supported by the player/helper. It preserves equipment and potion modifiers and shows the effective value. Admin-edited combat attributes have their normal caps removed: 5,000 health capacity or damage can take effect and save. Two health points equal one heart. Current health and absorption must fit their effective capacities; both edit screens link to their capacity. Movement, size, loot and interaction retain native engine/client bounds; XP fits native integer storage. Larger hunger reserves are one-time native edits, can be consumed or reset by gameplay, and may not display beyond the client's normal bar.
 
 Attribute base changes persist across reconnects and respawns and apply in every game mode. **Reset original attribute** restores the base value from before this editor first changed it; resetting all attributes reviews the recorded changes first. Health, hunger and XP edits happen once and continue to follow normal damage, regeneration and the server's separate mode profiles. Normal gameplay is not frozen. The editor cannot run shell commands, read private keys or approve AI actions.
 
@@ -28,7 +30,7 @@ For an exact value, an OP4 player can also use the optional command `/adminstats
 
 ## New blocks, tools, wardrobe and player trading
 
-Six new building textures, two Creative building wands, two wearable cosmetic armor sets and three backpack looks join this release. Creative players receive an Infinity sword and can choose gear through **Infinity Menu → Weapons, tools and blocks**. **Building kit** supplies a compact set of blocks and both wands; `/convergence kit building` remains an optional shortcut. `/wardrobe` lists achievements for wearable looks, and `/backpack` opens personal 27-slot storage with a separate inventory in each mode. `/ptrade <player>` starts an item exchange requiring both players to review and confirm. Six minigames include Dropper, Red Light, Crystal Hunt, and Color Rush. See [EXPANSION.md](EXPANSION.md) and [PLAYER_TRADING.md](PLAYER_TRADING.md) for controls, unlocks and crossplay appearance limits.
+Six new building textures, two Creative building wands, two wearable cosmetic armor sets and three backpack looks join this release. Creative players receive the complete **Convergence Set** in two labeled shulker boxes in empty inventory slots. Place and open them to take the real items. **Infinity Menu → Convergence Set • inventory boxes** provides another set when two slots are free. They also receive an Infinity sword and can choose gear through **Infinity Menu → Weapons, tools and blocks**. **Building kit** supplies a compact set of blocks and both wands; `/convergence kit building` remains an optional shortcut. `/wardrobe` lists achievements for wearable looks, and `/backpack` opens personal 27-slot storage with a separate inventory in each mode. `/ptrade <player>` starts an item exchange requiring both players to review and confirm. Six minigames include Dropper, Red Light, Crystal Hunt, and Color Rush. See [EXPANSION.md](EXPANSION.md) and [PLAYER_TRADING.md](PLAYER_TRADING.md) for controls, unlocks and crossplay appearance limits.
 
 ## Helpers and operator controls
 

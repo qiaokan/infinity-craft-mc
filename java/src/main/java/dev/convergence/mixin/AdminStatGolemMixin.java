@@ -23,5 +23,6 @@ public abstract class AdminStatGolemMixin implements AdminStatEntity {
     @Inject(method="readCustomData",at=@At("TAIL"))
     private void load(ReadView view,CallbackInfo ci) {
         infinity$adminStats=view.read("InfinityAdminStats",NbtCompound.CODEC).orElseGet(NbtCompound::new);
+        dev.convergence.AdminStats.restoreExtended((IronGolemEntity)(Object)this,view);
     }
 }

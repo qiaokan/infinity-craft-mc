@@ -167,15 +167,15 @@ public class AdminHelperStatsGameTests {
             helper.getAttributeInstance(EntityAttributes.ATTACK_DAMAGE).addPersistentModifier(new EntityAttributeModifier(externalId, 5, EntityAttributeModifier.Operation.ADD_VALUE));
             set(c, owner, helper, "attack_damage", 45);
             set(c, owner, helper, "attack_damage", 70);
-            set(c, owner, helper, "max_health", 320);
-            set(c, owner, helper, "health", 280);
+            set(c, owner, helper, "max_health", 5000);
+            set(c, owner, helper, "health", 4500);
             var stored = save(helper);
             c.assertTrue(stored.contains("InfinityAdminStats"), "Originals are saved in the same entity NBT as vanilla attributes");
             c.assertTrue(AdminStats.resetAll(owner.getCommandSource(), helper).success(), "Reset deliberately changes the live entity before read");
             read(helper, stored);
             agents.load(helper);
-            c.assertEquals(helper.getMaxHealth(), 320f, "Native entity reload preserves edited maximum");
-            c.assertEquals(helper.getHealth(), 280f, "Native entity reload preserves current health");
+            c.assertEquals(helper.getMaxHealth(), 5000f, "Native entity reload preserves the expanded effective maximum");
+            c.assertEquals(helper.getHealth(), 4500f, "Native entity reload preserves health above the normal attribute cap");
             c.assertEquals(helper.getAttributeValue(EntityAttributes.ATTACK_DAMAGE), 75d, "Reload preserves edited base and independent modifier");
             c.assertEquals(AdminStats.original(helper, AdminStats.find(helper, "attack_damage")), 19d, "First original persists across repeated edits and reload");
             c.assertTrue(AdminStats.resetAll(owner.getCommandSource(), helper).success(), "Reloaded entity can restore originals");
@@ -200,7 +200,7 @@ public class AdminHelperStatsGameTests {
                 c.assertFalse(AdminStats.set(owner.getCommandSource(), helper, id, 5).success(), "Player-only setter is rejected for a helper: " + id);
             }
             c.assertFalse(AdminStats.set(owner.getCommandSource(), helper, "attack_damage", Double.NaN).success(), "Non-finite helper damage is rejected");
-            c.assertFalse(AdminStats.set(owner.getCommandSource(), helper, "max_health", 1025).success(), "Native helper health limit remains valid");
+            c.assertFalse(AdminStats.set(owner.getCommandSource(), helper, "max_health", Math.nextUp((double)Float.MAX_VALUE)).success(), "Non-representable helper health is refused");
             c.assertTrue(((AdminStatEntity) helper).infinity$adminStats().isEmpty(), "Rejected fields leave no misleading reset metadata");
         } finally { cleanup(owner); }
         c.complete();

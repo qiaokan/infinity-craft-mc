@@ -50,7 +50,7 @@ public class InfinityGameTests {
             if(original.isDamageable())original.setDamage(7);
             var wire=eu.pb4.polymer.core.api.item.PolymerItemUtils.getPolymerItemStack(original,context);
             c.assertEquals(wire.getItem(),entry.getValue(),"Vanilla network item: "+entry.getKey());
-            c.assertEquals(wire.get(DataComponentTypes.ITEM_MODEL),CrossplaySupport.id(entry.getKey()),"Model preserved");
+            c.assertEquals(wire.get(DataComponentTypes.ITEM_MODEL),entry.getValue().getComponents().get(DataComponentTypes.ITEM_MODEL),"Java without a resource pack gets a complete native icon");
             var restored=eu.pb4.polymer.core.api.item.PolymerItemUtils.getRealItemStack(wire,c.getWorld().getRegistryManager());
             c.assertTrue(ItemStack.areItemsAndComponentsEqual(original,restored),"Round-trip preserves components: "+entry.getKey());
             c.assertEquals(restored.getCount(),original.getCount(),"Round-trip count");

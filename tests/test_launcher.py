@@ -15,6 +15,42 @@ spec.loader.exec_module(launcher)
 
 
 class LauncherTests(unittest.TestCase):
+    def test_custom_java_models_and_equipment_resolve_to_real_assets(self):
+        root = Path(__file__).resolve().parents[1] / "java/src/main/resources/assets"
+        def inspect(value, source):
+            if isinstance(value, dict):
+                for key, child in value.items():
+                    if key in ("model", "parent") and isinstance(child, str) and child.startswith("convergence:"):
+                        self.assertTrue((root / "convergence/models" / (child.split(":", 1)[1] + ".json")).is_file(), source + ": " + child)
+                    if key == "textures" and isinstance(child, dict):
+                        for texture in child.values():
+                            if isinstance(texture, str) and texture.startswith("convergence:"):
+                                self.assertTrue((root / "convergence/textures" / (texture.split(":", 1)[1] + ".png")).is_file(), source + ": " + texture)
+                    inspect(child, source)
+            elif isinstance(value, list):
+                for child in value:
+                    inspect(child, source)
+        for path in (root / "convergence").rglob("*.json"):
+            inspect(json.loads(path.read_text()), str(path.relative_to(root)))
+        for path in (root / "convergence/equipment").glob("*.json"):
+            for layer, entries in json.loads(path.read_text())["layers"].items():
+                for entry in entries:
+                    namespace, texture = entry["texture"].split(":", 1)
+                    self.assertTrue((root / namespace / "textures/entity/equipment" / layer / (texture + ".png")).is_file(), str(path))
+
+    def test_bedrock_pack_revision_invalidates_cached_exploration_resources(self):
+        import zipfile
+        root = Path(__file__).resolve().parents[1]
+        lock = json.loads((root / "server/dependencies.lock.json").read_text())
+        pack = root / "server/geyser/packs/Infinity_Armor_Crossplay.mcpack"
+        if not pack.is_file():
+            self.skipTest("Prepared Bedrock pack unavailable in source-only checkout")
+        with zipfile.ZipFile(pack) as archive:
+            manifest = json.loads(archive.read("manifest.json"))
+        expected = [2, 12, int(lock["version"].rsplit(".", 1)[-1])]
+        self.assertEqual(manifest["header"]["version"], expected)
+        self.assertTrue(all(module["version"] == expected for module in manifest["modules"]))
+
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.root = Path(self.temp.name)

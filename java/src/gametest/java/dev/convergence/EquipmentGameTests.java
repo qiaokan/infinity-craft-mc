@@ -230,4 +230,51 @@ public class EquipmentGameTests {
         }
         c.assertEquals(ExpandedGear.NEW_BLOCKS.size(),6,"Six original building materials are registered");c.complete();
     }
+
+    @GameTest public void gearBoxesPreserveInventoryContainEveryItemAndPlaceNatively(TestContext c) {
+        var p=new ModeGameTests().player(c,"crate-creative");p.changeGameMode(net.minecraft.world.GameMode.CREATIVE);
+        try {
+            p.closeHandledScreen();
+            p.getInventory().setStack(0,new ItemStack(Items.DIAMOND,13));
+            c.assertEquals(GearCrates.give(p),1,"Creative receives the real boxes");
+            c.assertEquals(p.getInventory().getStack(0).getCount(),13,"An occupied slot is preserved");
+            var contents=new java.util.HashSet<net.minecraft.item.Item>();ItemStack first=null;
+            for(int i=0;i<36;i++)if(GearCrates.isCrate(p.getInventory().getStack(i))) {
+                var box=p.getInventory().getStack(i);
+                box.get(DataComponentTypes.CONTAINER).stream().forEach(s->contents.add(s.getItem()));
+                if(first==null)first=box.copy();
+            }
+            c.assertTrue(contents.containsAll(Convergence.ITEMS.values()),"Boxes cover every registered Convergence item");
+            c.assertTrue(first!=null,"There is a placeable box");
+            var base=c.getAbsolutePos(new BlockPos(2,2,2));
+            c.getWorld().setBlockState(base,Blocks.STONE.getDefaultState());c.getWorld().setBlockState(base.up(),Blocks.AIR.getDefaultState());
+            p.setStackInHand(Hand.MAIN_HAND,first);
+            p.setPosition(base.getX()+4.5,base.getY()+1,base.getZ()+.5);
+            var hit=new net.minecraft.util.hit.BlockHitResult(Vec3d.ofCenter(base).add(0,.5,0),Direction.UP,base,false);
+            first.getItem().useOnBlock(new net.minecraft.item.ItemUsageContext(p,Hand.MAIN_HAND,hit));
+            var placed=c.getWorld().getBlockEntity(base.up());
+            c.assertTrue(placed instanceof net.minecraft.block.entity.ShulkerBoxBlockEntity,"The real vanilla item places a native storage box");
+            c.assertFalse(((net.minecraft.block.entity.ShulkerBoxBlockEntity)placed).getStack(0).isEmpty(),"Placed box retains actual custom contents");
+            for(int i=0;i<36;i++)p.getInventory().setStack(i,new ItemStack(Items.DIRT,64));
+            c.assertEquals(GearCrates.give(p),0,"Full inventory refuses a new set without dropping or overwriting items");
+            c.assertEquals(p.getInventory().getStack(0).getCount(),64,"Full inventory stays intact");
+        } finally { p.closeHandledScreen();p.getEntityWorld().getServer().getPlayerManager().remove(p); }
+        c.complete();
+    }
+
+    @GameTest public void missingJavaPackUsesCompleteNativeArmorAssetsAndRoundTrips(TestContext c) {
+        var p=new ModeGameTests().player(c,"armor-fallback");
+        try {
+            var context=xyz.nucleoid.packettweaker.PacketContext.create(p);
+            c.assertFalse(eu.pb4.polymer.resourcepack.api.PolymerResourcePackUtils.hasMainPack(context),"Fixture has not accepted Java pack");
+            for(String path:java.util.List.of("helmet","chestplate","leggings","boots","backpack","aurora_helmet","aurora_chestplate","ember_leggings")) {
+                var original=gear(path);var wire=eu.pb4.polymer.core.api.item.PolymerItemUtils.getPolymerItemStack(original,context);
+                c.assertEquals(wire.get(DataComponentTypes.EQUIPPABLE),CrossplaySupport.BASES.get(path).getComponents().get(DataComponentTypes.EQUIPPABLE),"Native wearable asset is complete when Java art is unavailable: "+path);
+                var restored=eu.pb4.polymer.core.api.item.PolymerItemUtils.getRealItemStack(wire,c.getWorld().getRegistryManager());
+                c.assertTrue(ItemStack.areItemsAndComponentsEqual(restored,original),"Client fallback never mutates server equipment: "+path);
+            }
+        } finally { p.getEntityWorld().getServer().getPlayerManager().remove(p); }
+        c.complete();
+    }
+
 }

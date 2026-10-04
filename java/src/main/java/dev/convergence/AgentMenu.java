@@ -23,6 +23,7 @@ import net.minecraft.text.Text;
 final class AgentMenu {
     static final int FOLLOW = 28, GUARD = 30, STAY = 32, INFO = 34, CEASEFIRE = 37, ASK = 39, RECALL = 41, DISMISS = 43, BACK = 49;
     static final int CONFIRM = 11, CANCEL = 15;
+    static final int ORDERS = 19;
     static final String ASK_QUESTION = "Explain my helper's current state and suggest what I should do next.";
     enum Page { ROSTER, HELPER, DISMISS }
 
@@ -186,8 +187,10 @@ final class AgentMenu {
     }
 
     private static void hive(SimpleInventory view, AgentCompanions helpers, ServerPlayerEntity owner) {
+        icon(view,ORDERS,Items.WRITABLE_BOOK,"Orders • targets and approvals");
+        description(view,ORDERS,"Choose a player, propose an action, review, approve or cancel without typing a command. Live Codex review is still required.");
         icon(view, 22, Items.COMPASS, helpers.playerTargetStatus(owner));
-        description(view, 22, "Propose /agent target <player>; owner and live Codex approval are required.");
+        description(view, 22, "Use Orders to choose a target. Owner and live Codex approval are required.");
         icon(view, CEASEFIRE, Items.WHITE_BANNER, "Ceasefire • clear your player target and queued orders");
     }
 
@@ -270,6 +273,7 @@ final class AgentMenu {
             if ((action != SlotActionType.PICKUP && action != SlotActionType.QUICK_MOVE)
                 || button < 0 || button > 1 || !getCursorStack().isEmpty()) { syncState(); return; }
             var helpers = AgentCompanions.get(owner.getEntityWorld().getServer());
+            if(clicked==ORDERS && page!=Page.DISMISS) { owner.closeHandledScreen();AgentOrdersMenu.open(owner);return; }
             if (clicked == CEASEFIRE && page != Page.DISMISS) {
                 AgentActions.get(helpers.server).ceasefire(owner);
                 refresh();

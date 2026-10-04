@@ -32,13 +32,24 @@ import net.minecraft.text.Text;
 import net.minecraft.util.ErrorReporter;
 import net.minecraft.util.Identifier;
 
-/** OP4 edits use vanilla state. Only the original attribute bases are saved for undo. */
+/** OP4 edits use native state and per-instance extended combat attributes. */
 public final class AdminStats {
     static final String STORAGE="admin_stats";
     public record Stat(String id,String label,Item icon,double minimum,double maximum,double step,boolean integer,boolean attribute) {}
     public record Value(double base,double effective,boolean edited) {}
     public record Result(boolean success,String message) {}
     public static final int MAX_XP_LEVEL=maximumXpLevel();
+    // Client physics/interaction protocols use these native bounds. Extending them
+    // only on the server desynchronizes clients and can make collision queries enormous.
+    private static final Set<String> PHYSICS = Set.of("scale", "movement_speed", "flying_speed", "gravity", "jump_strength",
+        "step_height", "block_interaction_range", "entity_interaction_range", "movement_efficiency", "water_movement_efficiency", "sneaking_speed", "camera_distance", "luck", "follow_range");
+    public static boolean expanded(Stat stat) { return stat.attribute() && !PHYSICS.contains(stat.id()); }
+    public static String boundsHint(Stat stat) {
+        return expanded(stat) ? "Admin range: finite numbers; normal attribute cap removed. Clients may display a capped bar."
+            : stat.attribute() ? "Minecraft movement, size and interaction limits apply on unmodified clients."
+            : stat.id().equals("xp_level") ? "XP must fit Minecraft's total experience integer."
+            : "Current values continue to change during gameplay.";
+    }
     private static Consumer<ServerPlayerEntity> menuOpener;
     private AdminStats() {}
 
@@ -74,9 +85,9 @@ public final class AdminStats {
         var result=new ArrayList<Stat>();
         result.add(new Stat("health","Current health",Items.RED_DYE,0,target.getMaxHealth(),1,false,false));
         if(target instanceof ServerPlayerEntity player) {
-        result.add(new Stat("food","Food",Items.COOKED_BEEF,0,20,1,true,false));
-        result.add(new Stat("saturation","Saturation",Items.GOLDEN_CARROT,0,player.getHungerManager().getFoodLevel(),1,false,false));
-        result.add(new Stat("exhaustion","Exhaustion",Items.ROTTEN_FLESH,0,40,1,false,false));
+        result.add(new Stat("food","Food",Items.COOKED_BEEF,0,Integer.MAX_VALUE,1,true,false));
+        result.add(new Stat("saturation","Saturation",Items.GOLDEN_CARROT,0,Float.MAX_VALUE,1,false,false));
+        result.add(new Stat("exhaustion","Exhaustion",Items.ROTTEN_FLESH,0,Float.MAX_VALUE,1,false,false));
         result.add(new Stat("xp_level","XP level",Items.EXPERIENCE_BOTTLE,0,MAX_XP_LEVEL,1,true,false));
         }
         result.add(new Stat("absorption","Absorption hearts",Items.GOLDEN_APPLE,0,target.getMaxAbsorption(),1,false,false));
@@ -85,10 +96,11 @@ public final class AdminStats {
                 var attr=entry.value();String name=id(entry);
                 double min=attr instanceof ClampedEntityAttribute range?range.getMinValue():-Double.MAX_VALUE;
                 double max=attr instanceof ClampedEntityAttribute range?range.getMaxValue():Double.MAX_VALUE;
+                if(!PHYSICS.contains(name))max=Float.MAX_VALUE;
                 double step=name.contains("speed")||name.contains("gravity")||name.contains("resistance")?.01:name.equals("scale")?.1:1;
                 Item icon=name.contains("health")?Items.APPLE:name.contains("attack")?Items.IRON_SWORD:
                     name.contains("armor")?Items.IRON_CHESTPLATE:name.contains("speed")?Items.FEATHER:Items.REDSTONE;
-                var stat=new Stat(name,name.equals("max_health")?"Health capacity (max health)":Text.translatable(attr.getTranslationKey()).getString(),icon,min,max,step,false,true);
+                var stat=new Stat(name,name.equals("max_health")?"Health capacity (max health)":name.equals("max_absorption")?"Absorption capacity":Text.translatable(attr.getTranslationKey()).getString(),icon,min,max,step,false,true);
                 if(name.equals("max_health"))result.add(1,stat);else result.add(stat);
             });
         return List.copyOf(result);
@@ -160,8 +172,11 @@ public final class AdminStats {
             if(!records.contains(key(entry))) {
                 var record=new NbtCompound();record.putDouble("original",instance.getBaseValue());
                 if(entry.equals(EntityAttributes.MOVEMENT_SPEED)&&target instanceof ServerPlayerEntity player)record.putFloat("original_walk_speed",player.getAbilities().getWalkSpeed());
-                records.put(key(entry),record);writeOriginals(target,records);
+                records.put(key(entry),record);
             }
+            records.getCompoundOrEmpty(key(entry)).putBoolean("expanded",expanded(stat));
+            writeOriginals(target,records);
+            ((AdminAttribute)instance).infinity$expanded(expanded(stat));
             // Vanilla loads movement speed from abilities, whose storage is a float.
             if(entry.equals(EntityAttributes.MOVEMENT_SPEED)&&target instanceof ServerPlayerEntity player) {player.getAbilities().setWalkSpeed((float)amount);player.sendAbilitiesUpdate();}
             instance.setBaseValue(amount);clampVitals(target);
@@ -202,9 +217,23 @@ public final class AdminStats {
     }
     private static void restore(LivingEntity target,Stat stat) {
         var entry=attribute(stat.id());var records=originals(target);var record=records.getCompoundOrEmpty(key(entry));
+        ((AdminAttribute)target.getAttributeInstance(entry)).infinity$expanded(false);
         target.getAttributeInstance(entry).setBaseValue(record.getDouble("original",entry.value().getDefaultValue()));
         if(entry.equals(EntityAttributes.MOVEMENT_SPEED)&&target instanceof ServerPlayerEntity player) {player.getAbilities().setWalkSpeed(record.getFloat("original_walk_speed",(float)entry.value().getDefaultValue()));player.sendAbilitiesUpdate();}
         records.remove(key(entry));writeOriginals(target,records);
+        clampVitals(target);
+    }
+    /** Custom metadata loads after native attributes; restore flags before restoring high health. */
+    public static void restoreExtended(LivingEntity target,net.minecraft.storage.ReadView view) {
+        var records=originals(target);
+        for(var stat:list(target))if(stat.attribute()) {
+            var entry=attribute(stat.id());var instance=target.getAttributeInstance(entry);
+            ((AdminAttribute)instance).infinity$expanded(expanded(stat) && records.getCompoundOrEmpty(key(entry)).getBoolean("expanded",false));
+        }
+        if(view!=null) {
+            float health=view.getFloat("Health",target.getHealth());
+            if(Float.isFinite(health))target.setHealth(Math.max(0,Math.min(health,target.getMaxHealth())));
+        }
         clampVitals(target);
     }
     private static boolean validOriginal(LivingEntity target,Stat stat) {

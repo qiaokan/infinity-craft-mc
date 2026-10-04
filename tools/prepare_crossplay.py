@@ -9,7 +9,7 @@ import uuid
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
-VERSION = "2.12.0-explore.11"
+VERSION = "2.12.0-explore.12"
 
 
 def expected_native_tests():
@@ -54,12 +54,16 @@ def prepare():
         if name.startswith("render_controllers/") and name != "render_controllers/infinity_visor.json":
             del files[name]
     manifest = json.loads(files["manifest.json"])
-    manifest["header"].update({"name": "Infinity Armor Crossplay Resources", "version": [2, 12, 0],
+    # Bedrock caches UUID+version. Reusing [2,12,0] across exploration builds
+    # kept stale armor/resources installed after a server update.
+    pack_revision = int(VERSION.rsplit(".", 1)[-1])
+    pack_version = [2, 12, pack_revision]
+    manifest["header"].update({"name": "Infinity Armor Crossplay Resources", "version": pack_version,
         "description": "Resources for the shared Fabric/Geyser world. No behavior pack required.",
         "uuid": str(uuid.uuid5(uuid.NAMESPACE_URL, "https://infinity-armor.local/crossplay/resources"))})
     manifest.pop("dependencies", None)
     for module in manifest["modules"]:
-        module["version"] = [2, 12, 0]
+        module["version"] = pack_version
         module["uuid"] = str(uuid.uuid5(uuid.NAMESPACE_URL, "https://infinity-armor.local/crossplay/resources/" + module["type"]))
     files["manifest.json"] = (json.dumps(manifest, indent=2) + "\n").encode()
     atlas = json.loads(files["textures/item_texture.json"])

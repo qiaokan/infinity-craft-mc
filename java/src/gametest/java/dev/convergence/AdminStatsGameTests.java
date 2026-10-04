@@ -119,7 +119,7 @@ public class AdminStatsGameTests {
             for (var stat : AdminStats.list(target)) {
                 if (!stat.attribute()) continue;
                 c.assertFalse(AdminStats.set(source, target, stat.id(), stat.minimum() - 1).success(), "Below native bound: " + stat.id());
-                c.assertFalse(AdminStats.set(source, target, stat.id(), stat.maximum() + 1).success(), "Above native bound: " + stat.id());
+                c.assertFalse(AdminStats.set(source, target, stat.id(), Math.nextUp(stat.maximum())).success(), "Above representable or physics bound: " + stat.id());
             }
             c.assertFalse(AdminStats.set(source, target, "food", 3.5).success(), "Integer food does not silently truncate");
             c.assertFalse(AdminStats.set(source, target, "xp_level", 1.5).success(), "Integer XP level does not silently truncate");
@@ -265,4 +265,48 @@ public class AdminStatsGameTests {
         } finally { cleanup(actor); cleanup(target); }
         c.complete();
     }
+
+    @GameTest public void extendedCombatValuesApplyPersistAndResetOnlyEditedInstances(TestContext c) {
+        var actor=owner(c,"stats-expanded-op");var target=player(c,"stats-expanded");
+        var ordinary=player(c,"stats-normal");
+        try {
+            set(c,actor.getCommandSource(),target,"max_health",5000);
+            set(c,actor.getCommandSource(),target,"health",4500);
+            set(c,actor.getCommandSource(),target,"attack_damage",5000);
+            set(c,actor.getCommandSource(),target,"armor",500);
+            c.assertEquals(target.getMaxHealth(),5000f,"Effective capacity exceeds the normal 1024 cap");
+            c.assertEquals(target.getAttributeValue(EntityAttributes.ATTACK_DAMAGE),5000d,"Effective damage exceeds the normal 2048 cap");
+            c.assertEquals(target.getAttributeValue(EntityAttributes.ARMOR),500d,"Effective armor exceeds the normal 30 cap");
+            ordinary.getAttributeInstance(EntityAttributes.MAX_HEALTH).setBaseValue(5000);
+            c.assertEquals(ordinary.getMaxHealth(),1024f,"An unedited instance retains native bounds");
+            var saved=save(target);
+            target.getAttributeInstance(EntityAttributes.MAX_HEALTH).setBaseValue(20);target.setHealth(12);
+            read(target,saved);
+            c.assertEquals(target.getMaxHealth(),5000f,"Extended effective capacity survives native save/reload");
+            c.assertEquals(target.getHealth(),4500f,"Reload restores high health after restoring the expansion flag");
+            c.assertEquals(target.getAttributeValue(EntityAttributes.ATTACK_DAMAGE),5000d,"Extended damage survives reload");
+            c.assertTrue(AdminStats.resetAll(actor.getCommandSource(),target).success(),"Reset still works");
+            c.assertEquals(target.getMaxHealth(),20f,"Reset restores native capacity and clamps current health");
+            c.assertEquals(target.getHealth(),20f,"Reset clamps health coherently");
+            target.getAttributeInstance(EntityAttributes.MAX_HEALTH).setBaseValue(5000);
+            c.assertEquals(target.getMaxHealth(),1024f,"Reset removes the per-instance override");
+        } finally { cleanup(actor);cleanup(target);cleanup(ordinary); }
+        c.complete();
+    }
+
+    @GameTest public void expandedFoodReservesAreRealAndRemainOneTimeEdits(TestContext c) {
+        var actor=owner(c,"stats-reserves-op");var target=player(c,"stats-reserves");
+        try {
+            set(c,actor.getCommandSource(),target,"food",100);
+            set(c,actor.getCommandSource(),target,"saturation",80);
+            set(c,actor.getCommandSource(),target,"exhaustion",100);
+            c.assertEquals(target.getHungerManager().getFoodLevel(),100,"Food is not restricted to twenty by the editor");
+            c.assertEquals(target.getHungerManager().getSaturationLevel(),80f,"Saturation reserve is real");
+            var saved=save(target);read(target,saved);
+            c.assertEquals(target.getHungerManager().getFoodLevel(),100,"Food survives native save/load");
+            c.assertEquals(AdminStats.value(target,AdminStats.find(target,"exhaustion")).base(),100d,"Exhaustion survives native save/load");
+        } finally { cleanup(actor);cleanup(target); }
+        c.complete();
+    }
+
 }

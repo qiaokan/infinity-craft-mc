@@ -462,4 +462,52 @@ public class AgentMenuGameTests {
         }
         c.complete();
     }
+
+    @GameTest public void orderMenuQueuesReviewsAndApprovesWithoutRunningItsAction(TestContext c) {
+        var owner=player(c,"menu-orders");var helpers=AgentCompanions.get(c.getWorld().getServer());
+        var queue=AgentActions.get(c.getWorld().getServer());
+        try {
+            AgentMenu.open(owner);click(owner,AgentMenu.ORDERS);
+            c.assertTrue(owner.currentScreenHandler instanceof AgentOrdersMenu.Handler,"Roster opens command-free order controls");
+            click(owner,19);
+            var pending=(AgentOrdersMenu.Handler)owner.currentScreenHandler;
+            c.assertEquals(pending.page,AgentOrdersMenu.Page.PENDING,"Proposing day opens pending orders");
+            String id=pending.proposals.values().iterator().next();
+            c.assertEquals(queue.data.proposals.get(id).state,AgentActions.State.PENDING,"A tap cannot approve its own proposal");
+            click(owner,0);
+            c.assertEquals(((AgentOrdersMenu.Handler)owner.currentScreenHandler).page,AgentOrdersMenu.Page.REVIEW,"Exact action has a separate review");
+            ScreenHandler old=owner.currentScreenHandler;click(owner,AgentOrdersMenu.APPROVE);
+            c.assertEquals(queue.data.proposals.get(id).state,AgentActions.State.OWNER_APPROVED,"Confirm provides only the owner approval");
+            old.onSlotClick(AgentOrdersMenu.APPROVE,0,SlotActionType.QUICK_MOVE,owner);
+            c.assertEquals(queue.data.proposals.get(id).state,AgentActions.State.OWNER_APPROVED,"Old clicks never supply Codex approval or execute");
+            click(owner,0);click(owner,AgentOrdersMenu.CANCEL);
+            c.assertEquals(queue.data.proposals.get(id).state,AgentActions.State.CANCELLED,"Owner can cancel from the review screen");
+        } finally { for(var e:java.util.List.copyOf(queue.data.proposals.entrySet()))if(e.getValue().owner.equals(owner.getUuidAsString())&&e.getValue().active())queue.cancel(owner,e.getKey());cleanup(helpers,owner); }
+        c.complete();
+    }
+
+    @GameTest public void orderMenuTargetSelectionCapturesSessionAndKeepsBothApprovals(TestContext c) {
+        var owner=player(c,"menu-target-order");var target=player(c,"menu-target-other");var helpers=AgentCompanions.get(c.getWorld().getServer());
+        var queue=AgentActions.get(c.getWorld().getServer());
+        try {
+            target.setPosition(new Vec3d(owner.getX()+3,owner.getY(),owner.getZ()));
+            helpers.spawn(owner,"attacker");helpers.profile(owner,"attacker",AgentCompanions.Profile.PRIMITIVE);
+            AgentOrdersMenu.open(owner);click(owner,AgentOrdersMenu.TARGET);
+            var menu=(AgentOrdersMenu.Handler)owner.currentScreenHandler;
+            int slot=menu.targets.entrySet().stream().filter(e->e.getValue().player()==target).mapToInt(java.util.Map.Entry::getKey).findFirst().orElseThrow();
+            click(owner,slot);
+            var pending=(AgentOrdersMenu.Handler)owner.currentScreenHandler;
+            String id=pending.proposals.values().iterator().next();
+            c.assertEquals(queue.data.proposals.get(id).targetUuid,target.getUuidAsString(),"Menu captured the exact target");
+            c.assertTrue(helpers.playerTargets.get(owner.getUuid())==null,"Proposing the target does not start combat");
+            click(owner,0);click(owner,AgentOrdersMenu.APPROVE);
+            c.assertEquals(queue.data.proposals.get(id).state,AgentActions.State.OWNER_APPROVED,"Owner confirmation alone still waits");
+            c.assertTrue(helpers.playerTargets.get(owner.getUuid())==null,"Menu cannot bypass Codex's separate approval");
+            operator(owner,LeveledPermissionPredicate.ADMINS);
+            click(owner,0);
+            c.assertTrue(owner.currentScreenHandler==owner.playerScreenHandler,"Deop closes the order menu immediately");
+        } finally { operator(owner,LeveledPermissionPredicate.OWNERS);queue.ceasefire(owner);cleanup(helpers,owner);cleanup(helpers,target); }
+        c.complete();
+    }
+
 }

@@ -23,9 +23,15 @@ public abstract class ModePlayerMixin implements ModePlayer {
     @Inject(method="writeCustomData", at=@At("TAIL"))
     private void save(WriteView view, CallbackInfo ci) { view.put("InfinityModes", NbtCompound.CODEC, infinity$modeState); }
     @Inject(method="readCustomData", at=@At("TAIL"))
-    private void load(ReadView view, CallbackInfo ci) { infinity$modeState = view.read("InfinityModes", NbtCompound.CODEC).orElseGet(NbtCompound::new); }
+    private void load(ReadView view, CallbackInfo ci) {
+        infinity$modeState = view.read("InfinityModes", NbtCompound.CODEC).orElseGet(NbtCompound::new);
+        dev.convergence.AdminStats.restoreExtended((ServerPlayerEntity)(Object)this,view);
+    }
     @Inject(method="copyFrom(Lnet/minecraft/server/network/ServerPlayerEntity;Z)V", at=@At("TAIL"))
-    private void copy(ServerPlayerEntity old, boolean alive, CallbackInfo ci) { infinity$modeState = ((ModePlayer)old).infinity$state().copy(); }
+    private void copy(ServerPlayerEntity old, boolean alive, CallbackInfo ci) {
+        infinity$modeState = ((ModePlayer)old).infinity$state().copy();
+        dev.convergence.AdminStats.restoreExtended((ServerPlayerEntity)(Object)this,null);
+    }
     @Inject(method="teleportTo(Lnet/minecraft/world/TeleportTarget;)Lnet/minecraft/server/network/ServerPlayerEntity;", at=@At("HEAD"), cancellable=true)
     private void portal(TeleportTarget target, CallbackInfoReturnable<ServerPlayerEntity> cir) {
         if (!GameModes.allowTeleport((ServerPlayerEntity)(Object)this, target.world())) cir.setReturnValue(null);

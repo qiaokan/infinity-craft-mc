@@ -90,6 +90,23 @@ final class CrossplaySupport {
             if (item == null) throw new IllegalStateException("Unknown Infinity item " + entry.getKey());
             PolymerItem.registerOverlay(item, new PolymerItem() {
                 public Item getPolymerItem(ItemStack stack, PacketContext context) { return entry.getValue(); }
+                public Identifier getPolymerItemModel(ItemStack stack,PacketContext context) {
+                    var api=org.geysermc.floodgate.api.FloodgateApi.getInstance();
+                    boolean bedrock=api!=null && context.getPlayer()!=null && api.isFloodgatePlayer(context.getPlayer().getUuid());
+                    // Bedrock needs the custom model key to select its own resource mapping.
+                    // Java without the downloaded pack must use an existing native icon.
+                    return bedrock || PolymerResourcePackUtils.hasMainPack(context) ? stack.get(DataComponentTypes.ITEM_MODEL)
+                        : entry.getValue().getComponents().get(DataComponentTypes.ITEM_MODEL);
+                }
+                public void modifyBasePolymerItemStack(ItemStack out,ItemStack stack,PacketContext context) {
+                    // A custom Java equipment asset is invisible/missing when its pack
+                    // was declined, and unsupported for native Bedrock wearable mappings.
+                    // Keep a complete native wearable asset until the Java pack is loaded.
+                    if(!PolymerResourcePackUtils.hasMainPack(context)) {
+                        var wearable=entry.getValue().getComponents().get(DataComponentTypes.EQUIPPABLE);
+                        if(wearable!=null)out.set(DataComponentTypes.EQUIPPABLE,wearable);
+                    }
+                }
                 public boolean handleMiningOnServer(ItemStack tool, BlockState state, BlockPos pos, ServerPlayerEntity player) {
                     return true;
                 }

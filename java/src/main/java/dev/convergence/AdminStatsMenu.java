@@ -5,6 +5,11 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
+import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.minecraft.component.DataComponentTypes;
 import net.minecraft.component.type.LoreComponent;
 import net.minecraft.entity.LivingEntity;
@@ -31,9 +36,12 @@ final class AdminStatsMenu {
     static final int PLUS_SMALL = 23, PLUS_MEDIUM = 24, PLUS_LARGE = 25;
     static final int MINIMUM = 28, MAXIMUM = 34, RESET = 37, REVIEW = 40, RESET_ALL = 47;
     static final int RELATED_HEALTH = 31;
+    static final int EXACT = 16;
     static final int CONFIRM = 10, CANCEL = 16, PREVIEW_START = 18, PREVIEW_SIZE = 27;
     enum Page { PLAYERS, STATS, EDIT, CONFIRM }
     enum Operation { SET, RESET, RESET_ALL }
+    private record Input(Session actor, TargetSession target, String stat, double pending, int expires) {}
+    private static final Map<UUID,Input> INPUTS = new ConcurrentHashMap<>();
     record Change(String id, double before, double after) {}
     record Session(ServerPlayerEntity player, ServerPlayNetworkHandler connection, ServerWorld world, GameModes.Mode mode, GameMode vanillaMode) {
         Session(ServerPlayerEntity player) { this(player, player.networkHandler, player.getEntityWorld(), GameModes.current(player), player.getGameMode()); }
@@ -71,6 +79,47 @@ final class AdminStatsMenu {
     private static String targetKind(LivingEntity target) { return target instanceof ServerPlayerEntity ? "player" : "AI helper"; }
 
     private AdminStatsMenu() {}
+
+    static void register() {
+        ServerPlayConnectionEvents.DISCONNECT.register((handler,server)->INPUTS.remove(handler.player.getUuid()));
+        ServerTickEvents.END_SERVER_TICK.register(server->INPUTS.entrySet().removeIf(entry->{
+            var input=entry.getValue();
+            if(input.actor().world().getServer()!=server)return false;
+            if(server.getTicks()<input.expires() && input.actor().valid() && input.target().valid() && allowed(input.actor().player()))return false;
+            message(input.actor().player(),"Exact-number entry expired or the player/AI session changed. Reopen the stat editor.");return true;
+        }));
+        ServerLifecycleEvents.SERVER_STOPPED.register(server->INPUTS.entrySet().removeIf(e->e.getValue().actor().world().getServer()==server));
+    }
+
+    /** Consumed before normal chat handling, so an entered value is never broadcast. */
+    static boolean consumeChat(ServerPlayerEntity actor,String text) {
+        var input=INPUTS.get(actor.getUuid());
+        if(input==null)return false;
+        var server=actor.getEntityWorld().getServer();
+        if(!server.isOnThread()) { server.execute(()->consumeChat(actor,text)); return true; }
+        if(input.actor().player()!=actor || !input.actor().valid() || !input.target().valid() || !allowed(actor)
+                || server.getTicks()>=input.expires() || AdminStats.accessError(actor.getCommandSource(),input.target().entity())!=null) {
+            INPUTS.remove(actor.getUuid(),input);message(actor,"This edit expired or its session changed. Reopen the editor.");return true;
+        }
+        if(text.trim().equalsIgnoreCase("cancel")) {
+            INPUTS.remove(actor.getUuid(),input);message(actor,"Exact-number entry cancelled. Nothing changed.");return true;
+        }
+        var stat=AdminStats.find(input.target().entity(),input.stat());
+        double number;
+        try { number=Double.parseDouble(text.trim()); }
+        catch(NumberFormatException invalid) { message(actor,"Enter a number such as 5000, or type cancel. Nothing changed.");return true; }
+        if(stat==null || !Double.isFinite(number) || number<stat.minimum() || number>stat.maximum() || stat.integer() && number!=Math.rint(number)) {
+            message(actor,"Use "+(stat!=null&&stat.integer()?"a whole":"a finite")+" number within this stat's range, or type cancel. Nothing changed.");return true;
+        }
+        if(actor.currentScreenHandler!=actor.playerScreenHandler || !actor.currentScreenHandler.getCursorStack().isEmpty()) {
+            message(actor,"Close your current screen and enter the number again, or type cancel.");return true;
+        }
+        INPUTS.remove(actor.getUuid(),input);
+        show(actor,input.target().entity(),Page.EDIT,0,input.stat(),AdminStats.normalizedValue(stat,number),Operation.SET,List.of());
+        return true;
+    }
+
+    private static boolean exactMaximum(AdminStats.Stat stat) { return stat.maximum()>=Integer.MAX_VALUE; }
 
     static boolean allowed(ServerPlayerEntity actor) {
         return new Session(actor).valid() && Memberships.operator(actor);
@@ -120,6 +169,7 @@ final class AdminStatsMenu {
     private static int show(ServerPlayerEntity actor, LivingEntity target, Page page, int index,
             String statId, double pending, Operation operation, List<Change> changes) {
         if (!allowed(actor)) { message(actor, "Player and AI editing requires an online OP4 admin who has finished respawning or changing mode."); return 0; }
+        INPUTS.remove(actor.getUuid());
         if (actor.currentScreenHandler != actor.playerScreenHandler || !actor.currentScreenHandler.getCursorStack().isEmpty()) {
             message(actor, "Close your current screen and empty the cursor before editing players or AI helpers."); return 0;
         }
@@ -161,7 +211,8 @@ final class AdminStatsMenu {
             for (int slot = 0, i = pageIndex * size; slot < size && i < count; slot++, i++) {
                 var stat = stats.get(i); var value = AdminStats.value(target, stat);
                 icon(view, slot, stat.icon(), stat.label() + " • " + number(value.base()),
-                    "Effective: " + number(value.effective()), "Range: " + number(stat.minimum()) + " to " + number(stat.maximum()),
+                    "Effective: " + number(value.effective()), exactMaximum(stat) ? "Enter any supported finite value with Exact number." : "Range: " + number(stat.minimum()) + " to " + number(stat.maximum()),
+                    AdminStats.boundsHint(stat),
                     stat.id().equals("health") ? "To go above this range, edit Health capacity first. 2 health points = 1 heart."
                         : stat.id().equals("max_health") ? "Raise the health limit here, then fill Current health. 2 health points = 1 heart." : "",
                     value.edited() ? "Edited by an admin; original value can be restored." : "Select to prepare an edit.");
@@ -176,6 +227,7 @@ final class AdminStatsMenu {
                 selected.id().equals("health") || selected.id().equals("max_health") ? "2 health points = 1 heart." : "",
                 "Equipment and effects can change the effective value.");
             icon(view, 22, Items.PAPER, "Pending: " + number(pending), "Nothing changes until Review, then Confirm.");
+            icon(view, EXACT, Items.WRITABLE_BOOK, "Enter exact number", "Type the value privately in chat. No command needed.", "Then review and confirm the edit.");
             int[] minus = {MINUS_SMALL, MINUS_MEDIUM, MINUS_LARGE}, plus = {PLUS_SMALL, PLUS_MEDIUM, PLUS_LARGE};
             for (int i = 0, multiplier = 1; i < 3; i++, multiplier *= 10) {
                 String step = number(selected.step() * multiplier);
@@ -183,15 +235,19 @@ final class AdminStatsMenu {
                 icon(view, plus[i], Items.LIME_DYE, "Add " + step);
             }
             icon(view, MINIMUM, Items.REDSTONE, "Minimum: " + number(selected.minimum()), "Prepare the minimum allowed by Minecraft.");
-            icon(view, MAXIMUM, Items.GLOWSTONE_DUST, (selected.id().equals("health") ? "Fill to capacity: " : "Maximum: ") + number(selected.maximum()),
+            icon(view, MAXIMUM, Items.GLOWSTONE_DUST, exactMaximum(selected) ? "Choose your own value" : (selected.id().equals("health") ? "Fill to capacity: " : "Maximum: ") + number(selected.maximum()),
                 selected.id().equals("health") ? "Prepare a full heal up to the current health capacity. Review and Confirm still required."
-                    : "Prepare the maximum allowed by Minecraft.");
+                    : exactMaximum(selected) ? "Enter an exact number instead of jumping to the numeric storage ceiling." : AdminStats.boundsHint(selected));
             if (selected.id().equals("health") && AdminStats.find(target, "max_health") != null)
                 icon(view, RELATED_HEALTH, Items.APPLE, "Raise health capacity", "Want more than " + number(selected.maximum()) + " health? Edit the maximum here first.",
                     "Opens Health capacity without changing any values. Pending edits are discarded.");
             else if (selected.id().equals("max_health"))
                 icon(view, RELATED_HEALTH, Items.RED_DYE, "Edit current health", "After confirming the capacity, choose Fill to capacity here to heal.",
                     "Opens Current health without changing any values. Pending edits are discarded.");
+            else if(selected.id().equals("absorption") && AdminStats.find(target,"max_absorption")!=null)
+                icon(view,RELATED_HEALTH,Items.GOLDEN_APPLE,"Raise absorption capacity","Edit the capacity first, then set your absorption hearts. Pending edits are discarded.");
+            else if(selected.id().equals("max_absorption"))
+                icon(view,RELATED_HEALTH,Items.GOLDEN_APPLE,"Edit absorption hearts","After confirming the capacity, set the current absorption amount. Pending edits are discarded.");
             icon(view, REVIEW, Items.EMERALD, "Review change", selected.id().equals("health") && pending == 0
                 ? "WARNING: setting health to zero kills this " + targetKind(target) + "." : "Check the target and exact values before applying.");
             if (selected.attribute()) icon(view, RESET, Items.MILK_BUCKET, "Restore original attribute", value.edited()
@@ -227,7 +283,8 @@ final class AdminStatsMenu {
         final Page page;
         final int pageIndex;
         final String statId;
-        final double pending;
+        double pending;
+        final SimpleInventory view;
         final Operation operation;
         final List<Change> changes;
         final List<TargetSession> targets;
@@ -239,6 +296,7 @@ final class AdminStatsMenu {
             super(ScreenHandlerType.GENERIC_9X6, sync, inventory, view, 6);
             owner = actor; actorSession = new Session(actor); targetSession = target == null ? null : new TargetSession(target);
             this.page = page; this.pageIndex = pageIndex; this.statId = statId; this.pending = pending;
+            this.view = view;
             this.operation = operation; this.changes = List.copyOf(changes); this.targets = List.copyOf(targets); this.stats = List.copyOf(stats);
         }
 
@@ -255,6 +313,20 @@ final class AdminStatsMenu {
         }
 
         private void fail(String reason) { owner.closeHandledScreen(); message(owner, reason); }
+
+        private void exact() {
+            var input=new Input(actorSession,targetSession,statId,pending,owner.getEntityWorld().getServer().getTicks()+1800);
+            owner.closeHandledScreen();INPUTS.put(owner.getUuid(),input);
+            message(owner,"Enter the exact value for "+AdminStats.find(targetSession.entity(),statId).label()+" in chat (example: 5000), or type cancel. This input is private and expires in 90 seconds. Review and Confirm are still required.");
+        }
+
+        private void adjust(double value) {
+            pending=value;
+            icon(view,22,Items.PAPER,"Pending: "+number(pending),"Nothing changes until Review, then Confirm.");
+            icon(view,REVIEW,Items.EMERALD,"Review change",statId.equals("health")&&pending==0
+                ? "WARNING: setting health to zero kills this "+targetKind(targetSession.entity())+"." : "Check the target and exact values before applying.");
+            sendContentUpdates();
+        }
 
         private List<Change> restorations(boolean all) {
             var result = new ArrayList<Change>();
@@ -329,17 +401,18 @@ final class AdminStatsMenu {
                     case MINUS_LARGE -> -100; case MINUS_MEDIUM -> -10; case MINUS_SMALL -> -1;
                     case PLUS_SMALL -> 1; case PLUS_MEDIUM -> 10; case PLUS_LARGE -> 100; default -> 0;
                 };
-                if (multiplier != 0 || slot == MINIMUM || slot == MAXIMUM) {
+                if(slot==EXACT || slot==MAXIMUM && exactMaximum(stat))exact();
+                else if (multiplier != 0 || slot == MINIMUM || slot == MAXIMUM) {
                     double next = slot == MINIMUM ? stat.minimum() : slot == MAXIMUM ? stat.maximum()
                         : Math.max(stat.minimum(), Math.min(stat.maximum(), pending + multiplier * stat.step()));
-                    show(Page.EDIT, 0, statId, AdminStats.normalizedValue(stat, next), Operation.SET, List.of());
+                    adjust(AdminStats.normalizedValue(stat, next));
                 } else if (slot == REVIEW) {
                     var current = AdminStats.value(targetSession.entity(), stat);
                     show(Page.CONFIRM, 0, statId, pending, Operation.SET, List.of(new Change(statId, current.base(), pending)));
                 } else if (slot == RESET) reviewReset(false);
-                else if (slot == RELATED_HEALTH && (statId.equals("health") || statId.equals("max_health"))) {
+                else if (slot == RELATED_HEALTH && List.of("health","max_health","absorption","max_absorption").contains(statId)) {
                     owner.closeHandledScreen();
-                    openStat(owner, targetSession.entity(), statId.equals("health") ? "max_health" : "health");
+                    openStat(owner,targetSession.entity(),switch(statId) { case "health"->"max_health";case "max_health"->"health";case "absorption"->"max_absorption";default->"absorption"; });
                 }
             } else if (page == Page.CONFIRM) {
                 if (slot == CONFIRM) apply();

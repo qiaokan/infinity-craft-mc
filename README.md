@@ -21,7 +21,7 @@ Java players use **Minecraft Java 1.21.11** and the Java address and port shown 
 
 The local owner panel controls the server; it is not a public website. Back up a stopped world before upgrading, and keep your world, `fabric/config`, and `settings.json` private. See [`server/README.md`](server/README.md) for full setup and upgrade instructions.
 
-The latest preview makes health capacity easier to edit, supports touch-transfer taps in the Admin editor, and adds **Bring here** for an existing loaded AI helper left in another world. It includes the previous saved-lobby loading repair; the owner confirmed joining successfully after that repair.
+The latest preview adds exact private stat entry and faster in-place menu adjustments, expanded combat stats with native save/reset behavior, the complete Convergence Set in placeable inventory boxes, armor fallback when Java textures are unavailable, fresh Bedrock resource-pack revisions, and command-free helper target/action menus. Both AI approvals remain required. Movement, size, loot, interaction and XP still have engine/client or numeric-storage constraints; helpers remain golems rather than weapon-equipped player bots. The earlier cross-world helper recovery and saved-lobby joining repair remain included.
 
 ## Explore the world
 

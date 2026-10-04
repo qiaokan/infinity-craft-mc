@@ -45,6 +45,7 @@ final class ServerMenu {
     static final int GAMES = 28, ADVENTURE = 30, BACKPACK = 32, INFO = 34;
     static final int SURVIVAL = 37, CREATIVE = 39, HARDCORE = 41, HUB = 43;
     static final int ADMIN = 47;
+    static final int SELF_STATS = 51, CRATES = 46;
     static final int PREVIOUS = 45, BACK = 49, NEXT = 53, PAGE_SIZE = 45;
     private static final String MARKER = "infinity_server_menu";
     private static final String OWNER = "owner";
@@ -221,6 +222,8 @@ final class ServerMenu {
             icon(view, ADMIN, Items.COMMAND_BLOCK, "Admin editor • players and AI",
                 "Admin/OP4: edit players or loaded AI helpers.",
                 "Review health, speed, damage and more before applying.", "Base stats and equipment bonuses stay separate.");
+            icon(view,SELF_STATS,Items.APPLE,"My stats • quick edit","OP4: jump straight to your own health and attributes.");
+            icon(view,CRATES,Items.PURPLE_SHULKER_BOX,"Convergence Set • inventory boxes","Places the complete set into two labeled gear boxes.","Place and open the boxes to take items. Requires Creative or gear permission.");
         } else if (page == Page.GEAR) {
             title = "Infinity Gear • " + (pageIndex + 1);
             for (int slot = 0, pathIndex = pageIndex * PAGE_SIZE; slot < PAGE_SIZE && pathIndex < paths.size(); slot++, pathIndex++) {
@@ -328,12 +331,17 @@ final class ServerMenu {
             if (slot == GEAR) { navigate(Page.GEAR, 0); return; }
             if (slot == HELP) { navigate(Page.HELP, 0); return; }
             if (slot == INFO) { navigate(Page.INFO, 0); return; }
-            if (slot == ADMIN) {
+            if (slot == CRATES) {
+                if(!gearAllowed(owner)) { locked(slot,"Creative or gear permission required.");return; }
+                owner.closeHandledScreen();GearCrates.give(owner);return;
+            }
+            if (slot == ADMIN || slot == SELF_STATS) {
                 if (!Memberships.operator(owner)) {
                     locked(slot, "Admin or OP level 4 required.", "Only a current operator can edit player stats.");
                     return;
                 }
-                owner.closeHandledScreen(); AdminStatsMenu.open(owner); return;
+                owner.closeHandledScreen();
+                if(slot==SELF_STATS)AdminStatsMenu.openStats(owner,owner,0);else AdminStatsMenu.open(owner);return;
             }
             if (slot == HELPERS) {
                 if (!AgentMenu.allowed(owner)) {
