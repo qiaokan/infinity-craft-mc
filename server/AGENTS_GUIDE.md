@@ -1,4 +1,4 @@
-# Helper squads, AI modes, and full operator controls — 2.12.0-explore.14
+# Helper squads, AI modes, and full operator controls — 2.12.0-explore.15
 
 Admins can edit a loaded helper through **Infinity Menu → Admin editor • players and AI**. Select its golem icon, change health, damage, speed, armor, size or another supported base attribute, then confirm. On iPad/Bedrock this opens native buttons and a number input field; Java uses Review and Confirm. Manual stat edits do not require Codex approval. Original attribute values can be restored. The edits and reset values save with the entity; helper behavior/profile changes invalidate an open stat review. Follow, guard and profile controls remain in **AI Helpers**, and player-target orders still require both approvals.
 
@@ -121,3 +121,8 @@ The server still keeps separate mode profiles and backpack storage, checks valid
 Remove Admin with `membership revokeadmin PlayerName`. It restores the operator state replaced by the role's own promotion, while retaining a pre-existing OP4 grant or a separately recognized manual operator grant. Remove any remaining independent grant with `deop` if needed. De-opping alone while the Admin role remains can be reversed by the role's permission sync. These privileges do not award permanent achievement or trade unlocks. See [MEMBERSHIPS.md](MEMBERSHIPS.md) for private-code setup, revocation and backup details.
 
 The OpenAI API provider follows the [Responses API quickstart](https://developers.openai.com/api/docs/quickstart) and uses the configurable [GPT-6 Luna model](https://developers.openai.com/api/docs/models/gpt-6-luna) by default.
+
+
+## Helper robot skin in explore.15
+
+Helpers share a charcoal and cyan robot skin with a silver face. The chest carries a small white ChatGPT knot and the blue-purple Codex cloud containing a tiny terminal prompt. Both are pixel approximations within Minecraft’s 8 by 12 pixel chest, rather than official OpenAI avatars. Native signed Minecraft texture data is sent to Java clients and Geyser; clients download the skin from Minecraft’s texture host. The server does not need a MineSkin account or API key at runtime. Reconnect after the update to refresh tracked helper profiles. Your saved helpers, owners, names, stats, equipment and orders are preserved. A chestplate can cover the chest emblems while equipped.

@@ -38,3 +38,8 @@ The four 16×16 Infinity block tiles and seven 32×32 icons for the totem, shiel
 ## v2.11 shared-server expansion
 
 The six new building tiles, Creative wand icons, Aurora and Ember cosmetic armor icons and worn layers, and backpack satchel icon/worn back panel are original code-authored pixel art. Java uses the supplied equipment layers. Bedrock cosmetic armor and the backpack use dyed vanilla leather equipment to preserve native wearable controls; no third-party armor artwork is copied. The backpack is a flat textured back panel on Java and dyed leather clothing on Bedrock, rather than a separate 3D attachment.
+
+
+## explore.15 helper robot skin
+
+The new 64 by 64 classic helper skin was made with the built-in image generation tool and packed into Minecraft UV rectangles. Its chest includes pixel approximations of the ChatGPT knot and Codex cloud; those names and symbols belong to OpenAI. This is a community robot appearance, not an official OpenAI avatar or endorsement. All earlier user-supplied PNGs remain byte-for-byte unchanged. The public signed Minecraft texture property is bundled without skin-service credentials. See `java/src/main/resources/assets/convergence/helpers/README.md` for the final prompt and asset details.

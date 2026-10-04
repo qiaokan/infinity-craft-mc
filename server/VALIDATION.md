@@ -1,8 +1,10 @@
-# Direct stats, inventory gear, ranks and AI player avatars — 2.12.0-explore.14
+# Codex cloud and ChatGPT helper skin — 2.12.0-explore.15
 
 Validated October 4, 2026 with Java 21, Minecraft 1.21.11 and the checksum-pinned Fabric, Polymer, Floodgate and Geyser dependencies. Test worlds are isolated from the owner's playable save.
 
 ## Completed checks
+
+- The classic 64×64 robot skin carries pixel versions of the ChatGPT knot and Codex cloud on the front chest. Minecraft’s hosted image matches all uploaded RGBA pixels. Its texture-property signature was verified against Minecraft Services’ current public profile-property keys. The bundled property is public skin data; no MineSkin login, API key or runtime signing request is needed. The updated native avatar check verifies the shared signed texture, separate helper UUIDs, exact preservation through the player-info wire codec, opaque base faces and transparent unused overlays.
 
 - **315 native Minecraft GameTests passed.** Direct health and absorption entry plans a capacity increase before applying the exact vital value, preserves all modifiers and has no preview mutation. Impossible modifier combinations and non-finite/out-of-storage values fail before changing either stat. Changed capacity invalidates both reviewed edits. Native save/reload preserves consumed extended absorption on players and helpers. Exact Java entry, plus buttons, Bedrock native confirmation, replay/session/OP4 guards and reset history remain tested.
 - Expanded armor now affects native armor reduction beyond 30, up to full armor protection. Tests distinguish ordinary capped armor, an edited/reloaded instance, native damage through actual armor and armor-bypassing damage. Reset restores the original native behavior. High armor is not immunity to all damage types or weapon effects.
@@ -14,13 +16,13 @@ Validated October 4, 2026 with Java 21, Minecraft 1.21.11 and the checksum-pinne
 
 ## Scope and review limits
 
-Gemini 3.8 Flash High/high effort remained quota-blocked from the prior request and was not resent before its reset. A fresh focused Claude Opus 5.5/max request timed out after 600 seconds with no answer or model usage evidence. Neither model was substituted or automatically retried. No external consultant review was established; mapped dependency inspection and the checks above provide the evidence.
+This focused appearance patch uses dependency inspection, the signed-texture verification and the checks above. No fresh Gemini or Claude consultation was performed for the skin change.
 
 A real Java and iPad client must still verify the new appearance, touch controls and resource-pack reload. Native packets/tests establish server behavior, not graphical client rendering, an authenticated public join or public-server capacity. All Bedrock wearables now use complete native dyed-leather/netherite/elytra assets; pack-enabled Java keeps original custom artwork. Original PNGs are unchanged. The Infinity chestplate uses the native elytra form on Bedrock. Direct inventory gear works alongside full shulker gear boxes; custom gear does not enter Geyser's unsupported native Creative search catalogue.
 
 Manual stat edits require the admin's own confirmation. Health/absorption can raise capacity in the same review; numeric storage, native physics and client/HUD bounds remain. Damage consumes health and absorption normally. Food reserves can be consumed/reset by gameplay. Armor-bypassing damage and native enchantment effects still apply.
 
-Helpers look like players but retain the existing golem-based server AI, physical collision and saved ownership; they are not authenticated Minecraft player accounts. They defend against nearby eligible hostile mobs in combat profiles. Stay, passive Debug/CLI/API profiles, offline/dead/spectator owners, unloaded helpers and range/dimension checks pause combat. Player targets retain exact owner and live Codex approvals, PvP/team rules and five-minute expiry. Server actions and code changes also retain both reviews. Answer-only Codex sessions do not share this chat's memory or approve/execute their own proposals. No per-tick AI service requests drive fighting, and no totem bypass is guaranteed.
+Helpers use the shared robot player skin but retain the existing golem-based server AI, physical collision and saved ownership; they are not authenticated Minecraft player accounts. They defend against nearby eligible hostile mobs in combat profiles. Stay, passive Debug/CLI/API profiles, offline/dead/spectator owners, unloaded helpers and range/dimension checks pause combat. Player targets retain exact owner and live Codex approvals, PvP/team rules and five-minute expiry. Server actions and code changes also retain both reviews. Answer-only Codex sessions do not share this chat's memory or approve/execute their own proposals. No per-tick AI service requests drive fighting, and no totem bypass is guaranteed.
 
 The fixed Dynu hostname still requires forwarding and an awake reachable host. Vercel hosts the public guide, not the Minecraft world or private dashboard. USD checkout stays off until a Tebex store and tested billing integration exist. Planned monthly prices remain Go $50, Plus $75, Pro $100 and Ultra $200; earned ranks are free and permanent, and Admin/OP are never sold. Passing these checks does not establish that every possible bug is gone.
 

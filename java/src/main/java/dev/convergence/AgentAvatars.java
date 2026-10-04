@@ -1,6 +1,5 @@
 package dev.convergence;
 
-import com.mojang.authlib.GameProfile;
 import eu.pb4.polymer.core.api.entity.PolymerEntity;
 import eu.pb4.polymer.core.api.entity.PolymerEntityUtils;
 import java.util.ArrayList;
@@ -43,9 +42,9 @@ final class AgentAvatars implements PolymerEntity {
         var packet=PolymerEntityUtils.createMutablePlayerListPacket(EnumSet.of(PlayerListS2CPacket.Action.ADD_PLAYER,
             PlayerListS2CPacket.Action.UPDATE_GAME_MODE,PlayerListS2CPacket.Action.UPDATE_LISTED,
             PlayerListS2CPacket.Action.UPDATE_DISPLAY_NAME,PlayerListS2CPacket.Action.UPDATE_HAT));
-        // Unique native default skins need neither a Minecraft account nor an external skin service.
+        // Share the signed robot texture while preserving each helper's native identity.
         String name="AI_"+helper.getUuidAsString().replace("-","").substring(0,12);
-        packet.getEntries().add(new PlayerListS2CPacket.Entry(helper.getUuid(),new GameProfile(helper.getUuid(),name),
+        packet.getEntries().add(new PlayerListS2CPacket.Entry(helper.getUuid(),AgentSkin.profile(helper.getUuid(),name),
             false,0,GameMode.SURVIVAL,helper.getCustomName()==null?Text.literal("AI helper"):helper.getCustomName(),true,0,null));
         return packet;
     }

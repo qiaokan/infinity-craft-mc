@@ -1,4 +1,4 @@
-# Infinity Armor Exploration Server — 2.12.0-explore.14
+# Infinity Armor Exploration Server — 2.12.0-explore.15
 
 Multi-mode build based on Infinity Armor 2.3.0 and the crossplay preview. Updated October 3, 2026.
 
@@ -205,3 +205,8 @@ Not an official Minecraft product. Not approved by or associated with Mojang or 
 **Ranks & subscriptions** in Infinity Menu shows your actual badge, separate permanent rank, each rank’s three milestones and item-trade alternative. Admin/OP access does not turn your earned rank into Ultra. Planned USD subscriptions remain disabled. AI guidance receives your actual badge and permanent rank, rather than guessing from permission level.
 
 All gear now has a literal human-readable item name on the server and client wire stack, preserving custom anvil names. Bedrock Infinity, Aurora and Ember wearable pieces use complete native equipment assets and icons. Java with the pack keeps original custom artwork. Accept the updated resource pack after joining; rendering on a real iPad and Java client still needs a device check.
+
+
+## Helper robot skin in explore.15
+
+Helpers share a charcoal and cyan robot skin with a silver face. The chest carries a small white ChatGPT knot and the blue-purple Codex cloud containing a tiny terminal prompt. Both are pixel approximations within Minecraft’s 8 by 12 pixel chest, rather than official OpenAI avatars. Native signed Minecraft texture data is sent to Java clients and Geyser; clients download the skin from Minecraft’s texture host. The server does not need a MineSkin account or API key at runtime. Reconnect after the update to refresh tracked helper profiles. Your saved helpers, owners, names, stats, equipment and orders are preserved. A chestplate can cover the chest emblems while equipped.

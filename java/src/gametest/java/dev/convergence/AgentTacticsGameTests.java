@@ -327,11 +327,22 @@ public class AgentTacticsGameTests {
             c.assertEquals(profile.getEntries().getFirst().profileId(),f.golem.getUuid(),"Player profile matches spawn UUID");
             c.assertFalse(profile.getEntries().getFirst().listed(),"Avatar does not inflate tab roster or online count");
             c.assertTrue(profile.getEntries().getFirst().profile().name().length()<=16,"Native profile has a legal bounded name");
+            var texture=profile.getEntries().getFirst().profile().properties().get("textures").iterator().next();
+            c.assertTrue(texture.hasSignature(),"Custom helper skin carries a signed Minecraft texture");
+            try(var imageStream=AgentSkin.class.getResourceAsStream("/assets/convergence/helpers/codex-chatgpt.png")) {
+                var skin=javax.imageio.ImageIO.read(imageStream);
+                c.assertTrue(skin.getWidth()==64&&skin.getHeight()==64,"Playable helper skin has native classic dimensions");
+                c.assertTrue((skin.getRGB(12,12)>>>24)==255&&(skin.getRGB(24,24)>>>24)==255,"Base face and chest are opaque");
+                c.assertTrue((skin.getRGB(40,8)>>>24)==0,"Unused hat overlay stays transparent");
+            } catch(java.io.IOException error){throw new IllegalStateException(error);}
+            var other=AgentSkin.profile(java.util.UUID.randomUUID(),"AI_skin_test");
+            c.assertEquals(other.properties().get("textures").iterator().next(),texture,"Different helper identities share the same robot skin");
             var buf=new net.minecraft.network.RegistryByteBuf(io.netty.buffer.Unpooled.buffer(),c.getWorld().getRegistryManager());
             try {
                 net.minecraft.network.packet.s2c.play.PlayerListS2CPacket.CODEC.encode(buf,profile);
                 var decoded=net.minecraft.network.packet.s2c.play.PlayerListS2CPacket.CODEC.decode(buf);
                 c.assertEquals(decoded.getEntries().getFirst().profileId(),f.golem.getUuid(),"Player info round-trips the native wire codec");
+                c.assertEquals(decoded.getEntries().getFirst().profile().properties().get("textures").iterator().next(),texture,"Native wire codec preserves the signed skin property");
             } finally {buf.release();}
             var metadata=new java.util.ArrayList<net.minecraft.entity.data.DataTracker.SerializedEntry<?>>();
             for(var entry:eu.pb4.polymer.core.api.entity.PolymerEntityUtils.getDefaultTrackedData(EntityType.IRON_GOLEM))if(entry!=null)metadata.add(entry.toSerialized());
