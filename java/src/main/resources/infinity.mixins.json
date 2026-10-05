@@ -17,7 +17,9 @@
     "AgentMaceMixin",
     "ClientVitalsMixin",
     "LivingVitalsAccess",
-    "PlayerVitalsAccess"
+    "PlayerVitalsAccess",
+    "PhysicsSafetyMixin",
+    "KnockbackSafetyMixin"
   ],
   "injectors": {
     "defaultRequire": 1
