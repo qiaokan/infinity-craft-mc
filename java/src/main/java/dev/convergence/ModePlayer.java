@@ -1,7 +1,7 @@
 package dev.convergence;
-import net.minecraft.nbt.NbtCompound;
+import net.minecraft.nbt.CompoundTag;
 /** Saved in the same atomic player file as the active inventory. */
 public interface ModePlayer {
-    NbtCompound infinity$state();
-    void infinity$state(NbtCompound state);
+    CompoundTag infinity$state();
+    void infinity$state(CompoundTag state);
 }

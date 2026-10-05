@@ -4,8 +4,8 @@ import com.google.gson.JsonParser;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
+import net.minecraft.network.chat.Component;
 import java.util.LinkedHashMap;
-import net.minecraft.text.Text;
 
 /** Literal names also work when Geyser or a Java client has no custom language file. */
 final class GearNames {
@@ -26,5 +26,5 @@ final class GearNames {
         if(name==null)throw new IllegalArgumentException("Missing Infinity name: "+path);
         return name;
     }
-    static Text text(String path) {return Text.literal(label(path));}
+    static Component text(String path) {return Component.literal(label(path));}
 }

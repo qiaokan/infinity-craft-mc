@@ -3,41 +3,41 @@ package dev.convergence;
 import java.util.List;
 import java.util.UUID;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
-import net.minecraft.block.Blocks;
-import net.minecraft.command.permission.LeveledPermissionPredicate;
-import net.minecraft.command.permission.PermissionPredicate;
-import net.minecraft.entity.EntityType;
-import net.minecraft.entity.SpawnReason;
-import net.minecraft.entity.attribute.EntityAttributeModifier;
-import net.minecraft.entity.attribute.EntityAttributes;
-import net.minecraft.entity.passive.IronGolemEntity;
-import net.minecraft.nbt.NbtCompound;
-import net.minecraft.screen.slot.SlotActionType;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.storage.NbtReadView;
-import net.minecraft.storage.NbtWriteView;
-import net.minecraft.test.TestContext;
-import net.minecraft.util.ErrorReporter;
-import net.minecraft.util.Identifier;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Vec3d;
-import net.minecraft.world.GameMode;
+import net.minecraft.core.BlockPos;
+import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.resources.Identifier;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.server.permissions.LevelBasedPermissionSet;
+import net.minecraft.server.permissions.PermissionSet;
+import net.minecraft.util.ProblemReporter;
+import net.minecraft.world.entity.EntitySpawnReason;
+import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.ai.attributes.AttributeModifier;
+import net.minecraft.world.entity.ai.attributes.Attributes;
+import net.minecraft.world.entity.animal.golem.IronGolem;
+import net.minecraft.world.inventory.ClickType;
+import net.minecraft.world.level.GameType;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.storage.TagValueInput;
+import net.minecraft.world.level.storage.TagValueOutput;
+import net.minecraft.world.phys.Vec3;
 
 /** Registered helper edits use real entity attributes without granting a combat order. */
 public class AdminHelperStatsGameTests {
-    private ServerPlayerEntity owner(TestContext c, String name) {
+    private ServerPlayer owner(GameTestHelper c, String name) {
         var p = new ModeGameTests().player(c, name);
-        OperatorGameTests.level(p, LeveledPermissionPredicate.OWNERS);
-        p.changeGameMode(GameMode.SURVIVAL);
-        var feet = c.getAbsolutePos(new BlockPos(3, 20, 3));
-        for (var pos : BlockPos.iterate(feet.add(-7, -1, -7), feet.add(7, 4, 7)))
-            c.getWorld().setBlockState(pos, pos.getY() == feet.getY() - 1 ? Blocks.STONE.getDefaultState() : Blocks.AIR.getDefaultState());
-        p.setPosition(Vec3d.ofBottomCenter(feet));
+        OperatorGameTests.level(p, LevelBasedPermissionSet.OWNER);
+        p.setGameMode(GameType.SURVIVAL);
+        var feet = c.absolutePos(new BlockPos(3, 20, 3));
+        for (var pos : BlockPos.betweenClosed(feet.offset(-7, -1, -7), feet.offset(7, 4, 7)))
+            c.getLevel().setBlockAndUpdate(pos, pos.getY() == feet.getY() - 1 ? Blocks.STONE.defaultBlockState() : Blocks.AIR.defaultBlockState());
+        p.setPos(Vec3.atBottomCenterOf(feet));
         p.setNoGravity(true);
         return p;
     }
-    private IronGolemEntity helper(TestContext c, ServerPlayerEntity p, String name) {
-        var agents = AgentCompanions.get(c.getWorld().getServer());
+    private IronGolem helper(GameTestHelper c, ServerPlayer p, String name) {
+        var agents = AgentCompanions.get(c.getLevel().getServer());
         agents.spawn(p, name);
         var record = agents.owned(p, name);
         c.assertTrue(record != null, "Real helper creation registers an ownership record");
@@ -45,37 +45,37 @@ public class AdminHelperStatsGameTests {
         c.assertTrue(helper != null && AdminStats.helper(helper), "Real helper is the exact registered loaded entity");
         return helper;
     }
-    private void cleanup(ServerPlayerEntity p) {
-        var server = p.getEntityWorld().getServer();
+    private void cleanup(ServerPlayer p) {
+        var server = p.level().getServer();
         var agents = AgentCompanions.get(server);
         // Some permission tests intentionally deop the owner before cleanup.
-        OperatorGameTests.level(p, LeveledPermissionPredicate.OWNERS);
-        p.closeHandledScreen();
+        OperatorGameTests.level(p, LevelBasedPermissionSet.OWNER);
+        p.closeContainer();
         agents.ceasefire(p);
-        var names = agents.data.agents.values().stream().filter(record -> record.owner().equals(p.getUuidAsString())).map(AgentCompanions.Agent::name).toList();
+        var names = agents.data.agents.values().stream().filter(record -> record.owner().equals(p.getStringUUID())).map(AgentCompanions.Agent::name).toList();
         for (var name : names) agents.dismiss(p, name);
         OperatorGameTests.deop(p);
-        server.getPlayerManager().remove(p);
+        server.getPlayerList().remove(p);
     }
-    private void set(TestContext c, ServerPlayerEntity actor, IronGolemEntity helper, String id, double value) {
-        var result = AdminStats.set(actor.getCommandSource(), helper, id, value);
+    private void set(GameTestHelper c, ServerPlayer actor, IronGolem helper, String id, double value) {
+        var result = AdminStats.set(actor.createCommandSourceStack(), helper, id, value);
         c.assertTrue(result.success(), "Edit helper " + id + ": " + result.message());
     }
-    private NbtCompound save(IronGolemEntity helper) {
-        var writer = NbtWriteView.create(ErrorReporter.EMPTY, helper.getRegistryManager());
-        helper.writeData(writer);
-        return writer.getNbt();
+    private CompoundTag save(IronGolem helper) {
+        var writer = TagValueOutput.createWithContext(ProblemReporter.DISCARDING, helper.registryAccess());
+        helper.saveWithoutId(writer);
+        return writer.buildResult();
     }
-    private void read(IronGolemEntity helper, NbtCompound data) {
-        helper.readData(NbtReadView.create(ErrorReporter.EMPTY, helper.getRegistryManager(), data));
+    private void read(IronGolem helper, CompoundTag data) {
+        helper.load(TagValueInput.create(ProblemReporter.DISCARDING, helper.registryAccess(), data));
     }
-    private void click(ServerPlayerEntity owner, int slot) {
-        owner.currentScreenHandler.onSlotClick(slot, 0, SlotActionType.PICKUP, owner);
+    private void click(ServerPlayer owner, int slot) {
+        owner.containerMenu.clicked(slot, 0, ClickType.PICKUP, owner);
     }
 
-    @GameTest public void helperEditorChangesActualHealthCombatAndMovementAttributes(TestContext c) {
+    @GameTest public void helperEditorChangesActualHealthCombatAndMovementAttributes(GameTestHelper c) {
         var owner = owner(c, "helper-stat-owner");
-        var agents = AgentCompanions.get(c.getWorld().getServer());
+        var agents = AgentCompanions.get(c.getLevel().getServer());
         try {
             var helper = helper(c, owner, "editable");
             set(c, owner, helper, "max_health", 600);
@@ -84,130 +84,130 @@ public class AdminHelperStatsGameTests {
             set(c, owner, helper, "movement_speed", .75);
             set(c, owner, helper, "max_absorption", 40);
             set(c, owner, helper, "absorption", 35);
-            c.assertEquals(helper.getMaxHealth(), 600f, "Real helper maximum changes");
-            c.assertEquals(helper.getHealth(), 450f, "Real helper health changes");
-            c.assertEquals(helper.getAttributeBaseValue(EntityAttributes.ATTACK_DAMAGE), 80d, "Real attack damage changes");
-            c.assertEquals(helper.getAttributeBaseValue(EntityAttributes.MOVEMENT_SPEED), .75d, "Real navigation attribute changes");
-            c.assertEquals(helper.getAbsorptionAmount(), 35f, "Real helper absorption changes");
+            c.assertValueEqual(helper.getMaxHealth(), 600f, "Real helper maximum changes");
+            c.assertValueEqual(helper.getHealth(), 450f, "Real helper health changes");
+            c.assertValueEqual(helper.getAttributeBaseValue(Attributes.ATTACK_DAMAGE), 80d, "Real attack damage changes");
+            c.assertValueEqual(helper.getAttributeBaseValue(Attributes.MOVEMENT_SPEED), .75d, "Real navigation attribute changes");
+            c.assertValueEqual(helper.getAbsorptionAmount(), 35f, "Real helper absorption changes");
             for (var profile : AgentCompanions.Profile.values()) {
                 agents.profile(owner, "editable", profile);
                 agents.mode(owner, "editable", AgentCompanions.Mode.STAY);
                 AgentCompanions.prepare(helper);
                 agents.control(helper, agents.owned(owner, "editable").getValue(), 20);
-                c.assertEquals(helper.getMaxHealth(), 600f, "Prepare/control preserves health attribute in " + profile);
-                c.assertEquals(helper.getAttributeBaseValue(EntityAttributes.ATTACK_DAMAGE), 80d, "Profile does not overwrite edited damage");
-                c.assertEquals(helper.getAttributeBaseValue(EntityAttributes.MOVEMENT_SPEED), .75d, "Profile does not overwrite edited speed");
+                c.assertValueEqual(helper.getMaxHealth(), 600f, "Prepare/control preserves health attribute in " + profile);
+                c.assertValueEqual(helper.getAttributeBaseValue(Attributes.ATTACK_DAMAGE), 80d, "Profile does not overwrite edited damage");
+                c.assertValueEqual(helper.getAttributeBaseValue(Attributes.MOVEMENT_SPEED), .75d, "Profile does not overwrite edited speed");
             }
             set(c, owner, helper, "max_health", 120);
-            c.assertEquals(helper.getHealth(), 120f, "Lower maximum immediately clamps actual helper health");
+            c.assertValueEqual(helper.getHealth(), 120f, "Lower maximum immediately clamps actual helper health");
             set(c, owner, helper, "health", 0);
             c.assertFalse(helper.isAlive(), "Zero health performs an explicit helper death");
-            c.assertFalse(agents.data.agents.containsKey(helper.getUuidAsString()), "Helper death removes roster ownership through the normal death event");
+            c.assertFalse(agents.data.agents.containsKey(helper.getStringUUID()), "Helper death removes roster ownership through the normal death event");
         } finally { cleanup(owner); }
-        c.complete();
+        c.succeed();
     }
 
-    @GameTest public void directHelperAbsorptionSurvivesNativeReloadAndProfileChange(TestContext c) {
+    @GameTest public void directHelperAbsorptionSurvivesNativeReloadAndProfileChange(GameTestHelper c) {
         var owner=owner(c,"helper-auto-reserve");
         try {
             var helper=helper(c,owner,"reserve");
             set(c,owner,helper,"absorption",5000);
-            c.assertEquals(helper.getMaxAbsorption(),5000f,"One helper edit raises the real capacity");
+            c.assertValueEqual(helper.getMaxAbsorption(),5000f,"One helper edit raises the real capacity");
             var saved=save(helper);
-            c.assertTrue(AdminStats.resetAll(owner.getCommandSource(),helper).success(),"Helper reset clears expanded capacity");
+            c.assertTrue(AdminStats.resetAll(owner.createCommandSourceStack(),helper).success(),"Helper reset clears expanded capacity");
             read(helper,saved);
-            c.assertEquals(helper.getAbsorptionAmount(),5000f,"Helper native reload preserves high absorption");
-            var agents=AgentCompanions.get(c.getWorld().getServer());
+            c.assertValueEqual(helper.getAbsorptionAmount(),5000f,"Helper native reload preserves high absorption");
+            var agents=AgentCompanions.get(c.getLevel().getServer());
             agents.profile(owner,"reserve",AgentCompanions.Profile.ULTIMATE_FINALS);
             AgentCompanions.prepare(helper);
-            c.assertEquals(helper.getMaxAbsorption(),5000f,"Helper profile changes keep the capacity");
-            c.assertEquals(helper.getAbsorptionAmount(),5000f,"Helper profile changes do not clear the reserve");
+            c.assertValueEqual(helper.getMaxAbsorption(),5000f,"Helper profile changes keep the capacity");
+            c.assertValueEqual(helper.getAbsorptionAmount(),5000f,"Helper profile changes do not clear the reserve");
         } finally {cleanup(owner);}
-        c.complete();
+        c.succeed();
     }
 
-    @GameTest public void helperEditingRequiresActualOp4ButCanEditAnotherOwnersHelper(TestContext c) {
+    @GameTest public void helperEditingRequiresActualOp4ButCanEditAnotherOwnersHelper(GameTestHelper c) {
         var owner = owner(c, "helper-owning-op");
         var actor = owner(c, "helper-editing-op");
         try {
             var helper = helper(c, owner, "other-owner");
             set(c, actor, helper, "max_health", 180);
-            c.assertEquals(helper.getMaxHealth(), 180f, "An administrator may edit another owner's registered helper");
-            var cached = actor.getCommandSource();
+            c.assertValueEqual(helper.getMaxHealth(), 180f, "An administrator may edit another owner's registered helper");
+            var cached = actor.createCommandSourceStack();
             OperatorGameTests.deop(actor);
             c.assertFalse(AdminStats.set(cached, helper, "max_health", 500).success(), "A cached editor source is invalid after deop");
-            c.assertFalse(AdminStats.set(actor.getCommandSource().withPermissions(PermissionPredicate.ALL), helper, "max_health", 500).success(), "Forged source permission cannot replace real OP4");
-            c.assertFalse(AdminStats.resetAll(actor.getCommandSource(), helper).success(), "Reset requires the same actual authorization");
-            c.assertEquals(helper.getMaxHealth(), 180f, "Rejected edits preserve the actual helper value");
-            c.assertEquals(AdminStats.original(helper, AdminStats.find(helper, "max_health")), 100d, "Rejected edits preserve original reset history");
+            c.assertFalse(AdminStats.set(actor.createCommandSourceStack().withPermission(PermissionSet.ALL_PERMISSIONS), helper, "max_health", 500).success(), "Forged source permission cannot replace real OP4");
+            c.assertFalse(AdminStats.resetAll(actor.createCommandSourceStack(), helper).success(), "Reset requires the same actual authorization");
+            c.assertValueEqual(helper.getMaxHealth(), 180f, "Rejected edits preserve the actual helper value");
+            c.assertValueEqual(AdminStats.original(helper, AdminStats.find(helper, "max_health")), 100d, "Rejected edits preserve original reset history");
         } finally { cleanup(actor); cleanup(owner); }
-        c.complete();
+        c.succeed();
     }
 
-    @GameTest public void unregisteredUnloadedDismissedAndStaleHelperObjectsAreRejected(TestContext c) {
+    @GameTest public void unregisteredUnloadedDismissedAndStaleHelperObjectsAreRejected(GameTestHelper c) {
         var owner = owner(c, "helper-identity-op");
-        var agents = AgentCompanions.get(c.getWorld().getServer());
-        var ordinary = EntityType.IRON_GOLEM.create(c.getWorld(), SpawnReason.COMMAND);
-        IronGolemEntity copy = null;
+        var agents = AgentCompanions.get(c.getLevel().getServer());
+        var ordinary = EntityType.IRON_GOLEM.create(c.getLevel(), EntitySpawnReason.COMMAND);
+        IronGolem copy = null;
         try {
             var helper = helper(c, owner, "identity");
-            c.assertFalse(AdminStats.set(owner.getCommandSource(), ordinary, "max_health", 400).success(), "Ordinary golems are outside the AI editor");
-            ordinary.addCommandTag(AgentCompanions.TAG);
-            agents.loaded.put(ordinary.getUuid(), ordinary);
-            c.assertFalse(AdminStats.set(owner.getCommandSource(), ordinary, "max_health", 400).success(), "A tag and loaded entry without roster ownership do not forge a helper");
-            agents.loaded.remove(ordinary.getUuid());
-            copy = EntityType.IRON_GOLEM.create(c.getWorld(), SpawnReason.LOAD);
+            c.assertFalse(AdminStats.set(owner.createCommandSourceStack(), ordinary, "max_health", 400).success(), "Ordinary golems are outside the AI editor");
+            ordinary.addTag(AgentCompanions.TAG);
+            agents.loaded.put(ordinary.getUUID(), ordinary);
+            c.assertFalse(AdminStats.set(owner.createCommandSourceStack(), ordinary, "max_health", 400).success(), "A tag and loaded entry without roster ownership do not forge a helper");
+            agents.loaded.remove(ordinary.getUUID());
+            copy = EntityType.IRON_GOLEM.create(c.getLevel(), EntitySpawnReason.LOAD);
             read(copy, save(helper));
-            c.assertEquals(copy.getUuid(), helper.getUuid(), "Stale copy has the same persistent UUID");
-            c.assertFalse(AdminStats.set(owner.getCommandSource(), copy, "max_health", 400).success(), "Matching UUID cannot replace exact loaded entity identity");
-            agents.loaded.remove(helper.getUuid());
-            c.assertFalse(AdminStats.set(owner.getCommandSource(), helper, "max_health", 400).success(), "An unloaded registered helper cannot be edited");
-            agents.loaded.put(helper.getUuid(), helper);
+            c.assertValueEqual(copy.getUUID(), helper.getUUID(), "Stale copy has the same persistent UUID");
+            c.assertFalse(AdminStats.set(owner.createCommandSourceStack(), copy, "max_health", 400).success(), "Matching UUID cannot replace exact loaded entity identity");
+            agents.loaded.remove(helper.getUUID());
+            c.assertFalse(AdminStats.set(owner.createCommandSourceStack(), helper, "max_health", 400).success(), "An unloaded registered helper cannot be edited");
+            agents.loaded.put(helper.getUUID(), helper);
             set(c, owner, helper, "max_health", 160);
             agents.dismiss(owner, "identity");
-            c.assertFalse(AdminStats.set(owner.getCommandSource(), helper, "max_health", 400).success(), "Dismissed helper cannot be edited");
-            c.assertFalse(AdminStats.reset(owner.getCommandSource(), helper, "max_health").success(), "Dismissal also invalidates reset");
+            c.assertFalse(AdminStats.set(owner.createCommandSourceStack(), helper, "max_health", 400).success(), "Dismissed helper cannot be edited");
+            c.assertFalse(AdminStats.reset(owner.createCommandSourceStack(), helper, "max_health").success(), "Dismissal also invalidates reset");
         } finally {
-            agents.loaded.remove(ordinary.getUuid());
+            agents.loaded.remove(ordinary.getUUID());
             ordinary.discard();
             if (copy != null) copy.discard();
             cleanup(owner);
         }
-        c.complete();
+        c.succeed();
     }
 
-    @GameTest public void helperEntityNbtPreservesOriginalsAttributesAndExternalModifiers(TestContext c) {
+    @GameTest public void helperEntityNbtPreservesOriginalsAttributesAndExternalModifiers(GameTestHelper c) {
         var owner = owner(c, "helper-save-op");
-        var agents = AgentCompanions.get(c.getWorld().getServer());
+        var agents = AgentCompanions.get(c.getLevel().getServer());
         try {
             var helper = helper(c, owner, "saved");
-            var externalId = Identifier.of("infinity_test", "helper_extra_damage");
-            helper.getAttributeInstance(EntityAttributes.ATTACK_DAMAGE).setBaseValue(19);
-            helper.getAttributeInstance(EntityAttributes.ATTACK_DAMAGE).addPersistentModifier(new EntityAttributeModifier(externalId, 5, EntityAttributeModifier.Operation.ADD_VALUE));
+            var externalId = Identifier.fromNamespaceAndPath("infinity_test", "helper_extra_damage");
+            helper.getAttribute(Attributes.ATTACK_DAMAGE).setBaseValue(19);
+            helper.getAttribute(Attributes.ATTACK_DAMAGE).addPermanentModifier(new AttributeModifier(externalId, 5, AttributeModifier.Operation.ADD_VALUE));
             set(c, owner, helper, "attack_damage", 45);
             set(c, owner, helper, "attack_damage", 70);
             set(c, owner, helper, "max_health", 5000);
             set(c, owner, helper, "health", 4500);
             var stored = save(helper);
             c.assertTrue(stored.contains("InfinityAdminStats"), "Originals are saved in the same entity NBT as vanilla attributes");
-            c.assertTrue(AdminStats.resetAll(owner.getCommandSource(), helper).success(), "Reset deliberately changes the live entity before read");
+            c.assertTrue(AdminStats.resetAll(owner.createCommandSourceStack(), helper).success(), "Reset deliberately changes the live entity before read");
             read(helper, stored);
             agents.load(helper);
-            c.assertEquals(helper.getMaxHealth(), 5000f, "Native entity reload preserves the expanded effective maximum");
-            c.assertEquals(helper.getHealth(), 4500f, "Native entity reload preserves health above the normal attribute cap");
-            c.assertEquals(helper.getAttributeValue(EntityAttributes.ATTACK_DAMAGE), 75d, "Reload preserves edited base and independent modifier");
-            c.assertEquals(AdminStats.original(helper, AdminStats.find(helper, "attack_damage")), 19d, "First original persists across repeated edits and reload");
-            c.assertTrue(AdminStats.resetAll(owner.getCommandSource(), helper).success(), "Reloaded entity can restore originals");
-            c.assertEquals(helper.getAttributeBaseValue(EntityAttributes.ATTACK_DAMAGE), 19d, "Reset restores the original custom base");
-            c.assertEquals(helper.getAttributeValue(EntityAttributes.ATTACK_DAMAGE), 24d, "Reset leaves the independent modifier in place");
-            c.assertEquals(helper.getMaxHealth(), 100f, "Reset restores the golem's original maximum");
-            c.assertEquals(helper.getHealth(), 100f, "Reset clamps current health to the restored maximum");
+            c.assertValueEqual(helper.getMaxHealth(), 5000f, "Native entity reload preserves the expanded effective maximum");
+            c.assertValueEqual(helper.getHealth(), 4500f, "Native entity reload preserves health above the normal attribute cap");
+            c.assertValueEqual(helper.getAttributeValue(Attributes.ATTACK_DAMAGE), 75d, "Reload preserves edited base and independent modifier");
+            c.assertValueEqual(AdminStats.original(helper, AdminStats.find(helper, "attack_damage")), 19d, "First original persists across repeated edits and reload");
+            c.assertTrue(AdminStats.resetAll(owner.createCommandSourceStack(), helper).success(), "Reloaded entity can restore originals");
+            c.assertValueEqual(helper.getAttributeBaseValue(Attributes.ATTACK_DAMAGE), 19d, "Reset restores the original custom base");
+            c.assertValueEqual(helper.getAttributeValue(Attributes.ATTACK_DAMAGE), 24d, "Reset leaves the independent modifier in place");
+            c.assertValueEqual(helper.getMaxHealth(), 100f, "Reset restores the golem's original maximum");
+            c.assertValueEqual(helper.getHealth(), 100f, "Reset clamps current health to the restored maximum");
             c.assertFalse(save(helper).contains("InfinityAdminStats"), "Reset removes obsolete entity undo data");
         } finally { cleanup(owner); }
-        c.complete();
+        c.succeed();
     }
 
-    @GameTest public void helperStatListOmitsPlayerOnlyVitalsAndRejectsTheirCommands(TestContext c) {
+    @GameTest public void helperStatListOmitsPlayerOnlyVitalsAndRejectsTheirCommands(GameTestHelper c) {
         var owner = owner(c, "helper-fields-op");
         try {
             var helper = helper(c, owner, "fields");
@@ -216,55 +216,55 @@ public class AdminHelperStatsGameTests {
                 c.assertTrue(ids.contains(id), "Supported helper field is discoverable: " + id);
             for (var id : List.of("food", "saturation", "exhaustion", "xp_level")) {
                 c.assertFalse(ids.contains(id), "Player-only field is omitted: " + id);
-                c.assertFalse(AdminStats.set(owner.getCommandSource(), helper, id, 5).success(), "Player-only setter is rejected for a helper: " + id);
+                c.assertFalse(AdminStats.set(owner.createCommandSourceStack(), helper, id, 5).success(), "Player-only setter is rejected for a helper: " + id);
             }
-            c.assertFalse(AdminStats.set(owner.getCommandSource(), helper, "attack_damage", Double.NaN).success(), "Non-finite helper damage is rejected");
-            c.assertFalse(AdminStats.set(owner.getCommandSource(), helper, "max_health", Math.nextUp((double)Float.MAX_VALUE)).success(), "Non-representable helper health is refused");
+            c.assertFalse(AdminStats.set(owner.createCommandSourceStack(), helper, "attack_damage", Double.NaN).success(), "Non-finite helper damage is rejected");
+            c.assertFalse(AdminStats.set(owner.createCommandSourceStack(), helper, "max_health", Math.nextUp((double)Float.MAX_VALUE)).success(), "Non-representable helper health is refused");
             c.assertTrue(((AdminStatEntity) helper).infinity$adminStats().isEmpty(), "Rejected fields leave no misleading reset metadata");
         } finally { cleanup(owner); }
-        c.complete();
+        c.succeed();
     }
 
-    @GameTest public void editedDamageChangesRealMeleeWithoutGrantingPlayerTargetApproval(TestContext c) {
+    @GameTest public void editedDamageChangesRealMeleeWithoutGrantingPlayerTargetApproval(GameTestHelper c) {
         var owner = owner(c, "helper-damage-op");
-        var agents = AgentCompanions.get(c.getWorld().getServer());
-        var zombie = EntityType.ZOMBIE.create(c.getWorld(), SpawnReason.COMMAND);
+        var agents = AgentCompanions.get(c.getLevel().getServer());
+        var zombie = EntityType.ZOMBIE.create(c.getLevel(), EntitySpawnReason.COMMAND);
         try {
             var helper = helper(c, owner, "fighter");
             set(c, owner, helper, "attack_damage", 80);
-            helper.setPosition(owner.getEntityPos().add(2, 0, 0));
-            zombie.setPosition(helper.getEntityPos().add(1, 0, 0));
-            zombie.setAiDisabled(true);
-            zombie.getAttributeInstance(EntityAttributes.MAX_HEALTH).setBaseValue(500);
-            zombie.getAttributeInstance(EntityAttributes.ARMOR).setBaseValue(0);
+            helper.setPos(owner.position().add(2, 0, 0));
+            zombie.setPos(helper.position().add(1, 0, 0));
+            zombie.setNoAi(true);
+            zombie.getAttribute(Attributes.MAX_HEALTH).setBaseValue(500);
+            zombie.getAttribute(Attributes.ARMOR).setBaseValue(0);
             zombie.setHealth(500);
-            c.getWorld().spawnEntity(zombie);
+            c.getLevel().addFreshEntity(zombie);
             helper.setTarget(zombie);
-            c.assertTrue(helper.tryAttack(c.getWorld(), zombie), "Normal approved hostile combat still performs real golem melee");
+            c.assertTrue(helper.doHurtTarget(c.getLevel(), zombie), "Normal approved hostile combat still performs real golem melee");
             c.assertTrue(zombie.getHealth() <= 460, "The attack consumes the edited damage attribute, not the vanilla golem damage");
             agents.profile(owner, "fighter", AgentCompanions.Profile.ULTIMATE_FINALS);
-            c.assertFalse(agents.playerTargets.containsKey(owner.getUuid()), "Editing combat stats creates no approved player target");
+            c.assertFalse(agents.playerTargets.containsKey(owner.getUUID()), "Editing combat stats creates no approved player target");
             helper.setTarget(owner);
-            c.assertFalse(helper.tryAttack(c.getWorld(), owner), "Even edited aggressive helpers cannot damage a player without the independent target gate");
-            c.assertFalse(AgentCompanions.allowDamage(owner, owner.getDamageSources().mobAttack(helper)), "Direct damage remains subject to player target approval");
+            c.assertFalse(helper.doHurtTarget(c.getLevel(), owner), "Even edited aggressive helpers cannot damage a player without the independent target gate");
+            c.assertFalse(AgentCompanions.allowDamage(owner, owner.damageSources().mobAttack(helper)), "Direct damage remains subject to player target approval");
         } finally { zombie.discard(); cleanup(owner); }
-        c.complete();
+        c.succeed();
     }
 
-    @GameTest public void helperMenuConfirmsEditsAndInvalidatesChangedProfilesOrDismissal(TestContext c) {
+    @GameTest public void helperMenuConfirmsEditsAndInvalidatesChangedProfilesOrDismissal(GameTestHelper c) {
         var owner = owner(c, "helper-menu-op");
-        var agents = AgentCompanions.get(c.getWorld().getServer());
+        var agents = AgentCompanions.get(c.getLevel().getServer());
         try {
             var helper = helper(c, owner, "menu-helper");
             set(c, owner, helper, "health", 90);
-            c.assertEquals(AdminStatsMenu.open(owner), 1, "Admin target menu opens");
-            var roster = (AdminStatsMenu.Handler) owner.currentScreenHandler;
+            c.assertValueEqual(AdminStatsMenu.open(owner), 1, "Admin target menu opens");
+            var roster = (AdminStatsMenu.Handler) owner.containerMenu;
             int index = -1;
             for (int i = 0; i < roster.targets.size(); i++) if (roster.targets.get(i).entity() == helper) index = i;
             c.assertTrue(index >= 0, "Target roster includes the exact registered helper");
             for (int page = 0; page < index / AdminStatsMenu.PAGE_SIZE; page++) click(owner, AdminStatsMenu.NEXT);
             click(owner, index % AdminStatsMenu.PAGE_SIZE);
-            var selected = (AdminStatsMenu.Handler) owner.currentScreenHandler;
+            var selected = (AdminStatsMenu.Handler) owner.containerMenu;
             c.assertTrue(selected.targetSession.entity() == helper, "Selecting the helper retains exact entity identity");
             int health = -1;
             for (int i = 0; i < selected.stats.size(); i++) if (selected.stats.get(i).id().equals("health")) health = i;
@@ -272,34 +272,34 @@ public class AdminHelperStatsGameTests {
             click(owner, health);
             click(owner, AdminStatsMenu.MINUS_MEDIUM);
             click(owner, AdminStatsMenu.REVIEW);
-            c.assertEquals(helper.getHealth(), 90f, "Staging and review do not apply the helper edit");
+            c.assertValueEqual(helper.getHealth(), 90f, "Staging and review do not apply the helper edit");
             click(owner, AdminStatsMenu.CONFIRM);
-            c.assertEquals(helper.getHealth(), 80f, "Confirmation changes the actual helper health");
-            owner.closeHandledScreen();
-            double originalDamage = helper.getAttributeBaseValue(EntityAttributes.ATTACK_DAMAGE);
-            c.assertEquals(AdminStatsMenu.openStat(owner, helper, "attack_damage"), 1, "Helper damage editor opens");
+            c.assertValueEqual(helper.getHealth(), 80f, "Confirmation changes the actual helper health");
+            owner.closeContainer();
+            double originalDamage = helper.getAttributeBaseValue(Attributes.ATTACK_DAMAGE);
+            c.assertValueEqual(AdminStatsMenu.openStat(owner, helper, "attack_damage"), 1, "Helper damage editor opens");
             click(owner, AdminStatsMenu.PLUS_MEDIUM);
             click(owner, AdminStatsMenu.REVIEW);
             click(owner, AdminStatsMenu.CONFIRM);
-            c.assertEquals(helper.getAttributeBaseValue(EntityAttributes.ATTACK_DAMAGE), originalDamage + 10, "Confirmed helper damage edit applies");
-            owner.closeHandledScreen();
+            c.assertValueEqual(helper.getAttributeBaseValue(Attributes.ATTACK_DAMAGE), originalDamage + 10, "Confirmed helper damage edit applies");
+            owner.closeContainer();
             AdminStatsMenu.openStat(owner, helper, "attack_damage");
             click(owner, AdminStatsMenu.PLUS_MEDIUM);
             click(owner, AdminStatsMenu.REVIEW);
-            var profileReview = owner.currentScreenHandler;
+            var profileReview = owner.containerMenu;
             agents.profile(owner, "menu-helper", AgentCompanions.Profile.ULTIMATE_FINALS);
-            c.assertFalse(profileReview.canUse(owner), "Changing the helper profile invalidates an existing review");
+            c.assertFalse(profileReview.stillValid(owner), "Changing the helper profile invalidates an existing review");
             click(owner, AdminStatsMenu.CONFIRM);
-            c.assertEquals(helper.getAttributeBaseValue(EntityAttributes.ATTACK_DAMAGE), originalDamage + 10, "Stale profile review does not apply");
+            c.assertValueEqual(helper.getAttributeBaseValue(Attributes.ATTACK_DAMAGE), originalDamage + 10, "Stale profile review does not apply");
             AdminStatsMenu.openStat(owner, helper, "health");
             click(owner, AdminStatsMenu.MINUS_SMALL);
             click(owner, AdminStatsMenu.REVIEW);
-            var dismissalReview = owner.currentScreenHandler;
+            var dismissalReview = owner.containerMenu;
             agents.dismiss(owner, "menu-helper");
-            c.assertFalse(dismissalReview.canUse(owner), "Dismissal invalidates a staged helper edit");
+            c.assertFalse(dismissalReview.stillValid(owner), "Dismissal invalidates a staged helper edit");
             click(owner, AdminStatsMenu.CONFIRM);
-            c.assertEquals(helper.getHealth(), 80f, "Dismissed entity is not changed by an old review");
+            c.assertValueEqual(helper.getHealth(), 80f, "Dismissed entity is not changed by an old review");
         } finally { cleanup(owner); }
-        c.complete();
+        c.succeed();
     }
 }

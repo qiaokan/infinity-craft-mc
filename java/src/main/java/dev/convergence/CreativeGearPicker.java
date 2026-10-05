@@ -10,19 +10,19 @@ import java.util.Set;
 import java.util.UUID;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
-import net.minecraft.component.DataComponentTypes;
-import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.entity.player.PlayerInventory;
-import net.minecraft.inventory.SimpleInventory;
-import net.minecraft.item.ItemStack;
-import net.minecraft.item.Items;
-import net.minecraft.network.packet.s2c.play.UpdateSelectedSlotS2CPacket;
-import net.minecraft.screen.GenericContainerScreenHandler;
-import net.minecraft.screen.ScreenHandlerType;
-import net.minecraft.screen.SimpleNamedScreenHandlerFactory;
-import net.minecraft.screen.slot.SlotActionType;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.text.Text;
+import net.minecraft.core.component.DataComponents;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.protocol.game.ClientboundSetHeldSlotPacket;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.SimpleContainer;
+import net.minecraft.world.SimpleMenuProvider;
+import net.minecraft.world.entity.player.Inventory;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.inventory.ChestMenu;
+import net.minecraft.world.inventory.ClickType;
+import net.minecraft.world.inventory.MenuType;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 
 /** Vanilla chest icons and a vanilla compass keep the picker usable through Geyser. */
 final class CreativeGearPicker {
@@ -32,32 +32,32 @@ final class CreativeGearPicker {
 
     private CreativeGearPicker() {}
 
-    static boolean allowed(ServerPlayerEntity player) {
+    static boolean allowed(ServerPlayer player) {
         return player.isAlive() && player.isCreative() && !player.isSpectator()
             && GameModes.current(player) == GameModes.Mode.CREATIVE
-            && !GameModes.TRANSITIONS.contains(player.getUuid())
-            && !GameModes.PENDING.containsKey(player.getUuid());
+            && !GameModes.TRANSITIONS.contains(player.getUUID())
+            && !GameModes.PENDING.containsKey(player.getUUID());
     }
 
     static ItemStack picker() {
         ItemStack stack = new ItemStack(Items.COMPASS);
-        stack.set(DataComponentTypes.CUSTOM_NAME, Text.literal(PICKER_NAME));
+        stack.set(DataComponents.CUSTOM_NAME, Component.literal(PICKER_NAME));
         return stack;
     }
 
     static boolean isPicker(ItemStack stack) {
-        Text name = stack.get(DataComponentTypes.CUSTOM_NAME);
-        return stack.isOf(Items.COMPASS) && name != null && PICKER_NAME.equals(name.getString());
+        Component name = stack.get(DataComponents.CUSTOM_NAME);
+        return stack.is(Items.COMPASS) && name != null && PICKER_NAME.equals(name.getString());
     }
 
-    private static boolean hasPicker(ServerPlayerEntity player) {
-        for (int slot = 0; slot < 36; slot++) if (isPicker(player.getInventory().getStack(slot))) return true;
+    private static boolean hasPicker(ServerPlayer player) {
+        for (int slot = 0; slot < 36; slot++) if (isPicker(player.getInventory().getItem(slot))) return true;
         return false;
     }
 
-    private static boolean hasWeapon(ServerPlayerEntity player) {
+    private static boolean hasWeapon(ServerPlayer player) {
         for (int slot = 0; slot < 36; slot++) {
-            var item = player.getInventory().getStack(slot).getItem();
+            var item = player.getInventory().getItem(slot).getItem();
             if (item == Convergence.ITEMS.get("convergence:sword")
                 || item == Convergence.ITEMS.get("convergence:mace")
                 || item == Convergence.ITEMS.get("convergence:spear")) return true;
@@ -65,144 +65,144 @@ final class CreativeGearPicker {
         return false;
     }
 
-    private static int freeHotbarSlot(PlayerInventory inventory, int from, int to) {
-        for (int slot = from; slot <= to; slot++) if (inventory.getStack(slot).isEmpty()) return slot;
+    private static int freeHotbarSlot(Inventory inventory, int from, int to) {
+        for (int slot = from; slot <= to; slot++) if (inventory.getItem(slot).isEmpty()) return slot;
         return -1;
     }
 
     /** Only add to empty slots; returning players keep their Creative inventory. */
-    private static boolean ensurePicker(ServerPlayerEntity player) {
+    private static boolean ensurePicker(ServerPlayer player) {
         if (hasPicker(player)) return true;
-        PlayerInventory inventory = player.getInventory();
-        int slot = inventory.getStack(8).isEmpty() ? 8 : freeHotbarSlot(inventory, 0, 7);
-        if (slot < 0) slot = inventory.getEmptySlot();
+        Inventory inventory = player.getInventory();
+        int slot = inventory.getItem(8).isEmpty() ? 8 : freeHotbarSlot(inventory, 0, 7);
+        if (slot < 0) slot = inventory.getFreeSlot();
         if (slot < 0) return false;
-        inventory.setStack(slot, picker());
-        player.playerScreenHandler.syncState();
+        inventory.setItem(slot, picker());
+        player.inventoryMenu.sendAllDataToRemote();
         return true;
     }
 
-    static void onEnter(ServerPlayerEntity player) {
+    static void onEnter(ServerPlayer player) {
         if (!player.isCreative() || GameModes.current(player) != GameModes.Mode.CREATIVE) return;
-        PlayerInventory inventory = player.getInventory();
+        Inventory inventory = player.getInventory();
         boolean hasPicker = ensurePicker(player);
         boolean weaponPresent = hasWeapon(player);
         boolean swordGranted = false;
         if (!weaponPresent) {
             int slot = freeHotbarSlot(inventory, 0, 7);
             if (slot >= 0) {
-                inventory.setStack(slot, new ItemStack(Convergence.ITEMS.get("convergence:sword")));
+                inventory.setItem(slot, new ItemStack(Convergence.ITEMS.get("convergence:sword")));
                 inventory.setSelectedSlot(slot);
-                player.networkHandler.sendPacket(new UpdateSelectedSlotS2CPacket(slot));
+                player.connection.send(new ClientboundSetHeldSlotPacket(slot));
                 swordGranted = true;
             }
         }
-        player.playerScreenHandler.syncState();
+        player.inventoryMenu.sendAllDataToRemote();
         String message = hasPicker
             ? "Infinity gear: select the named compass to pick a weapon or tool."
             : "Clear an inventory slot to receive the Infinity Gear Picker.";
         if (swordGranted) message += " A sword is ready in your hotbar.";
         else if (weaponPresent) message += " Your existing Infinity weapon is in your inventory.";
         else message += " Clear a hotbar slot to hold a weapon.";
-        player.sendMessage(Text.literal(message), false);
-        OPEN_AFTER.put(player.getUuid(), player.getEntityWorld().getServer().getTicks() + 3);
+        player.displayClientMessage(Component.literal(message), false);
+        OPEN_AFTER.put(player.getUUID(), player.level().getServer().getTickCount() + 3);
     }
 
     private static String label(String path) {
         return GearNames.label(path);
     }
 
-    static int open(ServerPlayerEntity player) {
-        if (!allowed(player) || player.currentScreenHandler != player.playerScreenHandler
-            || !player.currentScreenHandler.getCursorStack().isEmpty()) return 0;
+    static int open(ServerPlayer player) {
+        if (!allowed(player) || player.containerMenu != player.inventoryMenu
+            || !player.containerMenu.getCarried().isEmpty()) return 0;
         List<String> paths = new ArrayList<>(Convergence.ITEMS.keySet());
         if (paths.size() > 54) throw new IllegalStateException("Infinity gear picker exceeds six rows");
-        var view = new SimpleInventory(54);
+        var view = new SimpleContainer(54);
         for (int slot = 0; slot < paths.size(); slot++) {
             String name = paths.get(slot);
             var icon = CrossplaySupport.BASES.get(name.substring("convergence:".length()));
             if (icon == null) throw new IllegalStateException("Missing safe picker icon for " + name);
             ItemStack stack = new ItemStack(icon);
-            stack.set(DataComponentTypes.CUSTOM_NAME, Text.literal(label(name.substring("convergence:".length()))));
-            view.setStack(slot, stack);
+            stack.set(DataComponents.CUSTOM_NAME, Component.literal(label(name.substring("convergence:".length()))));
+            view.setItem(slot, stack);
         }
-        player.openHandledScreen(new SimpleNamedScreenHandlerFactory((sync, inventory, who) ->
-            new PickerHandler(sync, inventory, view, player, paths), Text.literal("Infinity Gear • Pick One")));
-        if (isPicker(player.getMainHandStack())) SELECTED.add(player.getUuid());
+        player.openMenu(new SimpleMenuProvider((sync, inventory, who) ->
+            new PickerHandler(sync, inventory, view, player, paths), Component.literal("Infinity Gear • Pick One")));
+        if (isPicker(player.getMainHandItem())) SELECTED.add(player.getUUID());
         return 1;
     }
 
     /** Equip beside the compass so it remains in the hotbar for another pick. */
-    static int equip(ServerPlayerEntity player, String name) {
+    static int equip(ServerPlayer player, String name) {
         if (!allowed(player) || !Convergence.ITEMS.containsKey(name)) return 0;
-        PlayerInventory inventory = player.getInventory();
+        Inventory inventory = player.getInventory();
         int slot = freeHotbarSlot(inventory, 0, 7);
         if (slot < 0) slot = 0;
-        ItemStack previous = inventory.getStack(slot).copy();
-        if (!previous.isEmpty() && inventory.getEmptySlot() < 0) {
-            player.sendMessage(Text.literal("Clear one inventory slot before choosing another item."), false);
+        ItemStack previous = inventory.getItem(slot).copy();
+        if (!previous.isEmpty() && inventory.getFreeSlot() < 0) {
+            player.displayClientMessage(Component.literal("Clear one inventory slot before choosing another item."), false);
             return 0;
         }
         var item = Convergence.ITEMS.get(name);
-        inventory.setStack(slot, new ItemStack(item, item.getMaxCount() > 1 ? 64 : 1));
-        if (!previous.isEmpty()) inventory.offerOrDrop(previous);
+        inventory.setItem(slot, new ItemStack(item, item.getDefaultMaxStackSize() > 1 ? 64 : 1));
+        if (!previous.isEmpty()) inventory.placeItemBackInInventory(previous);
         inventory.setSelectedSlot(slot);
-        player.networkHandler.sendPacket(new UpdateSelectedSlotS2CPacket(slot));
-        player.playerScreenHandler.syncState();
-        SELECTED.remove(player.getUuid());
-        player.sendMessage(Text.literal("Holding " + label(name.substring("convergence:".length())) + ". Tap the compass to choose again."), false);
+        player.connection.send(new ClientboundSetHeldSlotPacket(slot));
+        player.inventoryMenu.sendAllDataToRemote();
+        SELECTED.remove(player.getUUID());
+        player.displayClientMessage(Component.literal("Holding " + label(name.substring("convergence:".length())) + ". Tap the compass to choose again."), false);
         return 1;
     }
 
-    static final class PickerHandler extends GenericContainerScreenHandler {
-        final ServerPlayerEntity owner;
+    static final class PickerHandler extends ChestMenu {
+        final ServerPlayer owner;
         final List<String> paths;
 
-        PickerHandler(int sync, PlayerInventory inventory, SimpleInventory view, ServerPlayerEntity owner, List<String> paths) {
-            super(ScreenHandlerType.GENERIC_9X6, sync, inventory, view, 6);
+        PickerHandler(int sync, Inventory inventory, SimpleContainer view, ServerPlayer owner, List<String> paths) {
+            super(MenuType.GENERIC_9x6, sync, inventory, view, 6);
             this.owner = owner;
             this.paths = paths;
         }
 
-        @Override public boolean canUse(PlayerEntity player) {
+        @Override public boolean stillValid(Player player) {
             return player == owner && allowed(owner);
         }
 
-        @Override public ItemStack quickMove(PlayerEntity player, int slot) { return ItemStack.EMPTY; }
-        @Override public void selectBundleStack(int slot, int selected) { }
+        @Override public ItemStack quickMoveStack(Player player, int slot) { return ItemStack.EMPTY; }
+        @Override public void setSelectedBundleItemIndex(int slot, int selected) { }
 
-        @Override public void onSlotClick(int slot, int button, SlotActionType action, PlayerEntity player) {
-            if (player != owner || !allowed(owner)) { owner.closeHandledScreen(); return; }
-            if ((action == SlotActionType.PICKUP || action == SlotActionType.QUICK_MOVE)
-                && slot >= 0 && slot < paths.size() && getCursorStack().isEmpty()) {
+        @Override public void clicked(int slot, int button, ClickType action, Player player) {
+            if (player != owner || !allowed(owner)) { owner.closeContainer(); return; }
+            if ((action == ClickType.PICKUP || action == ClickType.QUICK_MOVE)
+                && slot >= 0 && slot < paths.size() && getCarried().isEmpty()) {
                 String name = paths.get(slot);
-                owner.closeHandledScreen();
+                owner.closeContainer();
                 equip(owner, name);
-            } else syncState();
+            } else sendAllDataToRemote();
         }
     }
 
     static void register() {
         ServerTickEvents.END_SERVER_TICK.register(server -> {
-            for (var player : server.getPlayerManager().getPlayerList()) {
-                UUID id = player.getUuid();
+            for (var player : server.getPlayerList().getPlayers()) {
+                UUID id = player.getUUID();
                 if (allowed(player) && !hasPicker(player)) ensurePicker(player);
                 Integer at = OPEN_AFTER.get(id);
-                if (at != null && server.getTicks() >= at) {
+                if (at != null && server.getTickCount() >= at) {
                     OPEN_AFTER.remove(id);
                     open(player);
                 }
-                boolean selected = allowed(player) && isPicker(player.getMainHandStack());
+                boolean selected = allowed(player) && isPicker(player.getMainHandItem());
                 if (!selected) SELECTED.remove(id);
-                else if (player.currentScreenHandler == player.playerScreenHandler) {
+                else if (player.containerMenu == player.inventoryMenu) {
                     if (SELECTED.add(id)) open(player);
-                } else if (!(player.currentScreenHandler instanceof PickerHandler)) SELECTED.remove(id);
-                if (!allowed(player) && player.currentScreenHandler instanceof PickerHandler) player.closeHandledScreen();
+                } else if (!(player.containerMenu instanceof PickerHandler)) SELECTED.remove(id);
+                if (!allowed(player) && player.containerMenu instanceof PickerHandler) player.closeContainer();
             }
         });
         ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> {
-            OPEN_AFTER.remove(handler.player.getUuid());
-            SELECTED.remove(handler.player.getUuid());
+            OPEN_AFTER.remove(handler.player.getUUID());
+            SELECTED.remove(handler.player.getUUID());
         });
     }
 }

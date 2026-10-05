@@ -20,22 +20,22 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
-import net.minecraft.block.BlockState;
-import net.minecraft.component.ComponentType;
-import net.minecraft.component.DataComponentTypes;
-import net.minecraft.item.Item;
-import net.minecraft.item.ItemStack;
-import net.minecraft.item.Items;
-import net.minecraft.registry.Registries;
-import net.minecraft.registry.RegistryOps;
+import net.minecraft.commands.Commands;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.component.DataComponentType;
+import net.minecraft.core.component.DataComponents;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.network.chat.Component;
+import net.minecraft.resources.Identifier;
+import net.minecraft.resources.RegistryOps;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.server.command.CommandManager;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.state.property.Property;
-import net.minecraft.text.Text;
-import net.minecraft.util.Hand;
-import net.minecraft.util.Identifier;
-import net.minecraft.util.math.BlockPos;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.properties.Property;
 import xyz.nucleoid.packettweaker.PacketContext;
 
 /** Keeps real registries and powers on Fabric; only the network representation changes. */
@@ -50,9 +50,9 @@ final class CrossplaySupport {
         "ember_helmet","ember_chestplate","ember_leggings","ember_boots");
     private static final Set<String> POWER_ITEMS = Set.of("sword", "mace", "spear", "pickaxe", "axe", "shovel", "hoe", "builder_wand", "sculptor_wand");
 
-    static boolean bedrock(ServerPlayerEntity player) {
+    static boolean bedrock(ServerPlayer player) {
         var api=org.geysermc.floodgate.api.FloodgateApi.getInstance();
-        return player!=null && api!=null && api.isFloodgatePlayer(player.getUuid());
+        return player!=null && api!=null && api.isFloodgatePlayer(player.getUUID());
     }
 
     static boolean nativeAppearance(String path,boolean bedrock,boolean javaPack) {
@@ -61,8 +61,8 @@ final class CrossplaySupport {
 
     static void wearableFallback(ItemStack out,Item base,boolean bedrock,boolean javaPack) {
         if(bedrock || !javaPack) {
-            var wearable=base.getComponents().get(DataComponentTypes.EQUIPPABLE);
-            if(wearable!=null)out.set(DataComponentTypes.EQUIPPABLE,wearable);
+            var wearable=base.components().get(DataComponents.EQUIPPABLE);
+            if(wearable!=null)out.set(DataComponents.EQUIPPABLE,wearable);
         }
     }
 
@@ -89,7 +89,7 @@ final class CrossplaySupport {
         BASES.put("sculptor_wand",Items.STICK);
         for (String path : ExpandedGear.ARROWS.stream().sorted().toList()) BASES.put(path, Items.ARROW);
         for (String path : ExpandedGear.BLOCKS.stream().sorted().toList()) {
-            var block = Registries.BLOCK.get(id(path));
+            var block = BuiltInRegistries.BLOCK.getValue(id(path));
             var visual = PolymerBlockResourceUtils.requestBlock(BlockModelType.FULL_BLOCK,
                 PolymerBlockModel.of(id("block/" + path)));
             if (visual == null) throw new IllegalStateException("No Polymer block model slot for " + path);
@@ -111,16 +111,16 @@ final class CrossplaySupport {
                     // Bedrock needs the custom model key to select its own resource mapping.
                     // Java without the downloaded pack must use an existing native icon.
                     return nativeAppearance(entry.getKey(),bedrock,PolymerResourcePackUtils.hasMainPack(context))
-                        ? entry.getValue().getComponents().get(DataComponentTypes.ITEM_MODEL) : stack.get(DataComponentTypes.ITEM_MODEL);
+                        ? entry.getValue().components().get(DataComponents.ITEM_MODEL) : stack.get(DataComponents.ITEM_MODEL);
                 }
                 public void modifyBasePolymerItemStack(ItemStack out,ItemStack stack,PacketContext context) {
-                    out.set(DataComponentTypes.ITEM_NAME,GearNames.text(entry.getKey()));
+                    out.set(DataComponents.ITEM_NAME,GearNames.text(entry.getKey()));
                     // A custom Java equipment asset is invisible/missing when its pack
                     // was declined, and unsupported for native Bedrock wearable mappings.
                     // Keep a complete native wearable asset until the Java pack is loaded.
                     wearableFallback(out,entry.getValue(),bedrock(context.getPlayer()),PolymerResourcePackUtils.hasMainPack(context));
                 }
-                public boolean handleMiningOnServer(ItemStack tool, BlockState state, BlockPos pos, ServerPlayerEntity player) {
+                public boolean handleMiningOnServer(ItemStack tool, BlockState state, BlockPos pos, ServerPlayer player) {
                     return true;
                 }
             });
@@ -130,12 +130,12 @@ final class CrossplaySupport {
         // Do not require the Java pack: Geyser receives its own Bedrock resource pack.
         ServerLifecycleEvents.SERVER_STARTED.register(CrossplaySupport::exportMappings);
         CommandRegistrationCallback.EVENT.register((dispatcher, access, environment) -> dispatcher.register(
-            CommandManager.literal("convergence")
-                .then(CommandManager.literal("power").executes(c -> usePower(c.getSource().getPlayerOrThrow(), false)))
-                .then(CommandManager.literal("altpower").executes(c -> usePower(c.getSource().getPlayerOrThrow(), true)))
-                .then(CommandManager.literal("swap").executes(c -> swapHands(c.getSource().getPlayerOrThrow())))
-                .then(CommandManager.literal("server").executes(c -> {
-                    c.getSource().sendFeedback(() -> Text.literal(serverInfoText()), false);
+            Commands.literal("convergence")
+                .then(Commands.literal("power").executes(c -> usePower(c.getSource().getPlayerOrException(), false)))
+                .then(Commands.literal("altpower").executes(c -> usePower(c.getSource().getPlayerOrException(), true)))
+                .then(Commands.literal("swap").executes(c -> swapHands(c.getSource().getPlayerOrException())))
+                .then(Commands.literal("server").executes(c -> {
+                    c.getSource().sendSuccess(() -> Component.literal(serverInfoText()), false);
                     return 1;
                 }))));
     }
@@ -145,48 +145,48 @@ final class CrossplaySupport {
             + "Select the Infinity Menu recovery compass for touch-friendly powers, hand swapping, gear, and helper controls. Ask the host for the address.";
     }
 
-    static int usePower(ServerPlayerEntity player, boolean alternate) {
+    static int usePower(ServerPlayer player, boolean alternate) {
         if (player.isSpectator() || !player.isAlive()) return 0;
-        String name = Convergence.id(player.getMainHandStack());
+        String name = Convergence.id(player.getMainHandItem());
         if (!name.startsWith("convergence:")) return 0;
         String path = name.substring("convergence:".length());
         if(PoweredTools.CREATIVE_TOOLS.contains(name)&&!PoweredTools.creativeAllowed(player,name)) {
-            player.sendMessage(Text.literal("Building wands require Creative in the Creative world; OP4 may use /gamemode creative in any world."),false);return 0;
+            player.displayClientMessage(Component.literal("Building wands require Creative in the Creative world; OP4 may use /gamemode creative in any world."),false);return 0;
         }
         if (!POWER_ITEMS.contains(path) && !(alternate && path.equals("shield"))) {
-            player.sendMessage(Text.literal("Hold an Infinity weapon or tool; Alternate Power also casts the shield Ward."), false);
+            player.displayClientMessage(Component.literal("Hold an Infinity weapon or tool; Alternate Power also casts the shield Ward."), false);
             return 0;
         }
-        boolean wasSneaking = player.isSneaking();
+        boolean wasSneaking = player.isShiftKeyDown();
         try {
-            player.setSneaking(alternate);
-            player.getMainHandStack().getItem().use(player.getEntityWorld(), player, Hand.MAIN_HAND);
+            player.setShiftKeyDown(alternate);
+            player.getMainHandItem().getItem().use(player.level(), player, InteractionHand.MAIN_HAND);
         } finally {
-            player.setSneaking(wasSneaking);
+            player.setShiftKeyDown(wasSneaking);
         }
         return 1;
     }
 
-    static int swapHands(ServerPlayerEntity player) {
+    static int swapHands(ServerPlayer player) {
         if (player.isSpectator() || !player.isAlive()) return 0;
-        player.clearActiveItem();
-        ItemStack main = player.getMainHandStack();
-        player.setStackInHand(Hand.MAIN_HAND, player.getOffHandStack());
-        player.setStackInHand(Hand.OFF_HAND, main);
-        player.currentScreenHandler.sendContentUpdates();
+        player.stopUsingItem();
+        ItemStack main = player.getMainHandItem();
+        player.setItemInHand(InteractionHand.MAIN_HAND, player.getOffhandItem());
+        player.setItemInHand(InteractionHand.OFF_HAND, main);
+        player.containerMenu.broadcastChanges();
         return 1;
     }
 
-    static Identifier id(String path) { return Identifier.of("convergence", path); }
+    static Identifier id(String path) { return Identifier.fromNamespaceAndPath("convergence", path); }
 
     private static void exportMappings(MinecraftServer server) {
         Path folder = Path.of("crossplay-export");
         var items = new JsonObject();
-        var ops = RegistryOps.of(JsonOps.INSTANCE, server.getRegistryManager());
+        var ops = RegistryOps.create(JsonOps.INSTANCE, server.registryAccess());
         for (var entry : BASES.entrySet()) {
             String path = entry.getKey();
             if (NATIVE_BEDROCK.contains(path)) continue;
-            ItemStack stack = Convergence.ITEMS.get("convergence:" + path).getDefaultStack();
+            ItemStack stack = Convergence.ITEMS.get("convergence:" + path).getDefaultInstance();
             var definition = new JsonObject();
             definition.addProperty("type", "definition");
             definition.addProperty("bedrock_identifier", "convergence:" + path);
@@ -203,12 +203,12 @@ final class CrossplaySupport {
             options.addProperty("protection_value", protection);
             definition.add("bedrock_options", options);
             var components = new JsonObject();
-            for (var type : new ComponentType<?>[]{DataComponentTypes.MAX_STACK_SIZE, DataComponentTypes.MAX_DAMAGE,
-                DataComponentTypes.EQUIPPABLE, DataComponentTypes.ENCHANTABLE, DataComponentTypes.ENCHANTMENT_GLINT_OVERRIDE}) {
+            for (var type : new DataComponentType<?>[]{DataComponents.MAX_STACK_SIZE, DataComponents.MAX_DAMAGE,
+                DataComponents.EQUIPPABLE, DataComponents.ENCHANTABLE, DataComponents.ENCHANTMENT_GLINT_OVERRIDE}) {
                 addComponent(components, stack, type, ops);
             }
             definition.add("components", components);
-            String base = Registries.ITEM.getId(entry.getValue()).toString();
+            String base = BuiltInRegistries.ITEM.getKey(entry.getValue()).toString();
             if (!items.has(base)) items.add(base, new JsonArray());
             items.getAsJsonArray(base).add(definition);
         }
@@ -248,23 +248,23 @@ final class CrossplaySupport {
         }
     }
 
-    private static <T> void addComponent(JsonObject output, ItemStack stack, ComponentType<T> type,
+    private static <T> void addComponent(JsonObject output, ItemStack stack, DataComponentType<T> type,
                                         RegistryOps<com.google.gson.JsonElement> ops) {
         T value = stack.get(type);
-        if (value != null && type.getCodec() != null) {
-            output.add(Registries.DATA_COMPONENT_TYPE.getId(type).toString(), type.getCodec().encodeStart(ops, value).getOrThrow());
+        if (value != null && type.codec() != null) {
+            output.add(BuiltInRegistries.DATA_COMPONENT_TYPE.getKey(type).toString(), type.codec().encodeStart(ops, value).getOrThrow());
         }
     }
 
     static String stateIdentifier(BlockState state) {
-        String properties = state.getEntries().entrySet().stream().sorted(Map.Entry.comparingByKey(
+        String properties = state.getValues().entrySet().stream().sorted(Map.Entry.comparingByKey(
             java.util.Comparator.comparing(Property::getName))).map(CrossplaySupport::propertyString).collect(Collectors.joining(","));
-        return Registries.BLOCK.getId(state.getBlock()) + (properties.isEmpty() ? "" : "[" + properties + "]");
+        return BuiltInRegistries.BLOCK.getKey(state.getBlock()) + (properties.isEmpty() ? "" : "[" + properties + "]");
     }
 
     private static <T extends Comparable<T>> String propertyString(Map.Entry<Property<?>, Comparable<?>> entry) {
         @SuppressWarnings("unchecked") Property<T> property = (Property<T>) entry.getKey();
         @SuppressWarnings("unchecked") T value = (T) entry.getValue();
-        return property.getName() + "=" + property.name(value);
+        return property.getName() + "=" + property.getName(value);
     }
 }

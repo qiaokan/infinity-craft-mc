@@ -9,28 +9,28 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import net.fabricmc.fabric.api.event.player.UseBlockCallback;
-import net.minecraft.block.SignBlock;
-import net.minecraft.block.entity.SignBlockEntity;
-import net.minecraft.component.DataComponentTypes;
-import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.entity.player.PlayerInventory;
-import net.minecraft.inventory.SimpleInventory;
-import net.minecraft.item.Item;
-import net.minecraft.item.ItemStack;
-import net.minecraft.item.Items;
-import net.minecraft.screen.GenericContainerScreenHandler;
-import net.minecraft.screen.ScreenHandlerType;
-import net.minecraft.screen.SimpleNamedScreenHandlerFactory;
-import net.minecraft.screen.slot.SlotActionType;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.text.Text;
-import net.minecraft.util.ActionResult;
-import net.minecraft.util.Hand;
-import net.minecraft.util.WorldSavePath;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.block.Blocks;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.component.DataComponents;
+import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.server.world.ServerWorld;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.InteractionResult;
+import net.minecraft.world.SimpleContainer;
+import net.minecraft.world.SimpleMenuProvider;
+import net.minecraft.world.entity.player.Inventory;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.inventory.ChestMenu;
+import net.minecraft.world.inventory.ClickType;
+import net.minecraft.world.inventory.MenuType;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.StandingSignBlock;
+import net.minecraft.world.level.block.entity.SignBlockEntity;
+import net.minecraft.world.level.storage.LevelResource;
 
 /** A native chest menu so Java and Geyser players can choose every built-in course. */
 final class CourseSelector {
@@ -63,28 +63,28 @@ final class CourseSelector {
         };
     }
 
-    static int open(ServerPlayerEntity player, GameModes.Mode mode) {
+    static int open(ServerPlayer player, GameModes.Mode mode) {
         if (!supports(mode) || !player.isAlive()
-            || player.currentScreenHandler != player.playerScreenHandler
-            || !player.currentScreenHandler.getCursorStack().isEmpty())
+            || player.containerMenu != player.inventoryMenu
+            || !player.containerMenu.getCarried().isEmpty())
             return CommunityServer.say(player, "Close your current screen and empty the cursor before choosing a course.");
         var choices = courses(mode);
         if (choices.isEmpty()) return CommunityServer.say(player, "No verified courses are available in this world. Ask the host to check the server log.");
         if (choices.size() > 6) throw new IllegalStateException("Course selector exceeds six slots");
-        var view = new SimpleInventory(27);
+        var view = new SimpleContainer(27);
         for (int index = 0; index < choices.size(); index++) {
             var spec = choices.get(index);
             var icon = new ItemStack(icon(spec.id()));
-            icon.set(DataComponentTypes.CUSTOM_NAME, Text.literal(spec.title()));
-            view.setStack(slot(index, choices.size()), icon);
+            icon.set(DataComponents.CUSTOM_NAME, Component.literal(spec.title()));
+            view.setItem(slot(index, choices.size()), icon);
         }
-        player.openHandledScreen(new SimpleNamedScreenHandlerFactory((sync, inventory, who) ->
+        player.openMenu(new SimpleMenuProvider((sync, inventory, who) ->
             new Handler(sync, inventory, view, player, mode, choices),
-            Text.literal(mode == GameModes.Mode.MINIGAMES ? "Choose a Minigame" : "Choose an Adventure")));
+            Component.literal(mode == GameModes.Mode.MINIGAMES ? "Choose a Minigame" : "Choose an Adventure")));
         return 1;
     }
 
-    static BlockPos signPos(ModeMaps.MapSpec spec) { return spec.points().getFirst().add(0, 0, 1); }
+    static BlockPos signPos(ModeMaps.MapSpec spec) { return spec.points().getFirst().offset(0, 0, 1); }
 
     static String signLabel(ModeMaps.MapSpec spec) {
         return switch (spec.id()) {
@@ -94,16 +94,16 @@ final class CourseSelector {
         };
     }
 
-    static boolean selectorSign(ServerWorld world, BlockPos pos) {
+    static boolean selectorSign(ServerLevel world, BlockPos pos) {
         return world.getBlockEntity(pos) instanceof SignBlockEntity sign
             && sign.getFrontText().getMessage(0,false).getString().equals(SIGN_TITLE);
     }
 
-    static boolean canPlaceSign(ServerWorld world, BlockPos pos) {
-        var support = pos.down();
-        return world.isInBuildLimit(pos) && world.getWorldBorder().contains(pos)
+    static boolean canPlaceSign(ServerLevel world, BlockPos pos) {
+        var support = pos.below();
+        return world.isInWorldBounds(pos) && world.getWorldBorder().isWithinBounds(pos)
             && world.getBlockState(pos).isAir()
-            && world.getBlockState(support).isSolidBlock(world, support);
+            && world.getBlockState(support).isRedstoneConductor(world, support);
     }
 
     static Set<String> installed(Path marker) {
@@ -120,7 +120,7 @@ final class CourseSelector {
     }
 
     static void installSigns(MinecraftServer server) {
-        installSigns(server, server.getSavePath(WorldSavePath.ROOT).resolve("infinity-course-selector-signs.json"));
+        installSigns(server, server.getWorldPath(LevelResource.ROOT).resolve("infinity-course-selector-signs.json"));
     }
 
     static void installSigns(MinecraftServer server, Path marker) {
@@ -141,11 +141,11 @@ final class CourseSelector {
         for (var spec : ready) {
             var world = GameModes.world(server, spec.mode());
             var pos = signPos(spec);
-            world.setBlockState(pos, Blocks.OAK_SIGN.getDefaultState().with(SignBlock.ROTATION, 8), 3);
+            world.setBlock(pos, Blocks.OAK_SIGN.defaultBlockState().setValue(StandingSignBlock.ROTATION, 8), 3);
             if (!(world.getBlockEntity(pos) instanceof SignBlockEntity sign)) throw new IllegalStateException("Course selector sign did not load at " + pos);
-            var lines = sign.getFrontText().withMessage(0, Text.literal(SIGN_TITLE))
-                .withMessage(1, Text.literal(signLabel(spec)))
-                .withMessage(2, Text.literal("RIGHT CLICK"));
+            var lines = sign.getFrontText().setMessage(0, Component.literal(SIGN_TITLE))
+                .setMessage(1, Component.literal(signLabel(spec)))
+                .setMessage(2, Component.literal("RIGHT CLICK"));
             sign.setText(lines, true);
             sign.setText(lines, false);
             done.add(spec.id());
@@ -157,60 +157,60 @@ final class CourseSelector {
         }
     }
 
-    static ActionResult useLantern(ServerPlayerEntity player, BlockPos pos) {
+    static InteractionResult useLantern(ServerPlayer player, BlockPos pos) {
         var mode = GameModes.current(player);
-        if (!supports(mode)) return ActionResult.PASS;
+        if (!supports(mode)) return InteractionResult.PASS;
         for (var spec : courses(mode)) {
-            if (pos.equals(signPos(spec)) && selectorSign(player.getEntityWorld(), pos)) {
-                open(player, mode); return ActionResult.SUCCESS;
+            if (pos.equals(signPos(spec)) && selectorSign(player.level(), pos)) {
+                open(player, mode); return InteractionResult.SUCCESS;
             }
-            if (!player.getEntityWorld().getBlockState(pos).isOf(Blocks.SEA_LANTERN)) continue;
+            if (!player.level().getBlockState(pos).is(Blocks.SEA_LANTERN)) continue;
             if (spec.kind() == ModeMaps.Kind.DROPPER) {
-                if (pos.equals(spec.points().getFirst().down()) || pos.equals(spec.points().getLast().down(2))) {
-                    open(player, mode); return ActionResult.SUCCESS;
+                if (pos.equals(spec.points().getFirst().below()) || pos.equals(spec.points().getLast().below(2))) {
+                    open(player, mode); return InteractionResult.SUCCESS;
                 }
-            } else for (var point : spec.points()) if (pos.equals(point.down())) {
-                open(player, mode); return ActionResult.SUCCESS;
+            } else for (var point : spec.points()) if (pos.equals(point.below())) {
+                open(player, mode); return InteractionResult.SUCCESS;
             }
         }
-        return ActionResult.PASS;
+        return InteractionResult.PASS;
     }
 
     static void register() {
         UseBlockCallback.EVENT.register((player, world, hand, hit) -> {
-            if (world.isClient() || hand != Hand.MAIN_HAND || !(player instanceof ServerPlayerEntity serverPlayer)) return ActionResult.PASS;
+            if (world.isClientSide() || hand != InteractionHand.MAIN_HAND || !(player instanceof ServerPlayer serverPlayer)) return InteractionResult.PASS;
             return useLantern(serverPlayer, hit.getBlockPos());
         });
     }
 
-    static final class Handler extends GenericContainerScreenHandler {
-        final ServerPlayerEntity owner;
+    static final class Handler extends ChestMenu {
+        final ServerPlayer owner;
         final GameModes.Mode mode;
         final List<ModeMaps.MapSpec> choices;
 
-        Handler(int sync, PlayerInventory inventory, SimpleInventory view, ServerPlayerEntity owner,
+        Handler(int sync, Inventory inventory, SimpleContainer view, ServerPlayer owner,
                 GameModes.Mode mode, List<ModeMaps.MapSpec> choices) {
-            super(ScreenHandlerType.GENERIC_9X3, sync, inventory, view, 3);
+            super(MenuType.GENERIC_9x3, sync, inventory, view, 3);
             this.owner = owner;
             this.mode = mode;
             this.choices = choices;
         }
 
-        @Override public boolean canUse(PlayerEntity player) { return player == owner && owner.isAlive(); }
-        @Override public ItemStack quickMove(PlayerEntity player, int slot) { return ItemStack.EMPTY; }
-        @Override public void selectBundleStack(int slot, int selected) { }
+        @Override public boolean stillValid(Player player) { return player == owner && owner.isAlive(); }
+        @Override public ItemStack quickMoveStack(Player player, int slot) { return ItemStack.EMPTY; }
+        @Override public void setSelectedBundleItemIndex(int slot, int selected) { }
 
-        @Override public void onSlotClick(int clicked, int button, SlotActionType action, PlayerEntity player) {
-            if (player != owner || owner.currentScreenHandler != this || !owner.isAlive()) return;
-            if ((action == SlotActionType.PICKUP || action == SlotActionType.QUICK_MOVE) && getCursorStack().isEmpty()) {
+        @Override public void clicked(int clicked, int button, ClickType action, Player player) {
+            if (player != owner || owner.containerMenu != this || !owner.isAlive()) return;
+            if ((action == ClickType.PICKUP || action == ClickType.QUICK_MOVE) && getCarried().isEmpty()) {
                 for (int index = 0; index < choices.size(); index++) if (clicked == slot(index, choices.size())) {
                     String id = choices.get(index).id();
-                    owner.closeHandledScreen();
+                    owner.closeContainer();
                     GameModes.request(owner, mode, id);
                     return;
                 }
             }
-            syncState();
+            sendAllDataToRemote();
         }
     }
 }
