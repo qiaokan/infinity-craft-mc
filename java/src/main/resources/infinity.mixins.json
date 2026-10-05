@@ -14,7 +14,10 @@
     "AgentFlightAccess",
     "AgentWeaponMixin",
     "AgentPierceMixin",
-    "AgentMaceMixin"
+    "AgentMaceMixin",
+    "ClientVitalsMixin",
+    "LivingVitalsAccess",
+    "PlayerVitalsAccess"
   ],
   "injectors": {
     "defaultRequire": 1
