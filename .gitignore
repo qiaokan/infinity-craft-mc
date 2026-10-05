@@ -12,6 +12,8 @@ server/.remote/
 **/dynu-api-key.txt
 **/world/
 **/world_*/
+# GameTest worldgen fixture, not a saved world
+!java/src/gametest/resources/data/minecraft/worldgen/world_preset/
 **/eula.txt
 **/ops.json
 **/whitelist.json
