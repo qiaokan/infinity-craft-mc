@@ -40,8 +40,8 @@ final class GearCrates {
             player.getInventory().setItem(slot,new ItemStack(item));added++;
         }
         player.inventoryMenu.sendAllDataToRemote();
-        player.displayClientMessage(Component.literal("Added "+added+" armor pieces, weapons and tools directly to your inventory."
-            +(missing>0?" Clear "+missing+" slots, then use Armor & tools → inventory to collect the rest.":" Open your inventory to move or equip them; no boxes or command needed.")),false);
+        player.sendSystemMessage(Component.literal("Added "+added+" armor pieces, weapons and tools directly to your inventory."
+            +(missing>0?" Clear "+missing+" slots, then use Armor & tools → inventory to collect the rest.":" Open your inventory to move or equip them; no boxes or command needed.")));
         return missing==0?1:0;
     }
 
@@ -53,7 +53,7 @@ final class GearCrates {
         gear.add(new ItemStack(Items.FIREWORK_ROCKET,64));gear.add(new ItemStack(Items.WHEAT_SEEDS,64));
         var result=new ArrayList<ItemStack>();
         for(int start=0;start<gear.size();start+=27) {
-            var crate=new ItemStack(start==0?Items.PURPLE_SHULKER_BOX:Items.CYAN_SHULKER_BOX);
+            var crate=new ItemStack(start==0?Items.DYED_SHULKER_BOX.purple():Items.DYED_SHULKER_BOX.cyan());
             crate.set(DataComponents.CONTAINER,ItemContainerContents.fromItems(gear.subList(start,Math.min(start+27,gear.size()))));
             crate.set(DataComponents.CUSTOM_NAME,Component.literal("Convergence Set • Box "+(result.size()+1)));
             crate.set(DataComponents.LORE,new ItemLore(List.of(Component.literal("Place this box and open it to take real Infinity gear."))));
@@ -65,7 +65,7 @@ final class GearCrates {
 
     static boolean isCrate(ItemStack stack) {
         var data=stack.get(DataComponents.CUSTOM_DATA);
-        return (stack.is(Items.PURPLE_SHULKER_BOX)||stack.is(Items.CYAN_SHULKER_BOX))&&data!=null
+        return (stack.is(Items.DYED_SHULKER_BOX.purple())||stack.is(Items.DYED_SHULKER_BOX.cyan()))&&data!=null
             &&data.copyTag().getBooleanOr("infinity_gear_crate",false);
     }
 
@@ -74,10 +74,10 @@ final class GearCrates {
             || !player.inventoryMenu.getCarried().isEmpty())return 0;
         var boxes=crates();var empty=new ArrayList<Integer>();
         for(int i=0;i<36;i++)if(player.getInventory().getItem(i).isEmpty())empty.add(i);
-        if(empty.size()<boxes.size()) { player.displayClientMessage(Component.literal("Clear "+boxes.size()+" inventory slots for the Convergence Set boxes. Your items were preserved."),false);return 0; }
+        if(empty.size()<boxes.size()) { player.sendSystemMessage(Component.literal("Clear "+boxes.size()+" inventory slots for the Convergence Set boxes. Your items were preserved."));return 0; }
         for(int i=0;i<boxes.size();i++)player.getInventory().setItem(empty.get(i),boxes.get(i));
         player.inventoryMenu.sendAllDataToRemote();
-        player.displayClientMessage(Component.literal("Convergence Set added to your inventory. Place the labeled shulker boxes and open them for weapons, armor, tools and blocks."),false);return 1;
+        player.sendSystemMessage(Component.literal("Convergence Set added to your inventory. Place the labeled shulker boxes and open them for weapons, armor, tools and blocks."));return 1;
     }
 
     static void register() {

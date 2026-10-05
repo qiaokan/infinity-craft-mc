@@ -1,5 +1,6 @@
 package dev.convergence;
 
+import net.minecraft.world.entity.EntityTypes;
 import java.util.Set;
 import java.util.UUID;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
@@ -50,7 +51,7 @@ public class AgentTacticsGameTests {
             owner.setPos(start.add(-5, 0, -5));
             helpers = AgentCompanions.get(context.getLevel().getServer());
             golem = add("alpha", start);
-            target = EntityType.HUSK.create(context.getLevel(), EntitySpawnReason.COMMAND);
+            target = EntityTypes.HUSK.create(context.getLevel(), EntitySpawnReason.COMMAND);
             target.setNoAi(true); target.setPersistenceRequired();
             target.getAttribute(Attributes.MAX_HEALTH).setBaseValue(500);
             target.setHealth(500); target.setPos(start.add(5, 0, 0)); target.setOnGround(true);
@@ -268,7 +269,7 @@ public class AgentTacticsGameTests {
             var player=new ModeGameTests().player(c,"tactic-unapproved");
             try {
                 player.setGameMode(GameType.SURVIVAL);player.setPos(f.start.add(1.6,0,0));
-                var ride=EntityType.PIG.create(c.getLevel(),EntitySpawnReason.COMMAND);ride.setPos(player.position());c.getLevel().addFreshEntity(ride);player.startRiding(ride,true,false);
+                var ride=EntityTypes.PIG.create(c.getLevel(),EntitySpawnReason.COMMAND);ride.setPos(player.position());c.getLevel().addFreshEntity(ride);player.startRiding(ride,true,false);
                 AgentWeapons.spear(f.golem,f.target);
                 var original=f.target.position();
                 f.target.setPos(f.start.add(20,0,0));
@@ -321,7 +322,7 @@ public class AgentTacticsGameTests {
             var overlay=eu.pb4.polymer.core.api.entity.PolymerEntity.get(f.golem);
             c.assertTrue(overlay instanceof AgentAvatars,"Registered helper receives its own player avatar");
             var avatar=(AgentAvatars)overlay;
-            c.assertValueEqual(avatar.getPolymerEntityType(xyz.nucleoid.packettweaker.PacketContext.create(f.owner)),EntityType.PLAYER,"Both ordinary clients receive native PLAYER entity type");
+            c.assertValueEqual(avatar.getPolymerEntityType(f.owner.connection.getPacketContext()),EntityTypes.PLAYER,"Both ordinary clients receive native PLAYER entity type");
             var packets=new java.util.ArrayList<net.minecraft.network.protocol.Packet<?>>();avatar.onBeforeSpawnPacket(f.owner,packets::add);
             var profile=(net.minecraft.network.protocol.game.ClientboundPlayerInfoUpdatePacket)packets.getFirst();
             c.assertValueEqual(profile.entries().getFirst().profileId(),f.golem.getUUID(),"Player profile matches spawn UUID");
@@ -345,11 +346,11 @@ public class AgentTacticsGameTests {
                 c.assertValueEqual(decoded.entries().getFirst().profile().properties().get("textures").iterator().next(),texture,"Native wire codec preserves the signed skin property");
             } finally {buf.release();}
             var metadata=new java.util.ArrayList<net.minecraft.network.syncher.SynchedEntityData.DataValue<?>>();
-            for(var entry:eu.pb4.polymer.core.api.entity.PolymerEntityUtils.getDefaultTrackedData(EntityType.IRON_GOLEM))if(entry!=null)metadata.add(entry.value());
+            for(var entry:eu.pb4.polymer.core.api.entity.PolymerEntityUtils.getDefaultSynchedEntityData(EntityTypes.IRON_GOLEM))if(entry!=null)metadata.add(entry.value());
             avatar.modifyRawTrackedData(metadata,f.owner,true);
-            var human=eu.pb4.polymer.core.api.entity.PolymerEntityUtils.getDefaultTrackedData(EntityType.PLAYER);
+            var human=eu.pb4.polymer.core.api.entity.PolymerEntityUtils.getDefaultSynchedEntityData(EntityTypes.PLAYER);
             for(var entry:metadata)c.assertTrue(entry.id()<human.length&&human[entry.id()]!=null&&entry.serializer()==human[entry.id()].getAccessor().serializer(),"Every avatar metadata value has the native player's type");
-            var ordinary=EntityType.IRON_GOLEM.create(c.getLevel(),EntitySpawnReason.COMMAND);
+            var ordinary=EntityTypes.IRON_GOLEM.create(c.getLevel(),EntitySpawnReason.COMMAND);
             c.assertTrue(eu.pb4.polymer.core.api.entity.PolymerEntity.get(ordinary)==null,"Ordinary golems are unaffected");
             f.helpers.dismiss(f.owner,"alpha");
             c.assertTrue(avatar.viewers.isEmpty(),"Dismissal cleans profile viewers");

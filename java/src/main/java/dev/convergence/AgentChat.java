@@ -78,7 +78,7 @@ final class AgentChat {
         var position = new JsonObject();
         position.addProperty("x", owner.getBlockX()); position.addProperty("y", owner.getBlockY()); position.addProperty("z", owner.getBlockZ());
         data.add("owner_position", position);
-        data.addProperty("world_time", Math.floorMod(world.getDayTime(), 24_000));
+        data.addProperty("world_time", Math.floorMod(world.getDefaultClockTime(), 24_000));
         data.addProperty("weather", world.isThundering() ? "thunder" : world.isRaining() ? "rain" : "clear");
         data.addProperty("online_player_count", companions.server.getPlayerList().getPlayerCount());
         if (data.toString().length() > MAX_SNAPSHOT) throw new IllegalStateException("Helper snapshot exceeds its fixed-schema size limit");

@@ -15,7 +15,7 @@ import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.CropBlock;
 import net.minecraft.world.level.block.EntityBlock;
-import net.minecraft.world.level.block.FarmBlock;
+import net.minecraft.world.level.block.FarmlandBlock;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.HitResult;
@@ -101,7 +101,7 @@ final class PoweredTools {
             }
             if(!crop.isAir())continue;
             if(TILL.contains(blockId(p,at))) {
-                if(!w.setBlock(at,Blocks.FARMLAND.defaultBlockState().setValue(FarmBlock.MOISTURE,7),3))continue;
+                if(!w.setBlock(at,Blocks.FARMLAND.defaultBlockState().setValue(FarmlandBlock.MOISTURE,7),3))continue;
                 count++;
             }else if(!soil.is(Blocks.FARMLAND))continue;
             int seed=-1;

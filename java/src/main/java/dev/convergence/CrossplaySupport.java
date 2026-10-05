@@ -1,6 +1,7 @@
 package dev.convergence;
 
 import com.google.gson.GsonBuilder;
+import eu.pb4.polymer.common.api.PolymerCommonUtils;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.mojang.serialization.JsonOps;
@@ -22,6 +23,7 @@ import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.minecraft.commands.Commands;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.HolderLookup;
 import net.minecraft.core.component.DataComponentType;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -36,7 +38,7 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.Property;
-import xyz.nucleoid.packettweaker.PacketContext;
+import net.fabricmc.fabric.api.networking.v1.context.PacketContext;
 
 /** Keeps real registries and powers on Fabric; only the network representation changes. */
 final class CrossplaySupport {
@@ -95,9 +97,9 @@ final class CrossplaySupport {
             if (visual == null) throw new IllegalStateException("No Polymer block model slot for " + path);
             BLOCK_STATES.put(path, visual);
             PolymerBlock.registerOverlay(block, new PolymerTexturedBlock() {
-                public BlockState getPolymerBlockState(BlockState state, PacketContext context) { return visual; }
-                public BlockState getPolymerBreakEventBlockState(BlockState state, PacketContext context) { return visual; }
-                public boolean forceLightUpdates(BlockState state) { return ExpandedGear.light(path)>0; }
+                @Override public BlockState getPolymerBlockState(BlockState state, PacketContext context) { return visual; }
+                @Override public BlockState getPolymerBreakEventBlockState(BlockState state, PacketContext context) { return visual; }
+                @Override public boolean forceLightUpdates(BlockState state) { return ExpandedGear.light(path)>0; }
             });
             BASES.put(path, Items.NOTE_BLOCK);
         }
@@ -105,22 +107,22 @@ final class CrossplaySupport {
             Item item = Convergence.ITEMS.get("convergence:" + entry.getKey());
             if (item == null) throw new IllegalStateException("Unknown Infinity item " + entry.getKey());
             PolymerItem.registerOverlay(item, new PolymerItem() {
-                public Item getPolymerItem(ItemStack stack, PacketContext context) { return entry.getValue(); }
-                public Identifier getPolymerItemModel(ItemStack stack,PacketContext context) {
-                    boolean bedrock=bedrock(context.getPlayer());
+                @Override public Item getPolymerItem(ItemStack stack, PacketContext context) { return entry.getValue(); }
+                @Override public Identifier getPolymerItemModel(ItemStack stack,PacketContext context,HolderLookup.Provider registries) {
+                    boolean bedrock=bedrock(PolymerCommonUtils.getPlayer(context));
                     // Bedrock needs the custom model key to select its own resource mapping.
                     // Java without the downloaded pack must use an existing native icon.
                     return nativeAppearance(entry.getKey(),bedrock,PolymerResourcePackUtils.hasMainPack(context))
                         ? entry.getValue().components().get(DataComponents.ITEM_MODEL) : stack.get(DataComponents.ITEM_MODEL);
                 }
-                public void modifyBasePolymerItemStack(ItemStack out,ItemStack stack,PacketContext context) {
+                @Override public void modifyBasePolymerItemStack(ItemStack out,ItemStack stack,PacketContext context,HolderLookup.Provider registries) {
                     out.set(DataComponents.ITEM_NAME,GearNames.text(entry.getKey()));
                     // A custom Java equipment asset is invisible/missing when its pack
                     // was declined, and unsupported for native Bedrock wearable mappings.
                     // Keep a complete native wearable asset until the Java pack is loaded.
-                    wearableFallback(out,entry.getValue(),bedrock(context.getPlayer()),PolymerResourcePackUtils.hasMainPack(context));
+                    wearableFallback(out,entry.getValue(),bedrock(PolymerCommonUtils.getPlayer(context)),PolymerResourcePackUtils.hasMainPack(context));
                 }
-                public boolean handleMiningOnServer(ItemStack tool, BlockState state, BlockPos pos, ServerPlayer player) {
+                @Override public boolean handleMiningOnServer(ItemStack tool, BlockState state, BlockPos pos, ServerPlayer player) {
                     return true;
                 }
             });
@@ -151,10 +153,10 @@ final class CrossplaySupport {
         if (!name.startsWith("convergence:")) return 0;
         String path = name.substring("convergence:".length());
         if(PoweredTools.CREATIVE_TOOLS.contains(name)&&!PoweredTools.creativeAllowed(player,name)) {
-            player.displayClientMessage(Component.literal("Building wands require Creative in the Creative world; OP4 may use /gamemode creative in any world."),false);return 0;
+            player.sendSystemMessage(Component.literal("Building wands require Creative in the Creative world; OP4 may use /gamemode creative in any world."));return 0;
         }
         if (!POWER_ITEMS.contains(path) && !(alternate && path.equals("shield"))) {
-            player.displayClientMessage(Component.literal("Hold an Infinity weapon or tool; Alternate Power also casts the shield Ward."), false);
+            player.sendSystemMessage(Component.literal("Hold an Infinity weapon or tool; Alternate Power also casts the shield Ward."));
             return 0;
         }
         boolean wasSneaking = player.isShiftKeyDown();
@@ -257,14 +259,12 @@ final class CrossplaySupport {
     }
 
     static String stateIdentifier(BlockState state) {
-        String properties = state.getValues().entrySet().stream().sorted(Map.Entry.comparingByKey(
-            java.util.Comparator.comparing(Property::getName))).map(CrossplaySupport::propertyString).collect(Collectors.joining(","));
+        String properties = state.getValues().sorted(java.util.Comparator.comparing(value -> value.property().getName()))
+            .map(CrossplaySupport::propertyString).collect(Collectors.joining(","));
         return BuiltInRegistries.BLOCK.getKey(state.getBlock()) + (properties.isEmpty() ? "" : "[" + properties + "]");
     }
 
-    private static <T extends Comparable<T>> String propertyString(Map.Entry<Property<?>, Comparable<?>> entry) {
-        @SuppressWarnings("unchecked") Property<T> property = (Property<T>) entry.getKey();
-        @SuppressWarnings("unchecked") T value = (T) entry.getValue();
-        return property.getName() + "=" + property.getName(value);
+    private static String propertyString(Property.Value<?> value) {
+        return value.property().getName() + "=" + value.valueName();
     }
 }

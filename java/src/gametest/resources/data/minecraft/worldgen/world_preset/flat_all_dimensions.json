@@ -5,7 +5,7 @@
       "generator": {
         "type": "minecraft:flat",
         "settings": {
-          "biome": "minecraft:plains",
+          "biome": "minecraft:desert",
           "features": false,
           "lakes": false,
           "layers": [
@@ -14,17 +14,9 @@
               "height": 1
             },
             {
-              "block": "minecraft:dirt",
-              "height": 2
-            },
-            {
-              "block": "minecraft:grass_block",
-              "height": 1
+              "block": "minecraft:sandstone",
+              "height": 67
             }
-          ],
-          "structure_overrides": [
-            "minecraft:strongholds",
-            "minecraft:villages"
           ]
         }
       }
@@ -32,36 +24,46 @@
     "minecraft:the_end": {
       "type": "minecraft:the_end",
       "generator": {
-        "type": "minecraft:noise",
-        "biome_source": {
-          "type": "minecraft:the_end"
-        },
-        "settings": "minecraft:end"
+        "type": "minecraft:flat",
+        "settings": {
+          "biome": "minecraft:the_end",
+          "features": false,
+          "lakes": false,
+          "layers": [
+            {
+              "block": "minecraft:bedrock",
+              "height": 1
+            },
+            {
+              "block": "minecraft:end_stone",
+              "height": 3
+            }
+          ]
+        }
       }
     },
     "minecraft:the_nether": {
       "type": "minecraft:the_nether",
       "generator": {
-        "type": "minecraft:noise",
-        "biome_source": {
-          "type": "minecraft:multi_noise",
-          "preset": "minecraft:nether"
-        },
-        "settings": "minecraft:nether"
+        "type": "minecraft:flat",
+        "settings": {
+          "biome": "minecraft:basalt_deltas",
+          "features": false,
+          "lakes": false,
+          "layers": [
+            {
+              "block": "minecraft:bedrock",
+              "height": 1
+            },
+            {
+              "block": "minecraft:basalt",
+              "height": 3
+            }
+          ]
+        }
       }
     },
-    "convergence:hardcore": {
-      "type": "minecraft:overworld",
-      "generator": {
-        "type": "minecraft:noise",
-        "biome_source": {
-          "type": "minecraft:multi_noise",
-          "preset": "minecraft:overworld"
-        },
-        "settings": "minecraft:overworld"
-      }
-    },
-    "convergence:minigames": {
+    "convergence:adventure": {
       "type": "minecraft:overworld",
       "generator": {
         "type": "minecraft:flat",
@@ -100,7 +102,18 @@
         }
       }
     },
-    "convergence:adventure": {
+    "convergence:hardcore": {
+      "type": "minecraft:overworld",
+      "generator": {
+        "type": "minecraft:noise",
+        "biome_source": {
+          "type": "minecraft:multi_noise",
+          "preset": "minecraft:overworld"
+        },
+        "settings": "minecraft:overworld"
+      }
+    },
+    "convergence:hub": {
       "type": "minecraft:overworld",
       "generator": {
         "type": "minecraft:flat",
@@ -113,7 +126,7 @@
         }
       }
     },
-    "convergence:hub": {
+    "convergence:minigames": {
       "type": "minecraft:overworld",
       "generator": {
         "type": "minecraft:flat",

@@ -1,5 +1,6 @@
 package dev.convergence;
 
+import net.minecraft.world.entity.EntityTypes;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.gametest.framework.GameTestHelper;
@@ -362,7 +363,7 @@ public class AdminStatsGameTests {
         var actor=owner(c,"armor-protect-op");var target=player(c,"armor-protect");var ordinary=player(c,"armor-ordinary");
         try {
             set(c,actor.createCommandSourceStack(),target,"armor",500);
-            var attacker=net.minecraft.world.entity.EntityType.ZOMBIE.create(c.getLevel(),net.minecraft.world.entity.EntitySpawnReason.COMMAND);
+            var attacker=net.minecraft.world.entity.EntityTypes.ZOMBIE.create(c.getLevel(),net.minecraft.world.entity.EntitySpawnReason.COMMAND);
             var source=target.damageSources().mobAttack(attacker);
             c.assertValueEqual(net.minecraft.world.damagesource.CombatRules.getDamageAfterAbsorb(target,10,source,500,0),0f,"Expanded armor exceeds the native 80 percent ceiling without negative damage");
             ordinary.getAttribute(Attributes.ARMOR).setBaseValue(500);
@@ -372,7 +373,7 @@ public class AdminStatsGameTests {
             var saved=save(target);read(target,saved);
             c.assertValueEqual(target.getAttributeValue(Attributes.ARMOR),500d,"Native reload keeps the edited armor number");
             c.assertValueEqual(net.minecraft.world.damagesource.CombatRules.getDamageAfterAbsorb(target,10,source,500,0),0f,"Reload keeps expanded protection enabled");
-            target.invulnerableTime=0;
+            target.damageCooldownTime=0;
             target.hurtServer(c.getLevel(),target.damageSources().genericKill(),2);
             c.assertValueEqual(target.getHealth(),18f,"Native damage that bypasses armor still bypasses it");
             c.assertTrue(AdminStats.reset(actor.createCommandSourceStack(),target,"armor").success(),"Armor reset succeeds");

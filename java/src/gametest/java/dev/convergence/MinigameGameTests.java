@@ -48,12 +48,12 @@ public class MinigameGameTests {
             c.assertTrue(CommunityServer.safe(p.level(),CommunityServer.Place.of(p)),"Dropper starts on dry solid ground");
             var world=p.level();
             c.assertTrue(world.getBlockState(new BlockPos(165,100,0)).isAir(),"Dropper first hole is open");
-            c.assertTrue(world.getBlockState(new BlockPos(155,100,0)).is(Blocks.YELLOW_CONCRETE),"First colored obstacle exists");
+            c.assertTrue(world.getBlockState(new BlockPos(155,100,0)).is(Blocks.CONCRETE.yellow()),"First colored obstacle exists");
             c.assertTrue(world.getBlockState(new BlockPos(161,42,-4)).is(Blocks.WATER),"Catch pool is nine blocks wide");
             ModeMaps.begin(p,"redlight");
             c.assertTrue(CommunityServer.safe(world,CommunityServer.Place.of(p)),"Red Light Run starts on dry solid ground");
-            c.assertTrue(world.getBlockState(new BlockPos(225,82,-4)).is(Blocks.LIME_CONCRETE),"Race has visible green lights");
-            c.assertTrue(world.getBlockState(new BlockPos(225,84,-4)).is(Blocks.RED_CONCRETE),"Race has visible red lights");
+            c.assertTrue(world.getBlockState(new BlockPos(225,82,-4)).is(Blocks.CONCRETE.lime()),"Race has visible green lights");
+            c.assertTrue(world.getBlockState(new BlockPos(225,84,-4)).is(Blocks.CONCRETE.red()),"Race has visible red lights");
             for(String id:new String[]{"parkour","sprint","ruins","maze"})c.assertValueEqual(ModeMaps.MAPS.get(id).kind(),ModeMaps.Kind.CHECKPOINTS,"Existing course preserved: "+id);
             var root=c.getLevel().getServer().getCommands().getDispatcher().getRoot();
             c.assertTrue(root.getChild("minigame").getChild("dropper")!=null,"Dropper command registered");
@@ -68,7 +68,7 @@ public class MinigameGameTests {
             c.assertTrue(CommunityServer.safe(world,CommunityServer.Place.of(p)),"Color Rush starts on dry solid ground");
             c.assertValueEqual(ModeMaps.MAPS.get("colorrush").kind(),ModeMaps.Kind.COLOR_RUSH,"Color Rush has timed pad mechanics");
             c.assertTrue(world.getBlockState(ModeMaps.start("colorrush").below()).is(Blocks.SEA_LANTERN),"Color Rush start opens selector");
-            c.assertTrue(world.getBlockState(ModeMaps.MAPS.get("colorrush").points().get(1).below().west()).is(Blocks.RED_CONCRETE),"Red pad has visible floor color");
+            c.assertTrue(world.getBlockState(ModeMaps.MAPS.get("colorrush").points().get(1).below().west()).is(Blocks.CONCRETE.red()),"Red pad has visible floor color");
             c.assertTrue(root.getChild("minigame").getChild("crystalhunt")!=null,"Crystal Hunt command registered");
             c.assertTrue(root.getChild("minigame").getChild("colorrush")!=null,"Color Rush command registered");
             c.assertTrue(root.getChild("retry").getChild("colorrush")!=null,"Color Rush replay registered");

@@ -47,10 +47,12 @@ final class BackpackStorage {
     static void registerItems() {
         var key=ResourceKey.create(Registries.ITEM,Identifier.fromNamespaceAndPath("convergence","backpack"));
         var settings=new Item.Properties().setId(key).stacksTo(1);
-        for(TypedDataComponent<?> component:Items.LEATHER_CHESTPLATE.components())
-            if(component.type()!=DataComponents.ITEM_NAME&&component.type()!=DataComponents.ITEM_MODEL
-                &&component.type()!=DataComponents.ATTRIBUTE_MODIFIERS&&component.type()!=DataComponents.MAX_DAMAGE
-                &&component.type()!=DataComponents.DAMAGE&&component.type()!=DataComponents.EQUIPPABLE)Convergence.copy(settings,component);
+        BaseComponents.then(settings,Items.LEATHER_CHESTPLATE,(builder,defaults)->{
+            for(TypedDataComponent<?> component:defaults)
+                if(component.type()!=DataComponents.ITEM_NAME&&component.type()!=DataComponents.ITEM_MODEL
+                    &&component.type()!=DataComponents.ATTRIBUTE_MODIFIERS&&component.type()!=DataComponents.MAX_DAMAGE
+                    &&component.type()!=DataComponents.DAMAGE&&component.type()!=DataComponents.EQUIPPABLE)BaseComponents.copy(builder,component);
+        });
         ResourceKey<EquipmentAsset> asset=ResourceKey.create(ResourceKey.createRegistryKey(Identifier.fromNamespaceAndPath("minecraft","equipment_asset")),Identifier.fromNamespaceAndPath("convergence","backpack"));
         settings.attributes(ItemAttributeModifiers.builder().build());
         settings.component(DataComponents.EQUIPPABLE,Equippable.builder(EquipmentSlot.CHEST).setAsset(asset).setDamageOnHurt(false).build());

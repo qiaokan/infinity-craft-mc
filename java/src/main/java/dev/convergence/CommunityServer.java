@@ -118,7 +118,7 @@ final class CommunityServer {
     }
     static boolean validName(String name) { return name != null && name.matches("[a-z0-9_-]{1,24}"); }
     static boolean staff(CommandSourceStack source) { return source.permissions().hasPermission(new HasCommandLevel(PermissionLevel.GAMEMASTERS)); }
-    static int say(ServerPlayer p, String message) { p.displayClientMessage(Component.literal("[Infinity] ").withStyle(ChatFormatting.AQUA).append(Component.literal(message).withStyle(ChatFormatting.WHITE)), false); return 1; }
+    static int say(ServerPlayer p, String message) { p.sendSystemMessage(Component.literal("[Infinity] ").withStyle(ChatFormatting.AQUA).append(Component.literal(message).withStyle(ChatFormatting.WHITE))); return 1; }
     static int info(CommandSourceStack source, String message) { source.sendSuccess(() -> Component.literal(message), false); return 1; }
 
     static void register() {

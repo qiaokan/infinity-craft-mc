@@ -86,7 +86,7 @@ public final class AdminStats {
     }
     public static List<Stat> list(LivingEntity target) {
         var result=new ArrayList<Stat>();
-        result.add(new Stat("health","Current health",Items.RED_DYE,0,target.getMaxHealth(),1,false,false));
+        result.add(new Stat("health","Current health",Items.DYE.red(),0,target.getMaxHealth(),1,false,false));
         if(target instanceof ServerPlayer player) {
         result.add(new Stat("food","Food",Items.COOKED_BEEF,0,Integer.MAX_VALUE,1,true,false));
         result.add(new Stat("saturation","Saturation",Items.GOLDEN_CARROT,0,Float.MAX_VALUE,1,false,false));

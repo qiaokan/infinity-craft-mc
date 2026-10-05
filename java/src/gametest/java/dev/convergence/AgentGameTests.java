@@ -1,5 +1,6 @@
 package dev.convergence;
 
+import net.minecraft.world.entity.EntityTypes;
 import dev.convergence.mixin.AgentGoalAccess;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -96,7 +97,7 @@ public class AgentGameTests {
         var mobs=new IronGolem[3];
         try {
             for(int i=0;i<3;i++) {
-                mobs[i]=EntityType.IRON_GOLEM.create(c.getLevel(),EntitySpawnReason.COMMAND);mobs[i].setUUID(ids[i]);
+                mobs[i]=EntityTypes.IRON_GOLEM.create(c.getLevel(),EntitySpawnReason.COMMAND);mobs[i].setUUID(ids[i]);
                 isolated.loaded.put(ids[i],mobs[i]);
             }
             // Deliberately build a root with two children. TreeMap.remove changes
@@ -132,7 +133,12 @@ public class AgentGameTests {
         var helpers = AgentCompanions.get(c.getLevel().getServer());
         var destination = GameModes.world(helpers.server, GameModes.Mode.HARDCORE);
         boolean[] waiting={false};
+        // A real owner keeps its arrival chunk entity-ticking; since 26.1 an embedded test player's
+        // ticket can land a tick later, which would save the arriving helper into the chunk instead.
+        var arrival = net.minecraft.world.level.ChunkPos.containing(owner.blockPosition());
+        Runnable release = () -> {cleanup(helpers, owner); destination.setChunkForced(arrival.x(), arrival.z(), false);};
         try {
+            destination.setChunkForced(arrival.x(), arrival.z(), true);
             var helper = golem(helpers, owner, "traveler");
             var id = helper.getUUID();
             helpers.profile(owner, "traveler", AgentCompanions.Profile.ULTIMATE_FINALS);
@@ -175,17 +181,17 @@ public class AgentGameTests {
                     c.assertTrue((oldWorldEntity==null || oldWorldEntity.isRemoved()) && destination.getEntity(id)==moved && !moved.isRemoved(),
                         "After native chunk/entity tracking updates, exactly one live world entity has the same UUID. source="+oldWorldEntity+" destination="+destination.getEntity(id)+" removed="+moved.isRemoved()+" age="+moved.tickCount+" ready="+destination.isPositionEntityTicking(moved.blockPosition()));
                     c.succeed();
-                } finally {cleanup(helpers,owner);}
+                } finally {release.run();}
             });
             waiting[0]=true;
-        } finally { if(!waiting[0])cleanup(helpers, owner); }
+        } finally { if(!waiting[0])release.run(); }
     }
     @GameTest public void recallRefusesForeignRevokedDeadUnloadedAndUnsafeScaledHelpers(GameTestHelper c) throws Exception {
         var owner = player(c, "recall-checks");
         var other = player(c, "recall-other");
         var helpers = AgentCompanions.get(c.getLevel().getServer());
         IronGolem helper = null;
-        var passenger = EntityType.PIG.create(c.getLevel(), EntitySpawnReason.COMMAND);
+        var passenger = EntityTypes.PIG.create(c.getLevel(), EntitySpawnReason.COMMAND);
         try {
             helper = golem(helpers, owner, "checked");
             helpers.mode(owner, "checked", AgentCompanions.Mode.STAY);
@@ -265,12 +271,12 @@ public class AgentGameTests {
             c.assertValueEqual(AgentCompanions.read(s.file).agents.get(record.getKey()).mode(), AgentCompanions.Mode.GUARD, "Guard mode and ownership survive roster reload");
             c.assertValueEqual(AgentCompanions.read(s.file).agents.get(record.getKey()).profile(), AgentCompanions.Profile.ULTIMATE_FINALS, "Profile survives roster reload");
             var write = TagValueOutput.createWithContext(ProblemReporter.DISCARDING, c.getLevel().registryAccess()); golem.saveWithoutId(write);
-            var restored = EntityType.IRON_GOLEM.create(c.getLevel(), EntitySpawnReason.LOAD);
+            var restored = EntityTypes.IRON_GOLEM.create(c.getLevel(), EntitySpawnReason.LOAD);
             restored.load(TagValueInput.create(ProblemReporter.DISCARDING, c.getLevel().registryAccess(), write.buildResult()));
-            c.assertTrue(restored.getTags().contains(AgentCompanions.TAG), "Vanilla Tags preserve identity after entity NBT roundtrip");
-            c.assertTrue(restored.getTags().contains("infinity_owner_" + p.getStringUUID()), "Owner is identifiable in vanilla NBT");
-            c.assertTrue(restored.getTags().contains("infinity_mode_guard"), "Mode is identifiable in vanilla NBT");
-            c.assertTrue(restored.getTags().contains("infinity_profile_ultimate_finals"), "Profile is identifiable in vanilla NBT");
+            c.assertTrue(restored.entityTags().contains(AgentCompanions.TAG), "Vanilla Tags preserve identity after entity NBT roundtrip");
+            c.assertTrue(restored.entityTags().contains("infinity_owner_" + p.getStringUUID()), "Owner is identifiable in vanilla NBT");
+            c.assertTrue(restored.entityTags().contains("infinity_mode_guard"), "Mode is identifiable in vanilla NBT");
+            c.assertTrue(restored.entityTags().contains("infinity_profile_ultimate_finals"), "Profile is identifiable in vanilla NBT");
             golem.discard(); s.load(restored);
             c.assertTrue(restored.isPersistenceRequired(), "Loaded helper does not despawn");
             c.assertTrue(((AgentGoalAccess) restored).infinity$getTargetSelector().getAvailableGoals().isEmpty(), "Reload removes vanilla revenge and village targeting");
@@ -294,7 +300,7 @@ public class AgentGameTests {
                 if (c.getLevel().setChunkForced(x, z, true)) forced.add(new net.minecraft.world.level.ChunkPos(x, z));
         Runnable finish = () -> {
             try { cleanup(s, p); }
-            finally { for (var chunk : forced) c.getLevel().setChunkForced(chunk.x, chunk.z, false); }
+            finally { for (var chunk : forced) c.getLevel().setChunkForced(chunk.x(), chunk.z(), false); }
         };
         final IronGolem golem;
         try {
@@ -322,11 +328,13 @@ public class AgentGameTests {
     }
     @GameTest public void helpersAttackHostilesAndNeverDamagePlayersOrPets(GameTestHelper c) {
         var p = player(c, "helper-combat"); var s = AgentCompanions.get(c.getLevel().getServer());
-        var wolf = EntityType.WOLF.create(c.getLevel(), EntitySpawnReason.COMMAND);
-        var zombie = EntityType.ZOMBIE.create(c.getLevel(), EntitySpawnReason.COMMAND);
+        var wolf = EntityTypes.WOLF.create(c.getLevel(), EntitySpawnReason.COMMAND);
+        var zombie = EntityTypes.ZOMBIE.create(c.getLevel(), EntitySpawnReason.COMMAND);
         try {
             var golem = golem(s, p, "shield"); wolf.setPos(golem.position()); wolf.tame(p); c.getLevel().addFreshEntity(wolf);
             zombie.setPos(golem.position().add(1, 0, 0)); zombie.setNoAi(true); c.getLevel().addFreshEntity(zombie);
+            // Golem hits roll up to 21 damage; since 26.1 getTarget() drops a target that died.
+            zombie.getAttribute(Attributes.MAX_HEALTH).setBaseValue(100); zombie.setHealth(100);
             float playerHealth = p.getHealth(), petHealth = wolf.getHealth(), hostileHealth = zombie.getHealth();
             golem.setTarget(p); c.assertFalse(golem.doHurtTarget(c.getLevel(), p), "Real golem attack on player is blocked");
             c.assertValueEqual(p.getHealth(), playerHealth, "Player health unchanged");
@@ -346,8 +354,8 @@ public class AgentGameTests {
     }
     @GameTest public void followingHelpersPrioritizeThreatsToOwner(GameTestHelper c) {
         var p = player(c, "helper-protect"); var s = AgentCompanions.get(c.getLevel().getServer());
-        var nearby = EntityType.ZOMBIE.create(c.getLevel(), EntitySpawnReason.COMMAND);
-        var threat = EntityType.ZOMBIE.create(c.getLevel(), EntitySpawnReason.COMMAND);
+        var nearby = EntityTypes.ZOMBIE.create(c.getLevel(), EntitySpawnReason.COMMAND);
+        var threat = EntityTypes.ZOMBIE.create(c.getLevel(), EntitySpawnReason.COMMAND);
         try {
             var golem = golem(s, p, "protector");
             golem.setPos(p.position().add(1, 0, 0));
@@ -508,7 +516,7 @@ public class AgentGameTests {
     }
     @GameTest public void passiveProfilesDisableEvenForcedHostileDamage(GameTestHelper c) {
         var p = player(c, "helper-passive"); var s = AgentCompanions.get(c.getLevel().getServer());
-        var zombie = EntityType.ZOMBIE.create(c.getLevel(), EntitySpawnReason.COMMAND);
+        var zombie = EntityTypes.ZOMBIE.create(c.getLevel(), EntitySpawnReason.COMMAND);
         try {
             var golem = golem(s, p, "observer"); zombie.setPos(golem.position().add(1, 0, 0)); zombie.setNoAi(true); c.getLevel().addFreshEntity(zombie);
             float health = zombie.getHealth();
@@ -518,15 +526,15 @@ public class AgentGameTests {
                 golem.setTarget(zombie); c.assertFalse(golem.doHurtTarget(c.getLevel(), zombie), "Independent damage gate blocks forced attacks for " + profile);
                 c.assertValueEqual(zombie.getHealth(), health, "Passive forced attack causes no damage");
             }
-            String saved = CommunityServer.GSON.toJson(s.data); var tags = Set.copyOf(golem.getTags());
+            String saved = CommunityServer.GSON.toJson(s.data); var tags = Set.copyOf(golem.entityTags());
             s.status(p, "observer"); c.assertValueEqual(CommunityServer.GSON.toJson(s.data), saved, "Status diagnostics cannot change saved helper state");
-            c.assertValueEqual(golem.getTags(), tags, "Status diagnostics do not mutate tags");
+            c.assertValueEqual(golem.entityTags(), tags, "Status diagnostics do not mutate tags");
         } finally { zombie.discard(); cleanup(s, p); }
         c.succeed();
     }
     @GameTest public void primitiveProfileIsReadyToAttackAtLongerSensingRange(GameTestHelper c) {
         var p = player(c, "helper-primitive"); var s = AgentCompanions.get(c.getLevel().getServer());
-        var zombie = EntityType.ZOMBIE.create(c.getLevel(), EntitySpawnReason.COMMAND);
+        var zombie = EntityTypes.ZOMBIE.create(c.getLevel(), EntitySpawnReason.COMMAND);
         try {
             var golem = golem(s, p, "fighter"); golem.setPos(p.position().add(1, 0, 0));
             zombie.setPos(p.position().add(11, 0, 0)); zombie.setNoAi(true); c.getLevel().addFreshEntity(zombie);
@@ -540,7 +548,7 @@ public class AgentGameTests {
     }
     @GameTest public void ultimateFinalsSquadSharesFocusAndFlanksHostiles(GameTestHelper c) {
         var p = player(c, "helper-hive"); var s = AgentCompanions.get(c.getLevel().getServer());
-        var focus = EntityType.ZOMBIE.create(c.getLevel(), EntitySpawnReason.COMMAND); var closer = EntityType.ZOMBIE.create(c.getLevel(), EntitySpawnReason.COMMAND);
+        var focus = EntityTypes.ZOMBIE.create(c.getLevel(), EntitySpawnReason.COMMAND); var closer = EntityTypes.ZOMBIE.create(c.getLevel(), EntitySpawnReason.COMMAND);
         try {
             var first = golem(s, p, "alpha"); var second = golem(s, p, "beta");
             s.profile(p, "alpha", AgentCompanions.Profile.ULTIMATE_FINALS); s.profile(p, "beta", AgentCompanions.Profile.ULTIMATE_FINALS);
@@ -559,7 +567,7 @@ public class AgentGameTests {
     }
     @GameTest public void approvedPlayerTargetCoordinatesAggressiveProfilesAndKeepsRegularUnchanged(GameTestHelper c) {
         var owner = player(c, "hive-owner"); var target = player(c, "hive-target"); var bystander = player(c, "hive-bystander");
-        var s = AgentCompanions.get(c.getLevel().getServer()); var zombie = EntityType.ZOMBIE.create(c.getLevel(), EntitySpawnReason.COMMAND);
+        var s = AgentCompanions.get(c.getLevel().getServer()); var zombie = EntityTypes.ZOMBIE.create(c.getLevel(), EntitySpawnReason.COMMAND);
         boolean pvp = c.getLevel().getGameRules().get(GameRules.PVP);
         try {
             c.getLevel().getGameRules().set(GameRules.PVP, true, s.server);
@@ -794,7 +802,7 @@ public class AgentGameTests {
     }
     @GameTest public void flankSlotsOnlyCountNearbyPeersEngagingTheSameTarget(GameTestHelper c) {
         var owner = player(c, "hive-flank-owner"); var s = AgentCompanions.get(c.getLevel().getServer());
-        var focus = EntityType.ZOMBIE.create(c.getLevel(), EntitySpawnReason.COMMAND); var alternative = EntityType.ZOMBIE.create(c.getLevel(), EntitySpawnReason.COMMAND);
+        var focus = EntityTypes.ZOMBIE.create(c.getLevel(), EntitySpawnReason.COMMAND); var alternative = EntityTypes.ZOMBIE.create(c.getLevel(), EntitySpawnReason.COMMAND);
         try {
             var first = golem(s, owner, "alpha"); var second = golem(s, owner, "beta"); var distant = golem(s, owner, "distant"); var otherFight = golem(s, owner, "other");
             for (String name : new String[]{"alpha", "beta", "distant", "other"}) s.profile(owner, name, AgentCompanions.Profile.ULTIMATE_FINALS);

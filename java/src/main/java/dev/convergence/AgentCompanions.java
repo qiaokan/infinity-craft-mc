@@ -1,6 +1,7 @@
 package dev.convergence;
 
 import com.mojang.brigadier.arguments.StringArgumentType;
+import net.minecraft.world.entity.EntityTypes;
 import com.google.gson.JsonParser;
 import dev.convergence.mixin.AgentGoalAccess;
 import java.nio.file.Path;
@@ -10,7 +11,7 @@ import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerEntityEvents;
 import net.fabricmc.fabric.api.entity.event.v1.ServerLivingEntityEvents;
 import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
-import net.fabricmc.fabric.api.entity.event.v1.ServerEntityWorldChangeEvents;
+import net.fabricmc.fabric.api.entity.event.v1.ServerEntityLevelChangeEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.minecraft.commands.CommandSourceStack;
@@ -48,6 +49,8 @@ public final class AgentCompanions {
     static final long PLAYER_TARGET_LIFETIME_MS = 5 * 60_000L;
     static final String HELP = "Open /agent or /agent menu for helper controls. /agent spawn <name>, /agent profile <name> <primitive|regular|ultimate_finals|debug|cli|api>, /agent follow <name>, /agent guard <name>, /agent stay <name>, /agent squad <follow|guard|stay>, /agent status <name>, /agent recall <name>, /agent dismiss <name>, /agent list. Names: 1–24 lowercase letters/numbers, - or _. 6 per OP4 owner; 24 server-wide, including unloaded helpers. Primitive proactively attacks nearby hostile mobs; Regular follows/guards and prioritizes owner threats. Ultimate Finals shares squad focus, charges with a real native spear, briefly glides with an equipped elytra, then stops gliding and switches to a real mace for a falling smash. Helpers use native player avatars that show their equipped weapons and elytra. /agent target <player> proposes an exact player target for Primitive and Ultimate Finals, requiring owner approval and live Codex approval before combat. PvP and team rules apply; /agent ceasefire stops it immediately. Player orders expire after five minutes, session/life/dimension or permission changes, owner-target distance beyond 48 blocks, or no usable aggressive helpers. Follow can pursue beyond the 24-block damage limit and around walls; swings require clear sight. Guard waits outside its 14-block anchor range. Helpers never attack pets. Debug, CLI, and API are passive physical profiles. /agent data <name> shows limited live data; /agent ask <name> <question> asks a helper; /agent code <name> <request> queues a code request for owner and live Codex review. Follow pauses beyond 48 blocks; return nearby to resume. Helpers pause while you are offline, dead, without OP4, or in another dimension; they never automatically teleport or load chunks. Bring here in the helper menu (or /agent recall <name>) explicitly moves an already loaded helper beside you, preserves its health, stats and profile, and clears your squad's player-target orders and pending target approvals. Safe server actions: /agent suggest <request>, /agent pending, /agent approve <id>, /agent cancel <id>. An action runs only after your approval and live Codex review.";
     static final Map<MinecraftServer, AgentCompanions> INSTANCES = new WeakHashMap<>();
+    /** Player each helper may target. Since 26.1 Mob.get/setTarget re-check canAttack, which refuses players for player-built golems. */
+    private static final Map<IronGolem, ServerPlayer> APPROVED_TARGETS = new WeakHashMap<>();
     final MinecraftServer server;
     final Path file;
     final Data data;
@@ -168,7 +171,7 @@ public final class AgentCompanions {
     }
     static boolean validName(String name) { return name != null && name.matches("[a-z0-9_-]{1,24}"); }
     static boolean operator(CommandSourceStack source) { return source.permissions().hasPermission(new HasCommandLevel(PermissionLevel.OWNERS)); }
-    static boolean isAgent(Entity entity) { return entity instanceof IronGolem && entity.getTags().contains(TAG); }
+    static boolean isAgent(Entity entity) { return entity instanceof IronGolem && entity.entityTags().contains(TAG); }
     public static boolean registeredHelper(Entity entity) { return isAgent(entity); }
     public static boolean weaponCombat(Entity entity) {
         if(!isAgent(entity) || !(entity.level() instanceof ServerLevel world))return false;
@@ -183,11 +186,15 @@ public final class AgentCompanions {
             // Native charging uses an eye ray, whereas MobEntity's melee box has
             // a different minimum-range dead zone. Recompute the exact native ray;
             // do not reject a legitimate charge or permit a forced distant hit.
-            var hits=net.minecraft.world.entity.projectile.ProjectileUtil.getHitEntitiesAlong(golem,golem.entityAttackRange(),
+            var hits=net.minecraft.world.entity.projectile.ProjectileUtil.getHitEntitiesAlong(golem,golem.getAttackRangeWith(golem.getActiveItem()),
                 entity->entity==target,net.minecraft.world.level.ClipContext.Block.COLLIDER);
             return hits.map(left->false,right->right.stream().anyMatch(hit->hit.getEntity()==target));
         }
         return golem.isWithinMeleeAttackRange(target);
+    }
+    /** Only the exact player chosen by control() from a validated order; damage keeps its separate approval gate. */
+    public static boolean approvedPlayerTarget(IronGolem golem, LivingEntity target) {
+        return target != null && APPROVED_TARGETS.get(golem) == target;
     }
     public static boolean weaponTarget(Entity attacker,Entity target) {
         return attacker instanceof IronGolem golem && target instanceof LivingEntity living
@@ -223,11 +230,11 @@ public final class AgentCompanions {
         golem.removeFreeWill();
         ((AgentGoalAccess) golem).infinity$getTargetSelector().removeAllGoals(goal -> true);
         golem.setPlayerCreated(true); golem.setPersistenceRequired(); golem.setCanPickUpLoot(false);
-        golem.setTarget(null); golem.setLastHurtByMob(null); golem.setPersistentAngerTarget(null); golem.setPersistentAngerEndTime(0);
+        APPROVED_TARGETS.remove(golem); golem.setTarget(null); golem.setLastHurtByMob(null); golem.setPersistentAngerTarget(null); golem.setPersistentAngerEndTime(0);
         golem.getNavigation().stop();
     }
     void tags(IronGolem golem, Agent agent) {
-        new HashSet<>(golem.getTags()).stream().filter(t -> t.startsWith("infinity_owner_") || t.startsWith("infinity_name_") || t.startsWith("infinity_mode_") || t.startsWith("infinity_profile_")).forEach(golem::removeTag);
+        new HashSet<>(golem.entityTags()).stream().filter(t -> t.startsWith("infinity_owner_") || t.startsWith("infinity_name_") || t.startsWith("infinity_mode_") || t.startsWith("infinity_profile_")).forEach(golem::removeTag);
         golem.addTag(TAG); golem.addTag("infinity_owner_" + agent.owner);
         golem.addTag("infinity_name_" + agent.name); golem.addTag("infinity_mode_" + agent.mode.name().toLowerCase(Locale.ROOT));
         golem.addTag("infinity_profile_" + agent.profile.id());
@@ -410,7 +417,7 @@ public final class AgentCompanions {
         if (data.agents.size() >= GLOBAL_LIMIT) return reply(owner, "The server has " + GLOBAL_LIMIT + " helpers, including unloaded helpers. Dismiss a helper to free a slot.");
         Vec3 place = spawnPlace(owner);
         if (place == null) return reply(owner, "No clear solid ground nearby for a golem. Move to an open area.");
-        IronGolem golem = EntityType.IRON_GOLEM.create(owner.level(), EntitySpawnReason.COMMAND);
+        IronGolem golem = EntityTypes.IRON_GOLEM.create(owner.level(), EntitySpawnReason.COMMAND);
         if (golem == null) return reply(owner, "Could not create a helper.");
         golem.setPos(place); prepare(golem);
         Agent agent = new Agent(owner.getStringUUID(), name, Mode.FOLLOW, owner.level().dimension().identifier().toString(), place.x, place.y, place.z);
@@ -513,7 +520,7 @@ public final class AgentCompanions {
     }
     void halt(IronGolem golem) {
         cancelAerial(golem);
-        golem.setTarget(null); golem.setLastHurtByMob(null); golem.setPersistentAngerTarget(null); golem.setPersistentAngerEndTime(0); golem.getNavigation().stop(); golem.stopInPlace();
+        APPROVED_TARGETS.remove(golem); golem.setTarget(null); golem.setLastHurtByMob(null); golem.setPersistentAngerTarget(null); golem.setPersistentAngerEndTime(0); golem.getNavigation().stop(); golem.stopInPlace();
     }
     void tick() {
         validatePlayerTargets();
@@ -542,7 +549,7 @@ public final class AgentCompanions {
         double leash = agent.mode == Mode.FOLLOW ? 48 : 14;
         if (golem.position().distanceToSqr(center) > leash * leash) {
             cancelAerial(golem);
-            golem.setTarget(null);
+            APPROVED_TARGETS.remove(golem); golem.setTarget(null);
             if (agent.mode == Mode.GUARD) golem.getNavigation().moveTo(center.x, center.y, center.z, 1);
             else halt(golem);
             return;
@@ -557,6 +564,8 @@ public final class AgentCompanions {
                 .thenComparingInt(mob -> agent.profile == Profile.ULTIMATE_FINALS ? sharedFocusRank(golem, agent, owner, mob) : 0)
                 .thenComparingDouble(mob -> mob.distanceToSqr(agent.profile == Profile.ULTIMATE_FINALS ? owner : golem))
                 .thenComparing(Mob::getUUID)).orElse(null);
+        if (target instanceof ServerPlayer player) APPROVED_TARGETS.put(golem, player);
+        else APPROVED_TARGETS.remove(golem);
         golem.setTarget(target);
         if (target != null) {
             golem.lookAt(target, 30, 30);
@@ -564,7 +573,7 @@ public final class AgentCompanions {
                 AgentWeapons.spear(golem,target);
                 // Spears have a real minimum reach. Use a mace once the target
                 // closes inside that reach instead of charging harmlessly at point blank.
-                double closeRange=golem.entityAttackRange().effectiveMinRange(golem)+(golem.getBbWidth()+target.getBbWidth())*.5;
+                double closeRange=golem.getAttackRangeWith(golem.getActiveItem()).effectiveMinRange(golem)+(golem.getBbWidth()+target.getBbWidth())*.5;
                 if(!golem.isWithinMeleeAttackRange(target) && golem.distanceToSqr(target)<closeRange*closeRange) {
                     AgentWeapons.mace(golem,target);
                     golem.getNavigation().moveTo(target,1.1);
@@ -773,7 +782,7 @@ public final class AgentCompanions {
         });
         ServerPlayerEvents.LEAVE.register(player -> get(player.level().getServer()).invalidatePlayer(player));
         ServerPlayerEvents.AFTER_RESPAWN.register((oldPlayer, player, alive) -> get(player.level().getServer()).invalidatePlayer(oldPlayer));
-        ServerEntityWorldChangeEvents.AFTER_PLAYER_CHANGE_WORLD.register((player, origin, destination) -> get(destination.getServer()).invalidatePlayer(player));
+        ServerEntityLevelChangeEvents.AFTER_PLAYER_CHANGE_LEVEL.register((player, origin, destination) -> get(destination.getServer()).invalidatePlayer(player));
         ServerLivingEntityEvents.AFTER_DEATH.register((entity, source) -> {
             if (entity instanceof ServerPlayer player) get(player.level().getServer()).invalidatePlayer(player);
             if (isAgent(entity) && entity.level() instanceof ServerLevel world) {

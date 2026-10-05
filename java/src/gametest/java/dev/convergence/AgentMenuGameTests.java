@@ -10,7 +10,7 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.permissions.LevelBasedPermissionSet;
 import net.minecraft.world.inventory.AbstractContainerMenu;
-import net.minecraft.world.inventory.ClickType;
+import net.minecraft.world.inventory.ContainerInput;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.GameType;
@@ -64,7 +64,7 @@ public class AgentMenuGameTests {
 
     private AgentMenu.Handler menu(ServerPlayer player) { return (AgentMenu.Handler) player.containerMenu; }
     private void click(ServerPlayer player, int slot) {
-        player.containerMenu.clicked(slot, 0, ClickType.PICKUP, player);
+        player.containerMenu.clicked(slot, 0, ContainerInput.PICKUP, player);
     }
     private void detail(ServerPlayer player, String name) {
         var handler = menu(player);
@@ -89,12 +89,12 @@ public class AgentMenuGameTests {
             AbstractContainerMenu vanillaScreen = screen;
             c.assertTrue(vanillaScreen.stillValid(owner), "Living OP4 owner can use its screen");
             c.assertFalse(vanillaScreen.stillValid(other), "Another OP4 UUID cannot use the screen");
-            vanillaScreen.clicked(AgentMenu.helperSlot(0), 0, ClickType.PICKUP, other);
+            vanillaScreen.clicked(AgentMenu.helperSlot(0), 0, ContainerInput.PICKUP, other);
             c.assertValueEqual(helpers.count(owner), 0, "A foreign click cannot create a helper for the owner");
             c.assertValueEqual(helpers.count(other), 0, "A foreign click cannot create a helper for the sender");
             operator(owner, LevelBasedPermissionSet.ADMIN);
             c.assertFalse(vanillaScreen.stillValid(owner), "Permission is checked again after the menu opens");
-            vanillaScreen.clicked(AgentMenu.helperSlot(0), 0, ClickType.PICKUP, owner);
+            vanillaScreen.clicked(AgentMenu.helperSlot(0), 0, ContainerInput.PICKUP, owner);
             c.assertValueEqual(helpers.count(owner), 0, "Losing OP4 blocks an already-open spawn button");
             c.assertTrue(owner.containerMenu == owner.inventoryMenu, "A revoked menu closes safely");
         } catch (RuntimeException | Error failure) {
@@ -172,7 +172,7 @@ public class AgentMenuGameTests {
                 "The visible helper name matches the menu feedback");
             c.assertTrue(golem.level() == owner.level() && golem.distanceToSqr(owner) <= 32,
                 "The helper appears beside its owner in the same world");
-            ((AbstractContainerMenu)firstScreen).clicked(AgentMenu.helperSlot(0), 0, ClickType.PICKUP, owner);
+            ((AbstractContainerMenu)firstScreen).clicked(AgentMenu.helperSlot(0), 0, ContainerInput.PICKUP, owner);
             c.assertValueEqual(helpers.count(owner), 1, "A delayed click from the closed menu cannot create a second helper");
             c.assertValueEqual(AgentActions.get(helpers.server).data.proposals.size(), proposals,
                 "Creating a helper does not approve or execute a server action");
@@ -199,7 +199,7 @@ public class AgentMenuGameTests {
             click(owner, AgentMenu.BACK);
             c.assertTrue(owner.containerMenu instanceof ServerMenu.Handler, "Roster Back opens the actual Infinity Menu");
             var parent = owner.containerMenu;
-            oldRoster.clicked(AgentMenu.INFO, 0, ClickType.PICKUP, owner);
+            oldRoster.clicked(AgentMenu.INFO, 0, ContainerInput.PICKUP, owner);
             c.assertTrue(owner.containerMenu == parent, "Delayed help clicks do not close the newly opened parent menu");
         } finally { cleanup(helpers, owner); }
         c.succeed();
@@ -237,7 +237,7 @@ public class AgentMenuGameTests {
             c.assertValueEqual(helpers.owned(owner, "guide").getValue().profile(), AgentCompanions.Profile.REGULAR, "Asking does not change the helper profile");
             c.assertValueEqual(AgentActions.get(server).data.proposals.size(), proposals, "An answer cannot queue or approve a server command");
             session.readyAt.remove(owner.getUUID());
-            questionScreen.clicked(AgentMenu.ASK, 0, ClickType.PICKUP, owner);
+            questionScreen.clicked(AgentMenu.ASK, 0, ContainerInput.PICKUP, owner);
             c.assertFalse(session.readyAt.containsKey(owner.getUUID()), "A delayed click cannot dispatch a second question");
         } finally {
             if (originalService == null) ServerAssistant.AI.remove(server); else ServerAssistant.AI.put(server, originalService);
@@ -299,7 +299,7 @@ public class AgentMenuGameTests {
             click(owner, AgentMenu.CONFIRM);
             c.assertTrue(helpers.owned(owner, "keeper") != null, "Stale confirmation cannot dismiss a replacement with the same name");
             c.assertValueEqual(menu(owner).page, AgentMenu.Page.ROSTER, "Stale identity returns to a fresh roster");
-            oldConfirm.clicked(AgentMenu.CONFIRM, 0, ClickType.PICKUP, owner);
+            oldConfirm.clicked(AgentMenu.CONFIRM, 0, ContainerInput.PICKUP, owner);
             c.assertTrue(helpers.owned(owner, "keeper") != null, "An old screen packet cannot touch the new screen");
             detail(owner, "keeper");
             click(owner, AgentMenu.DISMISS);
@@ -352,8 +352,8 @@ public class AgentMenuGameTests {
             var screen = menu(owner);
             AbstractContainerMenu vanillaScreen = screen;
             var preview = screen.view.getItem(AgentMenu.profileSlot(0)).copy();
-            for (var action : ClickType.values()) {
-                if (action != ClickType.PICKUP && action != ClickType.QUICK_MOVE)
+            for (var action : ContainerInput.values()) {
+                if (action != ContainerInput.PICKUP && action != ContainerInput.QUICK_MOVE)
                     vanillaScreen.clicked(AgentMenu.profileSlot(0), 0, action, owner);
                 vanillaScreen.clicked(54, 0, action, owner);
                 vanillaScreen.clicked(-999, 0, action, owner);
@@ -364,7 +364,7 @@ public class AgentMenuGameTests {
             c.assertTrue(ItemStack.isSameItemSameComponents(preview, screen.view.getItem(AgentMenu.profileSlot(0))),
                 "Drag, throw, hotbar swap, and double-click leave the display icon intact");
             // Shift-click is a valid button activation, but still never transfers its icon.
-            vanillaScreen.clicked(AgentMenu.profileSlot(0), 0, ClickType.QUICK_MOVE, owner);
+            vanillaScreen.clicked(AgentMenu.profileSlot(0), 0, ContainerInput.QUICK_MOVE, owner);
             c.assertValueEqual(helpers.owned(owner, "keeper").getValue().profile(), AgentCompanions.Profile.PRIMITIVE,
                 "Shift-click activates a profile without taking the sword icon");
             c.assertTrue(owner.containerMenu.getCarried().isEmpty(), "Button activation keeps the new screen cursor empty");
@@ -375,7 +375,7 @@ public class AgentMenuGameTests {
             }
             AbstractContainerMenu current = menu(owner);
             current.setCarried(new ItemStack(Items.GOLD_INGOT, 2));
-            current.clicked(AgentMenu.STAY, 0, ClickType.PICKUP, owner);
+            current.clicked(AgentMenu.STAY, 0, ContainerInput.PICKUP, owner);
             c.assertValueEqual(helpers.owned(owner, "keeper").getValue().mode(), AgentCompanions.Mode.FOLLOW,
                 "A nonempty cursor blocks button activation");
             c.assertValueEqual(current.getCarried().getCount(), 2, "Rejected click does not consume the existing cursor");
@@ -439,7 +439,7 @@ public class AgentMenuGameTests {
             var screen = menu(owner);
             c.assertTrue(screen.view.getItem(AgentMenu.RECALL).getHoverName().getString().startsWith("Bring here"), "Loaded helper has a visible manual recall button");
             var original = helper.position();
-            ((AbstractContainerMenu) screen).clicked(AgentMenu.RECALL, 0, ClickType.PICKUP, target);
+            ((AbstractContainerMenu) screen).clicked(AgentMenu.RECALL, 0, ContainerInput.PICKUP, target);
             c.assertValueEqual(helper.position(), original, "Another player cannot activate the owner's recall menu");
             click(owner, AgentMenu.RECALL);
             c.assertTrue(owner.containerMenu == owner.inventoryMenu, "Recall closes the menu so the owner can see the returned helper");
@@ -449,7 +449,7 @@ public class AgentMenuGameTests {
             c.assertValueEqual(proposal.state, AgentActions.State.CANCELLED, "Recall also cancels pending target approvals");
             c.assertTrue(helper.getTarget() == null && helper.getNavigation().isDone(), "Old combat and path targets are stopped");
             var recalledPosition = helper.position();
-            ((AbstractContainerMenu) screen).clicked(AgentMenu.RECALL, 0, ClickType.PICKUP, owner);
+            ((AbstractContainerMenu) screen).clicked(AgentMenu.RECALL, 0, ContainerInput.PICKUP, owner);
             c.assertValueEqual(helper.position(), recalledPosition, "Delayed old-window recall packet cannot trigger another transfer");
             c.assertValueEqual(helpers.count(owner), 1, "Recall does not replace or duplicate roster members");
         } catch (RuntimeException | Error failure) {
@@ -478,7 +478,7 @@ public class AgentMenuGameTests {
             c.assertValueEqual(((AgentOrdersMenu.Handler)owner.containerMenu).page,AgentOrdersMenu.Page.REVIEW,"Exact action has a separate review");
             AbstractContainerMenu old=owner.containerMenu;click(owner,AgentOrdersMenu.APPROVE);
             c.assertValueEqual(queue.data.proposals.get(id).state,AgentActions.State.OWNER_APPROVED,"Confirm provides only the owner approval");
-            old.clicked(AgentOrdersMenu.APPROVE,0,ClickType.QUICK_MOVE,owner);
+            old.clicked(AgentOrdersMenu.APPROVE,0,ContainerInput.QUICK_MOVE,owner);
             c.assertValueEqual(queue.data.proposals.get(id).state,AgentActions.State.OWNER_APPROVED,"Old clicks never supply Codex approval or execute");
             click(owner,0);click(owner,AgentOrdersMenu.CANCEL);
             c.assertValueEqual(queue.data.proposals.get(id).state,AgentActions.State.CANCELLED,"Owner can cancel from the review screen");

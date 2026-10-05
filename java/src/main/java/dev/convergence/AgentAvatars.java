@@ -1,6 +1,7 @@
 package dev.convergence;
 
 import eu.pb4.polymer.core.api.entity.PolymerEntity;
+import net.minecraft.world.entity.EntityTypes;
 import eu.pb4.polymer.core.api.entity.PolymerEntityUtils;
 import java.util.ArrayList;
 import java.util.EnumSet;
@@ -18,7 +19,7 @@ import net.minecraft.server.network.ServerPlayerConnection;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.animal.golem.IronGolem;
 import net.minecraft.world.level.GameType;
-import xyz.nucleoid.packettweaker.PacketContext;
+import net.fabricmc.fabric.api.networking.v1.context.PacketContext;
 
 /** A native player avatar for a registered helper; its ownership and combat stay server-side. */
 final class AgentAvatars implements PolymerEntity {
@@ -36,10 +37,10 @@ final class AgentAvatars implements PolymerEntity {
             avatar.viewers.clear();
         }
     }
-    public EntityType<?> getPolymerEntityType(PacketContext context) {return EntityType.PLAYER;}
-    public boolean canSynchronizeToPolymerClient(ServerPlayer player) {return false;}
+    @Override public EntityType<?> getPolymerEntityType(PacketContext context) {return EntityTypes.PLAYER;}
+    @Override public boolean canSynchronizeToPolymerClient(ServerPlayer player) {return false;}
     ClientboundPlayerInfoUpdatePacket profilePacket() {
-        var packet=PolymerEntityUtils.createMutablePlayerListPacket(EnumSet.of(ClientboundPlayerInfoUpdatePacket.Action.ADD_PLAYER,
+        var packet=PolymerEntityUtils.createMutablePlayerInfoUpdatePacket(EnumSet.of(ClientboundPlayerInfoUpdatePacket.Action.ADD_PLAYER,
             ClientboundPlayerInfoUpdatePacket.Action.UPDATE_GAME_MODE,ClientboundPlayerInfoUpdatePacket.Action.UPDATE_LISTED,
             ClientboundPlayerInfoUpdatePacket.Action.UPDATE_DISPLAY_NAME,ClientboundPlayerInfoUpdatePacket.Action.UPDATE_HAT));
         // Share the signed robot texture while preserving each helper's native identity.
@@ -48,12 +49,12 @@ final class AgentAvatars implements PolymerEntity {
             false,0,GameType.SURVIVAL,helper.getCustomName()==null?Component.literal("AI helper"):helper.getCustomName(),true,0,null));
         return packet;
     }
-    public void onBeforeSpawnPacket(ServerPlayer player,Consumer<Packet<?>> sender) {
+    @Override public void onBeforeSpawnPacket(ServerPlayer player,Consumer<Packet<?>> sender) {
         viewers.add(player);sender.accept(profilePacket());
     }
-    public void modifyRawTrackedData(List<SynchedEntityData.DataValue<?>> data,ServerPlayer player,boolean initial) {
-        var human=PolymerEntityUtils.getDefaultTrackedData(EntityType.PLAYER);
-        var golem=PolymerEntityUtils.getDefaultTrackedData(EntityType.IRON_GOLEM);
+    @Override public void modifyRawTrackedData(List<SynchedEntityData.DataValue<?>> data,ServerPlayer player,boolean initial) {
+        var human=PolymerEntityUtils.getDefaultSynchedEntityData(EntityTypes.PLAYER);
+        var golem=PolymerEntityUtils.getDefaultSynchedEntityData(EntityTypes.IRON_GOLEM);
         // Keep only the shared Entity/LivingEntity prefix. Mob/golem fields occupy
         // player-specific indices with incompatible types or different meanings.
         int common=0;
@@ -63,7 +64,7 @@ final class AgentAvatars implements PolymerEntity {
         data.removeIf(entry->entry.id()>=boundary);
         if(initial)for(int i=boundary;i<human.length;i++)if(human[i]!=null)data.add(human[i].value());
     }
-    public void onEntityTrackerTick(Set<ServerPlayerConnection> listeners) {
+    @Override public void onEntityTrackerTick(Set<ServerPlayerConnection> listeners) {
         var active=new HashSet<ServerPlayer>();for(var listener:listeners)active.add(listener.getPlayer());
         var packet=new ClientboundPlayerInfoRemovePacket(List.of(helper.getUUID()));
         viewers.removeIf(viewer->{

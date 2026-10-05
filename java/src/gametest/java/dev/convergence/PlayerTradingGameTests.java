@@ -14,7 +14,7 @@ import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.SimpleMenuProvider;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.ChestMenu;
-import net.minecraft.world.inventory.ClickType;
+import net.minecraft.world.inventory.ContainerInput;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.GameType;
@@ -61,7 +61,7 @@ public class PlayerTradingGameTests {
         f.manager().offer(f.first(),0,3);
         c.assertTrue(s.confirmed.isEmpty(),"Changed offer clears every confirmation");
         c.assertTrue(f.second().containerMenu.containerId!=oldScreen.containerId,"New offer opens a fresh vanilla window");
-        oldScreen.clicked(49,0,ClickType.PICKUP,f.second());
+        oldScreen.clicked(49,0,ContainerInput.PICKUP,f.second());
         c.assertTrue(s.confirmed.isEmpty(),"Old GUI confirmation cannot authorize changed offer");
         c.assertFalse(f.manager().confirm(f.first(),old),"Old command revision rejected");c.assertValueEqual(total(f.first(),Items.DIAMOND),8,"No escrow debit");c.succeed();
     }
@@ -69,8 +69,8 @@ public class PlayerTradingGameTests {
         var f=fixture(c,"pt-gui");f.first().getInventory().setItem(0,new ItemStack(Items.DIAMOND,8));f.manager().offer(f.first(),0,2);
         c.assertTrue(f.first().containerMenu instanceof PlayerTrading.ReviewHandler,"Trade review opens its guarded handler");
         AbstractContainerMenu handler=f.first().containerMenu;
-        for(var action:ClickType.values())handler.clicked(0,0,action,f.first());
-        handler.clicked(54,0,ClickType.PICKUP,f.first());handler.setSelectedBundleItemIndex(0,1);
+        for(var action:ContainerInput.values())handler.clicked(0,0,action,f.first());
+        handler.clicked(54,0,ContainerInput.PICKUP,f.first());handler.setSelectedBundleItemIndex(0,1);
         c.assertTrue(handler.quickMoveStack(f.first(),0).isEmpty(),"Shift transfer returns nothing");
         c.assertTrue(handler.getCarried().isEmpty(),"GUI cannot create a cursor item");c.assertValueEqual(total(f.first(),Items.DIAMOND),8,"Actual inventory unchanged");
         c.assertValueEqual(((PlayerTrading.ReviewHandler)handler).view.getItem(0).getCount(),2,"Review contains only the offered display copy");c.succeed();

@@ -1,6 +1,7 @@
 package dev.convergence;
 
 import java.util.*;
+import net.minecraft.util.Prediction;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.fabricmc.fabric.api.entity.event.v1.ServerLivingEntityEvents;
 import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
@@ -44,7 +45,7 @@ public final class GameModes {
     public static void beforeOperatorTeleport(ServerPlayer p,ServerLevel destination) {
         if(!operator(p)||TRANSITIONS.contains(p.getUUID())||current(p)==of(destination)||OPERATOR_TRANSFERS.containsKey(p.getUUID()))return;
         var cursor=p.containerMenu.getCarried();
-        if(!cursor.isEmpty()){p.containerMenu.setCarried(ItemStack.EMPTY);p.getInventory().placeItemBackInInventory(cursor);}
+        if(!cursor.isEmpty()){p.containerMenu.setCarried(ItemStack.EMPTY);p.getInventory().placeItemBackInInventory(cursor, Prediction.SERVER_ONLY);}
         p.closeContainer();p.stopUsingItem();
         OPERATOR_TRANSFERS.put(p.getUUID(),new OperatorTransfer(current(p),capture(p)));
     }
@@ -190,7 +191,7 @@ public final class GameModes {
         // Return the carried cursor stack in the old world before capturing its profile.
         // Vanilla can leave that stack on playerScreenHandler when no container is open.
         var cursor=p.containerMenu.getCarried();
-        if(!cursor.isEmpty()) {p.containerMenu.setCarried(ItemStack.EMPTY);p.getInventory().placeItemBackInInventory(cursor);}
+        if(!cursor.isEmpty()) {p.containerMenu.setCarried(ItemStack.EMPTY);p.getInventory().placeItemBackInInventory(cursor, Prediction.SERVER_ONLY);}
         p.closeContainer();p.stopUsingItem();
         if(current!=Mode.HUB||operator(p)) profiles.put(current.name(),capture(p));
         else profiles.remove(Mode.HUB.name());
@@ -221,7 +222,7 @@ public final class GameModes {
     }
     static int menu(ServerPlayer p) {
         CommunityServer.say(p,"Choose a world: /play survival, creative, hardcore, minigames, adventure. /play minigames and /play adventure open course menus. /ranks shows free achievement ranks.");
-        for(var mode:Mode.values()) if(mode!=Mode.HUB) p.displayClientMessage(Component.literal("[ "+mode+" ]").withStyle(ChatFormatting.AQUA).withStyle(style->style.withClickEvent(new ClickEvent.RunCommand("/play "+mode.name().toLowerCase(Locale.ROOT)))),false);
+        for(var mode:Mode.values()) if(mode!=Mode.HUB) p.sendSystemMessage(Component.literal("[ "+mode+" ]").withStyle(ChatFormatting.AQUA).withStyle(style->style.withClickEvent(new ClickEvent.RunCommand("/play "+mode.name().toLowerCase(Locale.ROOT)))));
         return 1;
     }
     static String guideText(ServerPlayer p) {

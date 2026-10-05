@@ -65,11 +65,13 @@ final class ExpandedGear {
    private static Item.Properties settings(String path, Item base, int maxCount, boolean unbreakable) {
       Item.Properties out = new Item.Properties().setId(ResourceKey.create(Registries.ITEM, id(path)));
       out.component(DataComponents.ITEM_NAME,GearNames.text(path));
-      for (TypedDataComponent<?> component : base.components()) {
-         if (component.type() != DataComponents.ITEM_NAME && component.type() != DataComponents.ITEM_MODEL) {
-            Convergence.copy(out, component);
+      BaseComponents.then(out, base, (builder, defaults) -> {
+         for (TypedDataComponent<?> component : defaults) {
+            if (component.type() != DataComponents.ITEM_NAME && component.type() != DataComponents.ITEM_MODEL) {
+               BaseComponents.copy(builder, component);
+            }
          }
-      }
+      });
       out.stacksTo(maxCount);
       if (unbreakable) {
          out.durability(32767);
@@ -133,11 +135,9 @@ final class ExpandedGear {
 
    private static void registerCosmeticArmor(String path,Item base) {
       var outfit=path.startsWith("aurora_")?"aurora":"ember";
-      var slot=base.components().get(DataComponents.EQUIPPABLE).slot();
       ResourceKey<EquipmentAsset> asset=ResourceKey.create(ResourceKey.createRegistryKey(Identifier.fromNamespaceAndPath("minecraft","equipment_asset")),id(outfit+"_armor"));
-      var config=settings(path,base,1,false)
-         .attributes(ItemAttributeModifiers.builder().build())
-         .component(DataComponents.EQUIPPABLE,Equippable.builder(slot).setAsset(asset).setDamageOnHurt(false).build())
+      var config=BaseComponents.then(settings(path,base,1,false).attributes(ItemAttributeModifiers.builder().build()),base,(builder,defaults)->
+            builder.set(DataComponents.EQUIPPABLE,Equippable.builder(defaults.get(DataComponents.EQUIPPABLE).slot()).setAsset(asset).setDamageOnHurt(false).build()))
          .component(DataComponents.DYED_COLOR,new DyedItemColor(outfit.equals("aurora")?0x48DCC8:0xF07A32))
          .component(DataComponents.UNBREAKABLE,Unit.INSTANCE);
       registerItem(path,new Item(config));
@@ -175,7 +175,7 @@ final class ExpandedGear {
       if (!type.startsWith("convergence:") || !ARROWS.contains(type.substring("convergence:".length()))) return;
       // This also runs on fatal hits, when LivingEntity.isAlive() is already false.
       if (target == shooter || target.level() != shooter.level()
-         || target instanceof ArmorStand || target.getTags().contains("convergence_friend")
+         || target instanceof ArmorStand || target.entityTags().contains("convergence_friend")
          || target instanceof TamableAnimal tameable && tameable.isTame()
          || target instanceof Player player && (player.isCreative() || player.isSpectator() || !shooter.canHarmPlayer(player))) return;
       String tag = "convergence_hit_" + target.getUUID();

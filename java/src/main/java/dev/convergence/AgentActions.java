@@ -19,7 +19,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.WeakHashMap;
 import java.util.function.Consumer;
-import net.fabricmc.fabric.api.entity.event.v1.ServerEntityWorldChangeEvents;
+import net.fabricmc.fabric.api.entity.event.v1.ServerEntityLevelChangeEvents;
 import net.fabricmc.fabric.api.entity.event.v1.ServerLivingEntityEvents;
 import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
@@ -399,6 +399,6 @@ final class AgentActions {
         ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> invalidatePlayer(handler.player));
         ServerLivingEntityEvents.AFTER_DEATH.register((entity, source) -> { if (entity instanceof ServerPlayer player) invalidatePlayer(player); });
         ServerPlayerEvents.AFTER_RESPAWN.register((oldPlayer, player, alive) -> invalidatePlayer(oldPlayer));
-        ServerEntityWorldChangeEvents.AFTER_PLAYER_CHANGE_WORLD.register((player, from, to) -> invalidatePlayer(player));
+        ServerEntityLevelChangeEvents.AFTER_PLAYER_CHANGE_LEVEL.register((player, from, to) -> invalidatePlayer(player));
     }
 }

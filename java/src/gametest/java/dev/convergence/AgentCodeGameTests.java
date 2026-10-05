@@ -95,7 +95,7 @@ public class AgentCodeGameTests {
             var console = core.server.createCommandSourceStack();
             owner.getInventory().setItem(0, new ItemStack(Items.DIAMOND, 7));
             var before = owner.getInventory().getItem(0).copy();
-            long time = c.getLevel().getDayTime();
+            long time = c.getLevel().getDefaultClockTime();
             int actions = AgentActions.get(core.server).data.proposals.size();
             String text = "Review a bug involving /give @s diamond; do not execute this example.";
             String id = propose(queue, owner, "coder", text);
@@ -122,7 +122,7 @@ public class AgentCodeGameTests {
             terminal.complete(console, id, "a".repeat(40));
             c.assertValueEqual(terminal.data.requests.get(id).commit, SHA, "Restart and repeated review cannot overwrite a completed record");
             c.assertTrue(ItemStack.matches(before, owner.getInventory().getItem(0)), "Request and review never execute the example give command");
-            c.assertValueEqual(c.getLevel().getDayTime(), time, "The synchronous workflow never changes world time");
+            c.assertValueEqual(c.getLevel().getDefaultClockTime(), time, "The synchronous workflow never changes world time");
             c.assertValueEqual(AgentActions.get(core.server).data.proposals.size(), actions, "Code requests do not enter the server-command dispatch queue");
         } finally { cleanup(core, owner); removeDirectory(dir); }
         c.succeed();

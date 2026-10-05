@@ -6,7 +6,7 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.permissions.LevelBasedPermissionSet;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.inventory.AbstractContainerMenu;
-import net.minecraft.world.inventory.ClickType;
+import net.minecraft.world.inventory.ContainerInput;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.GameType;
@@ -27,8 +27,8 @@ public class AdminStatsMenuGameTests {
         GameModes.TRANSITIONS.remove(p.getUUID());
         p.level().getServer().getPlayerList().remove(p);
     }
-    private void click(ServerPlayer p, int slot) { p.containerMenu.clicked(slot, 0, ClickType.PICKUP, p); }
-    private void quickClick(ServerPlayer p, int slot) { p.containerMenu.clicked(slot, 0, ClickType.QUICK_MOVE, p); }
+    private void click(ServerPlayer p, int slot) { p.containerMenu.clicked(slot, 0, ContainerInput.PICKUP, p); }
+    private void quickClick(ServerPlayer p, int slot) { p.containerMenu.clicked(slot, 0, ContainerInput.QUICK_MOVE, p); }
     private AdminStatsMenu.Handler menu(ServerPlayer p) { return (AdminStatsMenu.Handler)p.containerMenu; }
     private void edit(ServerPlayer admin, ServerPlayer target, String id) {
         admin.closeContainer();
@@ -64,7 +64,7 @@ public class AdminStatsMenuGameTests {
             quickClick(admin, AdminStatsMenu.CONFIRM);
             c.assertValueEqual(admin.getMaxHealth(), 30f, "Touch confirmation applies the reviewed capacity");
             AbstractContainerMenu current = admin.containerMenu;
-            oldReview.clicked(AdminStatsMenu.CONFIRM, 0, ClickType.QUICK_MOVE, admin);
+            oldReview.clicked(AdminStatsMenu.CONFIRM, 0, ContainerInput.QUICK_MOVE, admin);
             c.assertTrue(admin.containerMenu == current, "Old touch confirmation cannot affect the new screen");
             c.assertValueEqual(admin.getHealth(), 20f, "Changing capacity never silently heals");
             c.assertTrue(admin.containerMenu.getCarried().isEmpty(), "Touch controls never acquire menu icons");
@@ -96,7 +96,7 @@ public class AdminStatsMenuGameTests {
             click(admin, AdminStatsMenu.CONFIRM);
             c.assertValueEqual(target.getMaxHealth(), 30f, "Confirm changes the real maximum");
             AbstractContainerMenu current = admin.containerMenu;
-            oldReview.clicked(AdminStatsMenu.CONFIRM, 0, ClickType.PICKUP, admin);
+            oldReview.clicked(AdminStatsMenu.CONFIRM, 0, ContainerInput.PICKUP, admin);
             c.assertTrue(admin.containerMenu == current, "Old confirm does not replace new screen");
             c.assertValueEqual(target.getMaxHealth(), 30f, "Old confirm cannot apply twice");
             c.assertValueEqual(target.getHealth(), 20f, "Raising capacity does not silently heal");
@@ -170,15 +170,15 @@ public class AdminStatsMenuGameTests {
             edit(admin, admin, "max_health");
             AbstractContainerMenu screen = admin.containerMenu;
             var icon = screen.getSlot(AdminStatsMenu.PLUS_SMALL).getItem().copy();
-            for (var action : new ClickType[]{ClickType.SWAP, ClickType.CLONE,
-                    ClickType.THROW, ClickType.QUICK_CRAFT, ClickType.PICKUP_ALL}) {
+            for (var action : new ContainerInput[]{ContainerInput.SWAP, ContainerInput.CLONE,
+                    ContainerInput.THROW, ContainerInput.QUICK_CRAFT, ContainerInput.PICKUP_ALL}) {
                 screen.clicked(AdminStatsMenu.PLUS_SMALL, 0, action, admin);
                 c.assertTrue(ItemStack.isSameItemSameComponents(icon, screen.getSlot(AdminStatsMenu.PLUS_SMALL).getItem()), "Icon remains server-owned: " + action);
             }
             screen.setSelectedBundleItemIndex(AdminStatsMenu.PLUS_SMALL, 0);
             c.assertTrue(screen.quickMoveStack(admin, AdminStatsMenu.PLUS_SMALL).isEmpty(), "Shift transfer yields no item");
-            screen.clicked(AdminStatsMenu.PLUS_SMALL, 0, ClickType.PICKUP, other);
-            screen.clicked(AdminStatsMenu.PLUS_SMALL, 0, ClickType.QUICK_MOVE, other);
+            screen.clicked(AdminStatsMenu.PLUS_SMALL, 0, ContainerInput.PICKUP, other);
+            screen.clicked(AdminStatsMenu.PLUS_SMALL, 0, ContainerInput.QUICK_MOVE, other);
             c.assertTrue(admin.containerMenu == screen, "Foreign actor cannot even stage an edit");
             screen.setCarried(new ItemStack(Items.DIAMOND, 3));
             click(admin, AdminStatsMenu.PLUS_SMALL);

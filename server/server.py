@@ -60,6 +60,12 @@ def fetch(entry, root=ROOT):
         temporary.unlink(missing_ok=True)
 
 
+# Mod jar families this launcher pins. An upgrade replaces their versions, so an
+# older copy left beside the new one would load twice; other mods are left alone.
+MANAGED_MODS = ("Infinity-Armor-", "fabric-api-", "polymer-bundled-", "Floodgate-Fabric-",
+                "ViaFabric-", "ViaVersion-", "ViaBackwards-")
+
+
 def setup(root=ROOT):
     lock = json.loads((root / "dependencies.lock.json").read_text())
     for entry in lock["downloads"]:
@@ -68,6 +74,11 @@ def setup(root=ROOT):
         file = root / entry["path"]
         if not file.is_file() or sha256(file) != entry["sha256"]:
             raise RuntimeError("Bundled file is missing or changed: " + entry["path"])
+    pinned = {(root / entry["path"]).resolve() for entry in lock["downloads"] + lock["bundled"]}
+    for jar in sorted((root / "fabric/mods").glob("*.jar")):
+        if jar.name.startswith(MANAGED_MODS) and jar.resolve() not in pinned:
+            emit("Removing superseded " + jar.name)
+            jar.unlink()
 
 
 def properties(path):
@@ -137,7 +148,7 @@ def java_command(explicit, root=ROOT, install=False):
     if os.environ.get("JAVA_HOME"):
         choices.append(str(Path(os.environ["JAVA_HOME"]) / "bin/java"))
     if sys.platform == "darwin":
-        result = subprocess.run(["/usr/libexec/java_home", "-v", "21+"], capture_output=True, text=True)
+        result = subprocess.run(["/usr/libexec/java_home", "-v", "25+"], capture_output=True, text=True)
         if result.returncode == 0:
             choices.append(str(Path(result.stdout.strip()) / "bin/java"))
     managed = java_in(root / ".runtime/java")
@@ -148,7 +159,7 @@ def java_command(explicit, root=ROOT, install=False):
         try:
             result = subprocess.run([java, "-version"], capture_output=True, text=True, timeout=15)
             match = re.search(r'version "(\d+)', result.stderr + result.stdout)
-            if result.returncode == 0 and match and int(match[1]) >= 21:
+            if result.returncode == 0 and match and int(match[1]) >= 25:
                 return java
         except (OSError, subprocess.SubprocessError):
             pass
@@ -156,7 +167,7 @@ def java_command(explicit, root=ROOT, install=False):
             break
     if install and not explicit:
         return java_command(install_java(root, fetch, emit), root)
-    raise RuntimeError("Java 21 or newer is required. Open Start-Mac.command/start.bat for automatic setup, or use --java /path/to/java.")
+    raise RuntimeError("Java 25 or newer is required. Open Start-Mac.command/start.bat for automatic setup, or use --java /path/to/java.")
 
 
 class Service:
@@ -236,7 +247,7 @@ def parse_args(argv=None):
     parser.add_argument("--console", action="store_true", help="Use the terminal instead of the control panel")
     parser.add_argument("--no-browser", action="store_true", help="Print the control panel URL without opening a browser")
     parser.add_argument("--accept-eula", action="store_true", help="Accept https://www.minecraft.net/eula")
-    parser.add_argument("--java", help="Java 21+ executable")
+    parser.add_argument("--java", help="Java 25+ executable")
     parser.add_argument("--memory", default="2G", help="Java world heap, e.g. 2G or 4G; Geyser uses up to 512M")
     parser.add_argument("--java-port", type=int, default=25565)
     parser.add_argument("--bedrock-port", type=int, default=19132)

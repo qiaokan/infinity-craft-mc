@@ -9,7 +9,7 @@ import net.minecraft.server.permissions.LevelBasedPermissionSet;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.inventory.AbstractContainerMenu;
-import net.minecraft.world.inventory.ClickType;
+import net.minecraft.world.inventory.ContainerInput;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.GameType;
@@ -30,7 +30,7 @@ public class ServerMenuGameTests {
         player.level().getServer().getPlayerList().remove(player);
     }
     private void click(ServerPlayer player, int slot) {
-        player.containerMenu.clicked(slot, 0, ClickType.PICKUP, player);
+        player.containerMenu.clicked(slot, 0, ContainerInput.PICKUP, player);
     }
     private ServerMenu.Handler menu(ServerPlayer player) { return (ServerMenu.Handler)player.containerMenu; }
     private ItemStack sword() { return new ItemStack(Convergence.ITEMS.get("convergence:sword")); }
@@ -92,24 +92,24 @@ public class ServerMenuGameTests {
             var main = menu(p);
             ItemStack helperIcon = ((AbstractContainerMenu)main).getSlot(ServerMenu.HELPERS).getItem().copy();
             c.assertValueEqual(helperIcon.getItem(), Items.IRON_GOLEM_SPAWN_EGG, "Helpers have a clearly visible vanilla golem icon");
-            ((AbstractContainerMenu)main).clicked(ServerMenu.HELPERS, 0, ClickType.PICKUP, other);
+            ((AbstractContainerMenu)main).clicked(ServerMenu.HELPERS, 0, ContainerInput.PICKUP, other);
             c.assertTrue(p.containerMenu == main, "A foreign player cannot act through another screen");
             var originalConnection = p.connection;
             try {
                 p.connection = other.connection;
                 c.assertFalse(((AbstractContainerMenu)main).stillValid(p), "A replacement connection cannot reuse the old screen");
-                ((AbstractContainerMenu)main).clicked(ServerMenu.BACK, 0, ClickType.PICKUP, p);
+                ((AbstractContainerMenu)main).clicked(ServerMenu.BACK, 0, ContainerInput.PICKUP, p);
                 c.assertTrue(p.containerMenu == main, "A stale connection cannot even close the current screen");
             } finally { p.connection = originalConnection; }
-            for (var action : new ClickType[] { ClickType.SWAP, ClickType.CLONE,
-                    ClickType.THROW, ClickType.QUICK_CRAFT, ClickType.PICKUP_ALL }) {
+            for (var action : new ContainerInput[] { ContainerInput.SWAP, ContainerInput.CLONE,
+                    ContainerInput.THROW, ContainerInput.QUICK_CRAFT, ContainerInput.PICKUP_ALL }) {
                 ((AbstractContainerMenu)main).clicked(ServerMenu.HELPERS, 0, action, p);
                 c.assertTrue(ItemStack.isSameItemSameComponents(((AbstractContainerMenu)main).getSlot(ServerMenu.HELPERS).getItem(), helperIcon), "Preview icon survives " + action);
             }
             ((AbstractContainerMenu)main).setSelectedBundleItemIndex(ServerMenu.HELPERS, 0);
             c.assertTrue(((AbstractContainerMenu)main).quickMoveStack(p, ServerMenu.HELPERS).isEmpty(), "Shift-move returns no item");
             c.assertTrue(((AbstractContainerMenu)main).getCarried().isEmpty(), "No icon reaches the cursor");
-            ((AbstractContainerMenu)main).clicked(ServerMenu.KIT,0,ClickType.QUICK_MOVE,p);
+            ((AbstractContainerMenu)main).clicked(ServerMenu.KIT,0,ContainerInput.QUICK_MOVE,p);
             click(p, ServerMenu.BUILDING);
             click(p, ServerMenu.HELPERS);
             c.assertTrue(p.containerMenu == main, "Locked actions do not change screens or grant control");
@@ -152,7 +152,7 @@ public class ServerMenuGameTests {
             ItemStack equipped = p.getMainHandItem().copy();
             ServerMenu.open(p);
             AbstractContainerMenu newScreen = p.containerMenu;
-            ((AbstractContainerMenu)gear).clicked(sword % ServerMenu.PAGE_SIZE, 0, ClickType.PICKUP, p);
+            ((AbstractContainerMenu)gear).clicked(sword % ServerMenu.PAGE_SIZE, 0, ContainerInput.PICKUP, p);
             c.assertTrue(p.containerMenu == newScreen, "A stale gear handler cannot close a new menu");
             c.assertTrue(ItemStack.isSameItemSameComponents(p.getMainHandItem(), equipped), "Stale clicks cannot grant another item");
         } finally { cleanup(p); }
@@ -184,7 +184,7 @@ public class ServerMenuGameTests {
                 click(p, ServerMenu.SWAP);
                 c.assertValueEqual(p.getMainHandItem().getItem(), Items.SHIELD, "Real offhand moves to main hand");
                 c.assertValueEqual(p.getOffhandItem().getItem(), Convergence.ITEMS.get("convergence:sword"), "Real weapon moves to offhand");
-                ((AbstractContainerMenu)oldScreen).clicked(ServerMenu.SWAP, 0, ClickType.PICKUP, p);
+                ((AbstractContainerMenu)oldScreen).clicked(ServerMenu.SWAP, 0, ContainerInput.PICKUP, p);
                 c.assertValueEqual(p.getMainHandItem().getItem(), Items.SHIELD, "A duplicate stale click cannot swap twice");
             } finally { cleanup(p); }
             c.succeed();

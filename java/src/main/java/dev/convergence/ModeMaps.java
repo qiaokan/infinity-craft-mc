@@ -243,10 +243,10 @@ final class ModeMaps {
     static void buildDropper(BlockPlan plan) {
         for (int x=154; x<=176; x++) for (int z=-9; z<=9; z++) {
             put(plan,x,40,z,Blocks.POLISHED_DEEPSLATE.defaultBlockState());
-            if (x==154 || x==176 || Math.abs(z)==9) for (int y=41; y<=123; y++) put(plan,x,y,z,Blocks.LIGHT_BLUE_STAINED_GLASS.defaultBlockState());
+            if (x==154 || x==176 || Math.abs(z)==9) for (int y=41; y<=123; y++) put(plan,x,y,z,Blocks.STAINED_GLASS.lightBlue().defaultBlockState());
             else if (Math.abs(x-165)>2 || Math.abs(z)>2) put(plan,x,120,z,Blocks.QUARTZ_BLOCK.defaultBlockState());
         }
-        var spec=MAPS.get("dropper"); var colors=List.of(Blocks.YELLOW_CONCRETE,Blocks.ORANGE_CONCRETE,Blocks.PURPLE_CONCRETE);
+        var spec=MAPS.get("dropper"); var colors=List.of(Blocks.CONCRETE.yellow(),Blocks.CONCRETE.orange(),Blocks.CONCRETE.purple());
         for(int gate=1;gate<=3;gate++) {
             var center=spec.points.get(gate);
             for(int x=155;x<=175;x++) for(int z=-8;z<=8;z++) {
@@ -261,13 +261,13 @@ final class ModeMaps {
     }
     static void buildRedlight(BlockPlan plan) {
         for(int x=221;x<=255;x++) for(int z=-5;z<=5;z++) {
-            put(plan,x,80,z,(z==0?Blocks.QUARTZ_BLOCK:Blocks.LIGHT_GRAY_CONCRETE).defaultBlockState());
+            put(plan,x,80,z,(z==0?Blocks.QUARTZ_BLOCK:Blocks.CONCRETE.lightGray()).defaultBlockState());
             if(x==221||x==255||Math.abs(z)==5) for(int y=81;y<=84;y++) put(plan,x,y,z,Blocks.GLASS.defaultBlockState());
         }
         for(var point:MAPS.get("redlight").points) put(plan,point.getX(),80,point.getZ(),Blocks.SEA_LANTERN.defaultBlockState());
         for(int x:new int[]{225,233,241,249}) {
-            put(plan,x,82,-4,Blocks.LIME_CONCRETE.defaultBlockState());
-            put(plan,x,84,-4,Blocks.RED_CONCRETE.defaultBlockState());
+            put(plan,x,82,-4,Blocks.CONCRETE.lime().defaultBlockState());
+            put(plan,x,84,-4,Blocks.CONCRETE.red().defaultBlockState());
         }
         for(int z=-4;z<=4;z++) put(plan,252,80,z,Blocks.GOLD_BLOCK.defaultBlockState());
         put(plan,252,80,0,Blocks.SEA_LANTERN.defaultBlockState());
@@ -276,7 +276,7 @@ final class ModeMaps {
         for(int x=284;x<=310;x++) for(int z=-12;z<=12;z++) {
             put(plan,x,80,z,Blocks.POLISHED_BLACKSTONE_BRICKS.defaultBlockState());
             if(x==284||x==310||Math.abs(z)==12)
-                for(int y=81;y<=84;y++) put(plan,x,y,z,Blocks.PURPLE_STAINED_GLASS.defaultBlockState());
+                for(int y=81;y<=84;y++) put(plan,x,y,z,Blocks.STAINED_GLASS.purple().defaultBlockState());
         }
         var points=MAPS.get("crystalhunt").points;
         for(int i=0;i<points.size();i++) {
@@ -293,12 +293,12 @@ final class ModeMaps {
     }
     static void buildColorRush(BlockPlan plan) {
         for(int x=340;x<=368;x++) for(int z=-13;z<=13;z++) {
-            put(plan,x,80,z,Blocks.WHITE_CONCRETE.defaultBlockState());
+            put(plan,x,80,z,Blocks.CONCRETE.white().defaultBlockState());
             if(x==340||x==368||Math.abs(z)==13)
-                for(int y=81;y<=84;y++) put(plan,x,y,z,Blocks.CYAN_STAINED_GLASS.defaultBlockState());
+                for(int y=81;y<=84;y++) put(plan,x,y,z,Blocks.STAINED_GLASS.cyan().defaultBlockState());
         }
         var points=MAPS.get("colorrush").points;
-        var tiles=List.of(Blocks.RED_CONCRETE,Blocks.BLUE_CONCRETE,Blocks.YELLOW_CONCRETE,Blocks.LIME_CONCRETE);
+        var tiles=List.of(Blocks.CONCRETE.red(),Blocks.CONCRETE.blue(),Blocks.CONCRETE.yellow(),Blocks.CONCRETE.lime());
         for(int i=1;i<points.size();i++) {
             var center=points.get(i);
             for(int dx=-2;dx<=2;dx++) for(int dz=-2;dz<=2;dz++)
@@ -364,11 +364,11 @@ final class ModeMaps {
     static void hint(ServerPlayer p, Run run) {
         var points=MAPS.get(run.map).points; var at=points.get(run.next);
         CommunityServer.say(p,"Checkpoint "+run.next+"/"+(points.size()-1)+": X "+at.getX()+", Y "+at.getY()+", Z "+at.getZ()+" (sea lantern).");
-        p.displayClientMessage(Component.literal("Checkpoint "+run.next+" of "+(points.size()-1)+" | /retry "+run.map).withStyle(ChatFormatting.AQUA),true);
+        p.sendOverlayMessage(Component.literal("Checkpoint "+run.next+" of "+(points.size()-1)+" | /retry "+run.map).withStyle(ChatFormatting.AQUA));
     }
     static void crystalHint(ServerPlayer p,Run run) {
         int found=Integer.bitCount(run.foundMask);
-        p.displayClientMessage(Component.literal("Crystals "+found+"/5 | Touch the glowing amethyst pads").withStyle(ChatFormatting.LIGHT_PURPLE),true);
+        p.sendOverlayMessage(Component.literal("Crystals "+found+"/5 | Touch the glowing amethyst pads").withStyle(ChatFormatting.LIGHT_PURPLE));
     }
     static void colorHint(ServerPlayer p,Run run,int tick) {
         int color=run.colors[run.next-1];
@@ -379,7 +379,7 @@ final class ModeMaps {
             default -> ChatFormatting.GREEN;
         };
         int seconds=Math.max(1,(run.colorDeadline-tick+19)/20);
-        p.displayClientMessage(Component.literal("Pulse "+run.next+"/"+COLOR_ROUNDS+" | "+COLORS.get(color)+" | "+seconds+"s").withStyle(formatting),true);
+        p.sendOverlayMessage(Component.literal("Pulse "+run.next+"/"+COLOR_ROUNDS+" | "+COLORS.get(color)+" | "+seconds+"s").withStyle(formatting));
     }
     static void tick(ServerPlayer p) {
         tick(p,p.level().getServer().getTickCount());
@@ -466,7 +466,7 @@ final class ModeMaps {
         int light=green?0:1;
         if(run.lastPhase!=light || tick%10==0) {
             int remaining=((green?GREEN_TICKS-phase:GREEN_TICKS+RED_TICKS-phase)+19)/20;
-            p.displayClientMessage(Component.literal((green?"GREEN — RUN":"RED — STOP")+" | "+Math.max(1,remaining)+"s").withStyle(green?ChatFormatting.GREEN:ChatFormatting.RED),true);
+            p.sendOverlayMessage(Component.literal((green?"GREEN — RUN":"RED — STOP")+" | "+Math.max(1,remaining)+"s").withStyle(green?ChatFormatting.GREEN:ChatFormatting.RED));
             run.lastPhase=light;
         }
         return green;
@@ -479,7 +479,7 @@ final class ModeMaps {
         RUNS.remove(p.getUUID());
         p.level().getServer().getPlayerList().saveAll();
         try {MinigameRecords.sync(p);}catch(IllegalStateException e) {CommunityServer.say(p,"Your best was saved, but the public leaderboard is temporarily unavailable.");}
-        p.displayClientMessage(Component.literal("Course clear! "+MinigameRecords.time(millis)+" | /retry "+run.map).withStyle(ChatFormatting.GREEN),true);
+        p.sendOverlayMessage(Component.literal("Course clear! "+MinigameRecords.time(millis)+" | /retry "+run.map).withStyle(ChatFormatting.GREEN));
         CommunityServer.say(p,"Completed "+spec.title+" in "+String.format(Locale.ROOT,"%.2f",millis/1000.0)+"s! Personal best: "+String.format(Locale.ROOT,"%.2f",Math.min(old,millis)/1000.0)+"s. /retry "+run.map+" to race again.");
     }
 }

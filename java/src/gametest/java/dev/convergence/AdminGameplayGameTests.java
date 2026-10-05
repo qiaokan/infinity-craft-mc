@@ -14,7 +14,7 @@ import net.minecraft.world.InteractionHand;
 import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.inventory.AbstractContainerMenu;
-import net.minecraft.world.inventory.ClickType;
+import net.minecraft.world.inventory.ContainerInput;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.GameType;
@@ -39,7 +39,7 @@ public class AdminGameplayGameTests {
         server.getPlayerList().remove(player);
     }
     private void click(ServerPlayer player, int slot) {
-        player.containerMenu.clicked(slot, 0, ClickType.PICKUP, player);
+        player.containerMenu.clicked(slot, 0, ContainerInput.PICKUP, player);
     }
     private CommunityServer.Place safePlace(ServerPlayer player, int dx) {
         BlockPos feet = player.blockPosition().offset(dx, 0, 0);
@@ -116,7 +116,7 @@ public class AdminGameplayGameTests {
             gear = (ServerMenu.Handler)p.containerMenu;
             c.assertTrue(Memberships.get(c.getLevel().getServer()).revokeAdmin(p.getUUID()), "Admin revocation succeeds");
             ItemStack before = p.getMainHandItem().copy();
-            ((AbstractContainerMenu)gear).clicked(0, 0, ClickType.PICKUP, p);
+            ((AbstractContainerMenu)gear).clicked(0, 0, ContainerInput.PICKUP, p);
             c.assertTrue(ItemStack.isSameItemSameComponents(before, p.getMainHandItem()), "Revoking Admin while the catalog is open prevents further grants");
             c.assertFalse(ServerMenu.gearAllowed(p), "Catalog eligibility rechecks current membership");
             p.closeContainer();

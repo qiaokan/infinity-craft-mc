@@ -17,7 +17,11 @@
     "AgentMaceMixin",
     "ClientVitalsMixin",
     "LivingVitalsAccess",
-    "PlayerVitalsAccess"
+    "PlayerVitalsAccess",
+    "ItemPropertiesAccess",
+    "ComponentInitializersAccess",
+    "ComponentInitializerEntryAccess",
+    "AgentTargetMixin"
   ],
   "injectors": {
     "defaultRequire": 1

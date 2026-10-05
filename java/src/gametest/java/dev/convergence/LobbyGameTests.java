@@ -10,7 +10,7 @@ import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionResult;
-import net.minecraft.world.inventory.ClickType;
+import net.minecraft.world.inventory.ContainerInput;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.ChunkPos;
@@ -108,42 +108,42 @@ public class LobbyGameTests {
         var originalOccupied=chunk.getBlockState(occupied);
         var originalOther=world.getBlockState(otherAccent);
         var sign=(SignBlockEntity)chunk.getBlockEntity(signPos);
-        var front=sign.getFrontText();var back=sign.getBackText();
+        var front=sign.getText(net.minecraft.world.level.block.entity.SignTextSlot.FRONT);var back=sign.getText(net.minecraft.world.level.block.entity.SignTextSlot.BACK);
         int flags=Block.UPDATE_CLIENTS|Block.UPDATE_KNOWN_SHAPE;
         // Drain startup work before creating missing blocks, so this event is the only queued repair.
-        ServerTickEvents.END_WORLD_TICK.invoker().onEndTick(world);
+        ServerTickEvents.END_LEVEL_TICK.invoker().onEndTick(world);
         try {
             world.setBlock(accent,Blocks.AIR.defaultBlockState(),flags);
             world.setBlock(otherAccent,Blocks.AIR.defaultBlockState(),flags);
             world.setBlock(occupied,Blocks.CHEST.defaultBlockState(),flags);
             var chest=(net.minecraft.world.level.block.entity.ChestBlockEntity)chunk.getBlockEntity(occupied);
             chest.setItem(0,new ItemStack(Items.DIAMOND,13));
-            sign.setText(front.setMessage(0,Component.literal("Keep my arrival sign")),true);
-            sign.setText(back.setMessage(1,Component.literal("Keep this back too")),false);
+            sign.setText(front.asMutable().setLine(0,Component.literal("Keep my arrival sign")).asImmutable(),net.minecraft.world.level.block.entity.SignTextSlot.FRONT);
+            sign.setText(back.asMutable().setLine(1,Component.literal("Keep this back too")).asImmutable(),net.minecraft.world.level.block.entity.SignTextSlot.BACK);
             int loadedChunks=world.getChunkSource().getLoadedChunksCount();
 
             // Dispatch the registered native event, not the installer helper. A synchronous
             // repair here can ask for the same still-pending chunk future and freeze a join.
-            ServerChunkEvents.CHUNK_LOAD.invoker().onChunkLoad(world,chunk);
+            ServerChunkEvents.CHUNK_LOAD.invoker().onChunkLoad(world,chunk,false);
             c.assertTrue(chunk.getBlockState(accent).isAir(),"Chunk-load callback only queues work while its full-chunk future may be pending");
             c.assertValueEqual(world.getChunkSource().getLoadedChunksCount(),loadedChunks,"Enqueuing lobby repair does not load chunks");
 
-            ServerTickEvents.END_WORLD_TICK.invoker().onEndTick(world);
+            ServerTickEvents.END_LEVEL_TICK.invoker().onEndTick(world);
             c.assertTrue(chunk.getBlockState(accent).is(Blocks.PEARLESCENT_FROGLIGHT),"The completed captured chunk is repaired after the world tick");
             c.assertTrue(world.getBlockState(otherAccent).isAir(),"A chunk-load repair does not sweep another lobby chunk");
             c.assertTrue(chunk.getBlockState(occupied).is(Blocks.CHEST),"Deferred repair preserves player storage");
             c.assertTrue(chunk.getBlockEntity(occupied)==chest,"Deferred repair retains the original chest block entity");
             c.assertTrue(chest.getItem(0).is(Items.DIAMOND),"Deferred repair keeps the stored item type");
             c.assertValueEqual(chest.getItem(0).getCount(),13,"Deferred repair keeps the stored item count");
-            c.assertValueEqual(sign.getFrontText().getMessage(0,false).getString(),"Keep my arrival sign","Deferred repair preserves edited front text");
-            c.assertValueEqual(sign.getBackText().getMessage(1,false).getString(),"Keep this back too","Deferred repair preserves edited back text");
+            c.assertValueEqual(sign.getText(net.minecraft.world.level.block.entity.SignTextSlot.FRONT).getMessages(false).get(0).getString(),"Keep my arrival sign","Deferred repair preserves edited front text");
+            c.assertValueEqual(sign.getText(net.minecraft.world.level.block.entity.SignTextSlot.BACK).getMessages(false).get(1).getString(),"Keep this back too","Deferred repair preserves edited back text");
             c.assertValueEqual(world.getChunkSource().getLoadedChunksCount(),loadedChunks,"Draining one completed repair does not load neighboring chunks");
 
             world.setBlock(accent,Blocks.AIR.defaultBlockState(),flags);
-            ServerTickEvents.END_WORLD_TICK.invoker().onEndTick(world);
+            ServerTickEvents.END_LEVEL_TICK.invoker().onEndTick(world);
             c.assertTrue(chunk.getBlockState(accent).isAir(),"A completed queue entry is consumed rather than rebuilding every tick");
         } finally {
-            sign.setText(front,true);sign.setText(back,false);
+            sign.setText(front,net.minecraft.world.level.block.entity.SignTextSlot.FRONT);sign.setText(back,net.minecraft.world.level.block.entity.SignTextSlot.BACK);
             world.setBlock(accent,originalAccent,flags);
             world.setBlock(occupied,originalOccupied,flags);
             world.setBlock(otherAccent,originalOther,flags);
@@ -156,25 +156,25 @@ public class LobbyGameTests {
         var chunk=world.getChunkAt(accent);
         var original=chunk.getBlockState(accent);
         int flags=Block.UPDATE_CLIENTS|Block.UPDATE_KNOWN_SHAPE;
-        ServerTickEvents.END_WORLD_TICK.invoker().onEndTick(world);
+        ServerTickEvents.END_LEVEL_TICK.invoker().onEndTick(world);
         try {
             world.setBlock(accent,Blocks.AIR.defaultBlockState(),flags);
             // The native chunk has the same position but has never been published by the
             // manager. Preloaded hub fixtures must not hide an event/manager identity bug.
             var stale=new LevelChunk(world,chunk.getPos());
-            c.assertTrue(world.getChunkSource().getChunkNow(chunk.getPos().x,chunk.getPos().z)==chunk,"Fixture has a distinct completed manager chunk");
-            ServerChunkEvents.CHUNK_LOAD.invoker().onChunkLoad(world,stale);
-            ServerTickEvents.END_WORLD_TICK.invoker().onEndTick(world);
+            c.assertTrue(world.getChunkSource().getChunkNow(chunk.getPos().x(),chunk.getPos().z())==chunk,"Fixture has a distinct completed manager chunk");
+            ServerChunkEvents.CHUNK_LOAD.invoker().onChunkLoad(world,stale,false);
+            ServerTickEvents.END_LEVEL_TICK.invoker().onEndTick(world);
             c.assertTrue(chunk.getBlockState(accent).isAir(),"An event for another chunk instance cannot repair the resident chunk");
             c.assertTrue(stale.getBlockState(accent).isAir(),"An unpublished event chunk is not mutated");
 
-            ServerChunkEvents.CHUNK_LOAD.invoker().onChunkLoad(world,chunk);
+            ServerChunkEvents.CHUNK_LOAD.invoker().onChunkLoad(world,chunk,false);
             ServerChunkEvents.CHUNK_UNLOAD.invoker().onChunkUnload(world,chunk);
-            ServerTickEvents.END_WORLD_TICK.invoker().onEndTick(world);
+            ServerTickEvents.END_LEVEL_TICK.invoker().onEndTick(world);
             c.assertTrue(chunk.getBlockState(accent).isAir(),"Unloading cancels a queued repair even if a completed instance is still visible");
 
-            ServerChunkEvents.CHUNK_LOAD.invoker().onChunkLoad(world,chunk);
-            ServerTickEvents.END_WORLD_TICK.invoker().onEndTick(world);
+            ServerChunkEvents.CHUNK_LOAD.invoker().onChunkLoad(world,chunk,false);
+            ServerTickEvents.END_LEVEL_TICK.invoker().onEndTick(world);
             c.assertTrue(chunk.getBlockState(accent).is(Blocks.PEARLESCENT_FROGLIGHT),"A fresh load event can repair the chunk after cancellation");
         } finally {world.setBlock(accent,original,flags);}
         c.succeed();
@@ -183,12 +183,12 @@ public class LobbyGameTests {
         var world=GameModes.world(c.getLevel().getServer(),GameModes.Mode.HUB);
         var distant=new ChunkPos(625_000,625_000);
         for(int x=-1;x<=1;x++) for(int z=-1;z<=1;z++)
-            c.assertFalse(world.hasChunk(distant.x+x,distant.z+z),"Distant fixture and its neighbors start unloaded");
+            c.assertFalse(world.hasChunk(distant.x()+x,distant.z()+z),"Distant fixture and its neighbors start unloaded");
         var unpublished=new LevelChunk(world,distant);
-        ServerChunkEvents.CHUNK_LOAD.invoker().onChunkLoad(world,unpublished);
-        ServerTickEvents.END_WORLD_TICK.invoker().onEndTick(world);
+        ServerChunkEvents.CHUNK_LOAD.invoker().onChunkLoad(world,unpublished,false);
+        ServerTickEvents.END_LEVEL_TICK.invoker().onEndTick(world);
         for(int x=-1;x<=1;x++) for(int z=-1;z<=1;z++)
-            c.assertFalse(world.hasChunk(distant.x+x,distant.z+z),"Unknown chunk event does not request this chunk or any neighbor");
+            c.assertFalse(world.hasChunk(distant.x()+x,distant.z()+z),"Unknown chunk event does not request this chunk or any neighbor");
         for (var section : unpublished.getSections())
             c.assertTrue(section.hasOnlyAir(),"Unknown chunk event leaves every native chunk section empty");
         c.succeed();
@@ -230,16 +230,16 @@ public class LobbyGameTests {
         var world=GameModes.world(c.getLevel().getServer(),GameModes.Mode.HUB);
         var signPos=LobbyServer.ENTRY_SIGNS.entrySet().stream().filter(entry->entry.getValue().equals("survival")).findFirst().orElseThrow().getKey();
         var sign=(SignBlockEntity)world.getBlockEntity(signPos);
-        var front=sign.getFrontText();var back=sign.getBackText();
+        var front=sign.getText(net.minecraft.world.level.block.entity.SignTextSlot.FRONT);var back=sign.getText(net.minecraft.world.level.block.entity.SignTextSlot.BACK);
         var accent=LobbyServer.LOBBIES.get("survival").center().offset(5,6,-10);
         var floor=new BlockPos(accent.getX(),80,accent.getZ());
         var oldAccent=world.getBlockState(accent);var oldFloor=world.getBlockState(floor);
         try {
-            sign.setText(front.setMessage(0,Component.literal("My custom sign")),true);
+            sign.setText(front.asMutable().setLine(0,Component.literal("My custom sign")).asImmutable(),net.minecraft.world.level.block.entity.SignTextSlot.FRONT);
             world.setBlock(accent,Blocks.AIR.defaultBlockState(),2);
             world.setBlockAndUpdate(floor,Blocks.DIAMOND_BLOCK.defaultBlockState());
             LobbyServer.installDecor(world);
-            c.assertValueEqual(sign.getFrontText().getMessage(0,false).getString(),"My custom sign","A renamed player sign is never restyled");
+            c.assertValueEqual(sign.getText(net.minecraft.world.level.block.entity.SignTextSlot.FRONT).getMessages(false).get(0).getString(),"My custom sign","A renamed player sign is never restyled");
             c.assertTrue(world.getBlockState(accent).isAir(),"Decor is skipped above a modified platform instead of claiming player builds");
             c.assertTrue(world.getBlockState(floor).is(Blocks.DIAMOND_BLOCK),"Modified floor is never replaced");
             var far=new BlockPos(10_000_000,81,10_000_000);
@@ -247,7 +247,7 @@ public class LobbyGameTests {
             c.assertFalse(world.hasChunk(far.getX()>>4,far.getZ()>>4),"Checking decor safety did not load an unrelated chunk");
             c.assertFalse(LobbyServer.loadedSite(world,new BlockPos(0,100_000,0)),"Out-of-height placements are refused");
         } finally {
-            sign.setText(front,true);sign.setText(back,false);
+            sign.setText(front,net.minecraft.world.level.block.entity.SignTextSlot.FRONT);sign.setText(back,net.minecraft.world.level.block.entity.SignTextSlot.BACK);
             world.setBlockAndUpdate(floor,oldFloor);world.setBlockAndUpdate(accent,oldAccent);
         }
         c.succeed();
@@ -259,9 +259,9 @@ public class LobbyGameTests {
         signs.addAll(LobbyServer.ENTRY_SIGNS.keySet());signs.addAll(LobbyServer.MENU_SIGNS);
         for(var pos:signs) {
             var sign=(SignBlockEntity)world.getBlockEntity(pos);
-            c.assertTrue(sign.getFrontText().hasGlowingText() && sign.getBackText().hasGlowingText(),"Directions glow on both faces");
-            for(int line=0;line<4;line++) c.assertValueEqual(sign.getFrontText().getMessage(line,false).getString(),sign.getBackText().getMessage(line,false).getString(),"Back face provides the same navigation");
-            c.assertValueEqual(sign.getFrontText().getMessage(3,false).getString(),"TAP TO OPEN","Touch-screen players see the intended interaction");
+            c.assertTrue(sign.getText(net.minecraft.world.level.block.entity.SignTextSlot.FRONT).hasGlowingText() && sign.getText(net.minecraft.world.level.block.entity.SignTextSlot.BACK).hasGlowingText(),"Directions glow on both faces");
+            for(int line=0;line<4;line++) c.assertValueEqual(sign.getText(net.minecraft.world.level.block.entity.SignTextSlot.FRONT).getMessages(false).get(line).getString(),sign.getText(net.minecraft.world.level.block.entity.SignTextSlot.BACK).getMessages(false).get(line).getString(),"Back face provides the same navigation");
+            c.assertValueEqual(sign.getText(net.minecraft.world.level.block.entity.SignTextSlot.FRONT).getMessages(false).get(3).getString(),"TAP TO OPEN","Touch-screen players see the intended interaction");
         }
         c.succeed();
     }
@@ -359,7 +359,7 @@ public class LobbyGameTests {
                     var menu=(CourseSelector.Handler)p.containerMenu;
                     int slot=CourseSelector.slot(index,choices.size());
                     c.assertValueEqual(((net.minecraft.world.inventory.AbstractContainerMenu)menu).getSlot(slot).getItem().getHoverName().getString(),spec.title(),"Named course option is visible: "+spec.id());
-                    ((net.minecraft.world.inventory.AbstractContainerMenu)menu).clicked(slot,0,ClickType.PICKUP,p);
+                    ((net.minecraft.world.inventory.AbstractContainerMenu)menu).clicked(slot,0,ContainerInput.PICKUP,p);
                     var pending=GameModes.PENDING.get(p.getUUID());
                     c.assertTrue(pending!=null && pending.mode()==mode && spec.id().equals(pending.map()),"Selecting "+spec.id()+" keeps the three-second route");
                     c.assertValueEqual(GameModes.current(p),GameModes.Mode.HUB,"Selection has not teleported before warmup");
@@ -373,7 +373,7 @@ public class LobbyGameTests {
                     c.assertTrue(p.containerMenu instanceof CourseSelector.Handler,"Selector can reopen inside course");
                     var inCourse=(CourseSelector.Handler)p.containerMenu;
                     int next=(index+1)%choices.size();
-                    ((net.minecraft.world.inventory.AbstractContainerMenu)inCourse).clicked(CourseSelector.slot(next,choices.size()),0,ClickType.PICKUP,p);
+                    ((net.minecraft.world.inventory.AbstractContainerMenu)inCourse).clicked(CourseSelector.slot(next,choices.size()),0,ContainerInput.PICKUP,p);
                     c.assertValueEqual(ModeMaps.RUNS.get(p.getUUID()).map,choices.get(next).id(),"In-course menu starts another map in the same mode");
                 }
             }
@@ -396,8 +396,8 @@ public class LobbyGameTests {
             var menu=(CourseSelector.Handler)p.containerMenu;
             c.assertValueEqual(menu.choices.size(),6,"All six minigames are shown");
             var icon=((net.minecraft.world.inventory.AbstractContainerMenu)menu).getSlot(CourseSelector.slot(1,menu.choices.size())).getItem().copy();
-            ((net.minecraft.world.inventory.AbstractContainerMenu)menu).clicked(CourseSelector.slot(1,menu.choices.size()),0,ClickType.THROW,p);
-            ((net.minecraft.world.inventory.AbstractContainerMenu)menu).clicked(CourseSelector.slot(1,menu.choices.size()),0,ClickType.PICKUP_ALL,p);
+            ((net.minecraft.world.inventory.AbstractContainerMenu)menu).clicked(CourseSelector.slot(1,menu.choices.size()),0,ContainerInput.THROW,p);
+            ((net.minecraft.world.inventory.AbstractContainerMenu)menu).clicked(CourseSelector.slot(1,menu.choices.size()),0,ContainerInput.PICKUP_ALL,p);
             c.assertTrue(ItemStack.isSameItemSameComponents(icon,((net.minecraft.world.inventory.AbstractContainerMenu)menu).getSlot(CourseSelector.slot(1,menu.choices.size())).getItem()),"Menu icon cannot be taken");
             c.assertTrue(((net.minecraft.world.inventory.AbstractContainerMenu)menu).getCarried().isEmpty() && p.getInventory().isEmpty(),"Invalid clicks create no items");
             p.closeContainer();

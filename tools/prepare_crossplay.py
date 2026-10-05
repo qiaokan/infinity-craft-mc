@@ -9,7 +9,7 @@ import uuid
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
-VERSION = "2.12.0-explore.16"
+VERSION = "2.13.0-explore.17"
 
 
 def expected_native_tests():
@@ -39,7 +39,7 @@ def prepare():
         if old.name != f"Infinity-Armor-{VERSION}.jar":
             old.unlink()
     mod = ROOT / f"java/build/libs/Infinity-Armor-{VERSION}.jar"
-    api = ROOT / "vendor/fabric-api-0.141.6+1.21.11.jar"
+    api = ROOT / "vendor/fabric-api-0.161.0+26.3.jar"
     with zipfile.ZipFile(mod) as jar:
         assert json.loads(jar.read("fabric.mod.json"))["version"] == VERSION
         assert not any("GameTests" in name or name.startswith("net/minecraft/") for name in jar.namelist())

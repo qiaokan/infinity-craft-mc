@@ -23,7 +23,7 @@ import net.minecraft.world.SimpleMenuProvider;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.ChestMenu;
-import net.minecraft.world.inventory.ClickType;
+import net.minecraft.world.inventory.ContainerInput;
 import net.minecraft.world.inventory.MenuType;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -270,9 +270,9 @@ final class PlayerTrading {
         view.clearContent();int index=0;for(var offer:s.offers.get(viewer.getUUID()).values())view.setItem(index++,offer.offered());
         index=27;for(var offer:s.offers.get(s.other(viewer).getUUID()).values())view.setItem(index++,offer.offered());
         view.setItem(18,icon(Items.PAPER,"Your offer (rows 1-2)"));view.setItem(26,icon(Items.PAPER,s.other(viewer).getScoreboardName()+"'s offer (rows 4-5)"));
-        view.setItem(20,icon(s.confirmed.contains(viewer.getUUID())?Items.LIME_WOOL:Items.YELLOW_WOOL,"You: "+(s.confirmed.contains(viewer.getUUID())?"confirmed":"reviewing")));
-        view.setItem(22,icon(s.confirmed.contains(s.other(viewer).getUUID())?Items.LIME_WOOL:Items.YELLOW_WOOL,"Partner: "+(s.confirmed.contains(s.other(viewer).getUUID())?"confirmed":"reviewing")));
-        view.setItem(49,icon(Items.LIME_WOOL,"Confirm offer revision "+s.version));view.setItem(53,icon(Items.RED_WOOL,"Cancel trade"));
+        view.setItem(20,icon(s.confirmed.contains(viewer.getUUID())?Items.WOOL.lime():Items.WOOL.yellow(),"You: "+(s.confirmed.contains(viewer.getUUID())?"confirmed":"reviewing")));
+        view.setItem(22,icon(s.confirmed.contains(s.other(viewer).getUUID())?Items.WOOL.lime():Items.WOOL.yellow(),"Partner: "+(s.confirmed.contains(s.other(viewer).getUUID())?"confirmed":"reviewing")));
+        view.setItem(49,icon(Items.WOOL.lime(),"Confirm offer revision "+s.version));view.setItem(53,icon(Items.WOOL.red(),"Cancel trade"));
     }
     void refresh(Session s) {
         for(var p:List.of(s.first,s.second))if(p.containerMenu instanceof ReviewHandler handler&&handler.session==s){fill(s,p,handler.view);handler.sendAllDataToRemote();}
@@ -298,10 +298,10 @@ final class PlayerTrading {
         @Override public boolean stillValid(Player p) {return p instanceof ServerPlayer sp&&owner.sessions.get(sp.getUUID())==session&&owner.valid(session);}
         @Override public ItemStack quickMoveStack(Player p,int slot) {return ItemStack.EMPTY;}
         @Override public void setSelectedBundleItemIndex(int slot,int selected) { }
-        @Override public void clicked(int slot,int button,ClickType action,Player p) {
+        @Override public void clicked(int slot,int button,ContainerInput action,Player p) {
             if(!(p instanceof ServerPlayer sp)||owner.sessions.get(sp.getUUID())!=session)return;
-            if(action==ClickType.PICKUP&&slot==49)owner.confirm(sp,version);
-            else if(action==ClickType.PICKUP&&slot==53)owner.cancel(session,"Trade canceled. No items were moved.");
+            if(action==ContainerInput.PICKUP&&slot==49)owner.confirm(sp,version);
+            else if(action==ContainerInput.PICKUP&&slot==53)owner.cancel(session,"Trade canceled. No items were moved.");
             else sendAllDataToRemote();
         }
         @Override public void removed(Player p) {

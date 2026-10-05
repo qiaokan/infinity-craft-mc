@@ -116,7 +116,7 @@ public class ModeGameTests {
         c.assertValueEqual(commands.execute("play minigames",next.createCommandSourceStack()),1,"Eliminated Hardcore spectator can open a minigame menu");
         c.assertTrue(next.containerMenu instanceof CourseSelector.Handler,"Spectator sees the vanilla course menu");
         var menu=(CourseSelector.Handler)next.containerMenu;
-        ((net.minecraft.world.inventory.AbstractContainerMenu)menu).clicked(CourseSelector.slot(0,CourseSelector.courses(GameModes.Mode.MINIGAMES).size()),0,net.minecraft.world.inventory.ClickType.PICKUP,next);
+        ((net.minecraft.world.inventory.AbstractContainerMenu)menu).clicked(CourseSelector.slot(0,CourseSelector.courses(GameModes.Mode.MINIGAMES).size()),0,net.minecraft.world.inventory.ContainerInput.PICKUP,next);
         c.assertTrue(GameModes.PENDING.containsKey(next.getUUID()),"Spectator can choose a course after Hardcore elimination");
         GameModes.PENDING.remove(next.getUUID());
         GameModes.switchNow(next,GameModes.Mode.SURVIVAL,null);

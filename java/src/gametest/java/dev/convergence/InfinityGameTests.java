@@ -1,5 +1,6 @@
 package dev.convergence;
 
+import net.minecraft.world.entity.EntityTypes;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.commands.arguments.EntityAnchorArgument.Anchor;
 import net.minecraft.core.component.DataComponents;
@@ -26,9 +27,13 @@ import net.fabricmc.fabric.api.entity.event.v1.ServerLivingEntityEvents;
 import net.fabricmc.fabric.api.event.player.AttackEntityCallback;
 
 public class InfinityGameTests {
+    private static boolean buildJavaPack(java.nio.file.Path path) {
+        try {return !eu.pb4.polymer.resourcepack.api.ResourcePackCreator.forDefault().build(path).hadIssues();}
+        catch(java.util.concurrent.ExecutionException|InterruptedException e) {return false;}
+    }
     @GameTest public void crossplayJavaResourcePackContainsModels(GameTestHelper c) {
         var path=java.nio.file.Path.of("crossplay-export/java-resources.zip");
-        c.assertTrue(eu.pb4.polymer.resourcepack.api.PolymerResourcePackUtils.buildMain(path),"Resource pack generation succeeds");
+        c.assertTrue(buildJavaPack(path),"Resource pack generation succeeds");
         try(var zip=new java.util.zip.ZipFile(path.toFile())) {
             for(String name:CrossplaySupport.BASES.keySet())
                 c.assertTrue(zip.getEntry("assets/convergence/items/"+name+".json")!=null,"Pack contains "+name);
@@ -40,7 +45,7 @@ public class InfinityGameTests {
     }
     @GameTest public void crossplayAllItemsRoundTrip(GameTestHelper c) {
         var p=c.makeMockServerPlayerInLevel();
-        var context=xyz.nucleoid.packettweaker.PacketContext.create(p);
+        var context=p.connection.getPacketContext();
         for(var entry:CrossplaySupport.BASES.entrySet()) {
             var original=gear(entry.getKey());
             original.setCount(Math.min(17,original.getMaxStackSize()));
@@ -48,7 +53,7 @@ public class InfinityGameTests {
             if(entry.getKey().equals("sword"))original.enchant(c.getLevel().registryAccess()
                 .lookupOrThrow(Registries.ENCHANTMENT).getOrThrow(Enchantments.SHARPNESS),4);
             if(original.isDamageableItem())original.setDamageValue(7);
-            var wire=eu.pb4.polymer.core.api.item.PolymerItemUtils.getPolymerItemStack(original,context);
+            var wire=eu.pb4.polymer.core.api.item.PolymerItemUtils.getPolymerItemStack(original,context,c.getLevel().registryAccess());
             c.assertValueEqual(wire.getItem(),entry.getValue(),"Vanilla network item: "+entry.getKey());
             c.assertValueEqual(wire.get(DataComponents.ITEM_MODEL),entry.getValue().components().get(DataComponents.ITEM_MODEL),"Java without a resource pack gets a complete native icon");
             var restored=eu.pb4.polymer.core.api.item.PolymerItemUtils.getRealItemStack(wire,c.getLevel().registryAccess());
@@ -60,7 +65,7 @@ public class InfinityGameTests {
     @GameTest public void crossplayBlocksHaveDistinctVanillaStates(GameTestHelper c) {
         var seen=new java.util.HashSet<String>();
         var p=c.makeMockServerPlayerInLevel();
-        var context=xyz.nucleoid.packettweaker.PacketContext.create(p);
+        var context=p.connection.getPacketContext();
         for(String name:ExpandedGear.BLOCKS) {
             var real=BuiltInRegistries.BLOCK.getValue(CrossplaySupport.id(name)).defaultBlockState();
             var wire=eu.pb4.polymer.core.api.block.PolymerBlockUtils.getPolymerBlockState(real,context);
@@ -99,7 +104,7 @@ public class InfinityGameTests {
     }
     private ItemStack gear(String name) { return new ItemStack(Convergence.ITEMS.get("convergence:"+name)); }
     private LivingEntity target(GameTestHelper c, int totems) {
-        var t=c.spawnWithNoFreeWill(EntityType.HUSK,3,2,3);
+        var t=c.spawnWithNoFreeWill(EntityTypes.HUSK,3,2,3);
         t.setNoAi(true); t.setNoGravity(true);
         if(totems>0)t.setItemInHand(InteractionHand.OFF_HAND,new ItemStack(Items.TOTEM_OF_UNDYING));
         if(totems>1)t.setItemInHand(InteractionHand.MAIN_HAND,new ItemStack(Items.TOTEM_OF_UNDYING));
@@ -214,13 +219,13 @@ public class InfinityGameTests {
     }
     @GameTest public void pendingComboAllowsOtherTargetsNativeMelee(GameTestHelper c) {
         var t=target(c,1);var p=player(c,t);Convergence.thrust(p,t);
-        var other=c.spawnWithNoFreeWill(EntityType.HUSK,3,2,5);other.setNoAi(true);
+        var other=c.spawnWithNoFreeWill(EntityTypes.HUSK,3,2,5);other.setNoAi(true);
         c.assertTrue(Convergence.melee(p,other)==InteractionResult.PASS,"Unrelated target must retain vanilla melee while mark is pending");
         c.assertTrue(Convergence.melee(p,t)==InteractionResult.SUCCESS,"Same-tick marked target must not get an extra native hit");
         c.assertTrue(t.isAlive(),"Mandatory delay protects the original target until next tick");c.succeed();
     }
     @GameTest public void rejectedSpearKeepsBoundedArmWithoutSpendingCooldown(GameTestHelper c) {
-        var t=target(c,1);var p=player(c,t);p.setGameMode(net.minecraft.world.level.GameType.SURVIVAL);t.setInvulnerable(true);Convergence.arm(p);
+        var t=target(c,1);var p=player(c,t);p.setGameMode(net.minecraft.world.level.GameType.SURVIVAL);t.setPermanentlyInvulnerable(true);Convergence.arm(p);
         c.assertFalse(Convergence.thrust(p,t),"Invulnerable target rejects damage");
         c.assertTrue(Convergence.state(p).armed>Convergence.clock,"Transient rejection retains the bounded arm for retry");
         c.assertTrue(Convergence.state(p).target==null,"Rejected hit cannot open a follow-up");
@@ -241,7 +246,7 @@ public class InfinityGameTests {
         c.getLevel().getServer().getPlayerList().placeNewPlayer(connection,p,data);
         p.connection.handleAcceptPlayerLoad(new net.minecraft.network.protocol.game.ServerboundPlayerLoadedPacket());
         p.setGameMode(net.minecraft.world.level.GameType.SURVIVAL);p.setNoGravity(true);
-        p.setInvulnerable(false);p.getAbilities().invulnerable=false;
+        p.setPermanentlyInvulnerable(false);p.getAbilities().invulnerable=false;
         c.assertFalse(p.isCreative(),"Real Survival player required, not creative-only mock");
         return p;
     }
@@ -279,7 +284,7 @@ public class InfinityGameTests {
         c.assertTrue(p.isFallFlying(),"Native gliding flag must be active");c.succeed();
     }
     @GameTest public void stormDoesNotDoubleHitSplashTargets(GameTestHelper c) {
-        var primary=target(c,2);var secondary=c.spawnWithNoFreeWill(EntityType.HUSK,3,2,5);secondary.setNoAi(true);
+        var primary=target(c,2);var secondary=c.spawnWithNoFreeWill(EntityTypes.HUSK,3,2,5);secondary.setNoAi(true);
         secondary.setItemInHand(InteractionHand.MAIN_HAND,new ItemStack(Items.TOTEM_OF_UNDYING));
         secondary.setItemInHand(InteractionHand.OFF_HAND,new ItemStack(Items.TOTEM_OF_UNDYING));
         var p=player(c,primary);p.setItemInHand(InteractionHand.MAIN_HAND,gear("sword"));Convergence.swordPower(p);
@@ -370,7 +375,7 @@ public class InfinityGameTests {
     }
     @GameTest public void secondaryToolsAffectHostilesAndRenewalHeals(GameTestHelper c) {
         var hostile=target(c,2);var p=player(c,hostile);p.setItemInHand(InteractionHand.MAIN_HAND,gear("pickaxe"));p.setDeltaMovement(Vec3.ZERO);
-        var friend=c.spawnWithNoFreeWill(EntityType.HUSK,3,2,4);friend.setNoAi(true);friend.addTag("convergence_friend");
+        var friend=c.spawnWithNoFreeWill(EntityTypes.HUSK,3,2,4);friend.setNoAi(true);friend.addTag("convergence_friend");
         float friendHealth=friend.getHealth();p.setShiftKeyDown(true);p.getMainHandItem().getItem().use(c.getLevel(),p,InteractionHand.MAIN_HAND);
         c.assertTrue(hostile.getDeltaMovement().x<0,"Gravity Well pulls hostile toward player");
         c.assertValueEqual(friend.getHealth(),friendHealth,"Friendly tagged entity is unharmed");
@@ -487,8 +492,8 @@ public class InfinityGameTests {
     }
     @GameTest public void arrowEffectsRespectFriendsAndTriggerOnKillingHit(GameTestHelper c) {
         var target=target(c,0);var p=survival(c);p.setPos(target.getX()-2,target.getY(),target.getZ());
-        var nearby=c.spawnWithNoFreeWill(EntityType.HUSK,3,2,5);nearby.setNoAi(true);nearby.setNoGravity(true);
-        var friend=c.spawnWithNoFreeWill(EntityType.HUSK,4,2,3);friend.setNoAi(true);friend.setNoGravity(true);friend.addTag("convergence_friend");
+        var nearby=c.spawnWithNoFreeWill(EntityTypes.HUSK,3,2,5);nearby.setNoAi(true);nearby.setNoGravity(true);
+        var friend=c.spawnWithNoFreeWill(EntityTypes.HUSK,4,2,3);friend.setNoAi(true);friend.setNoGravity(true);friend.addTag("convergence_friend");
         var damageType=c.getLevel().registryAccess().lookupOrThrow(Registries.DAMAGE_TYPE).getOrThrow(Convergence.COMBO);
         var infinity=new net.minecraft.world.entity.projectile.arrow.Arrow(c.getLevel(),p,gear("infinity_arrow"),gear("bow"));
         var radiant=new net.minecraft.world.damagesource.DamageSource(damageType,infinity,p);

@@ -1,6 +1,8 @@
 package dev.convergence;
 
 import com.mojang.brigadier.arguments.IntegerArgumentType;
+import java.util.Optional;
+import net.minecraft.world.scores.TeamColor;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -248,7 +250,7 @@ final class Memberships {
         var board=server.getScoreboard();String label=label(p.getUUID());String name="infinity_"+label.toLowerCase(Locale.ROOT);
         var previous=board.getPlayersTeam(p.getScoreboardName());
         if(previous!=null&&!previous.getName().startsWith("infinity_"))return;
-        var team=board.getPlayerTeam(name);if(team==null) {team=board.addPlayerTeam(name);team.setPlayerPrefix(Component.literal("["+label+"] "));team.setColor(switch(label){case "GO"->ChatFormatting.GREEN;case "PLUS"->ChatFormatting.AQUA;case "PRO"->ChatFormatting.LIGHT_PURPLE;case "ULTRA"->ChatFormatting.GOLD;case "ADMIN","OP"->ChatFormatting.RED;default->ChatFormatting.GRAY;});}
+        var team=board.getPlayerTeam(name);if(team==null) {team=board.addPlayerTeam(name);team.setPlayerPrefix(Component.literal("["+label+"] "));team.setColor(Optional.of(switch(label){case "GO"->TeamColor.GREEN;case "PLUS"->TeamColor.AQUA;case "PRO"->TeamColor.LIGHT_PURPLE;case "ULTRA"->TeamColor.GOLD;case "ADMIN","OP"->TeamColor.RED;default->TeamColor.GRAY;}));}
         if(previous!=team){board.addPlayerToTeam(p.getScoreboardName(),team);server.getCommands().sendCommands(p);}
     }
     int rank(ServerPlayer p) {

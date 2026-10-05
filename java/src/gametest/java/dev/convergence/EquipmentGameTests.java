@@ -1,5 +1,6 @@
 package dev.convergence;
 
+import net.minecraft.world.entity.EntityTypes;
 import java.util.Set;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.commands.arguments.EntityAnchorArgument.Anchor;
@@ -14,7 +15,7 @@ import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.EntitySpawnReason;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.EquipmentSlot;
-import net.minecraft.world.inventory.ClickType;
+import net.minecraft.world.inventory.ContainerInput;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.GameType;
@@ -38,7 +39,7 @@ public class EquipmentGameTests {
     @GameTest public void creativeBuilderPlacesRealBlocksWithoutItemsAndProtectsEntities(GameTestHelper c){
         var p=creative(c,"creative-builder");var at=target(c);var world=p.level();wall(p,at);
         aim(p,at);p.setItemInHand(InteractionHand.MAIN_HAND,gear("builder_wand"));p.setItemInHand(InteractionHand.OFF_HAND,new ItemStack(Items.QUARTZ_BLOCK,2));
-        var occupied=at.north().east();var villager=EntityType.VILLAGER.create(world,EntitySpawnReason.COMMAND);
+        var occupied=at.north().east();var villager=EntityTypes.VILLAGER.create(world,EntitySpawnReason.COMMAND);
         c.assertTrue(villager!=null,"Villager fixture exists");villager.setNoAi(true);villager.setNoGravity(true);
         villager.setPos(occupied.getX()+.5,occupied.getY(),occupied.getZ()+.5);
         c.assertTrue(world.addFreshEntity(villager),"Villager fixture spawns in the Creative world");
@@ -154,7 +155,7 @@ public class EquipmentGameTests {
             c.assertTrue(spear>=0,"Spear appears in the picker");
             c.assertValueEqual(((net.minecraft.world.inventory.AbstractContainerMenu)handler).getSlot(spear).getItem().getItem(),Items.NETHERITE_SPEAR,
                 "Picker shows a vanilla Bedrock-safe icon");
-            ((net.minecraft.world.inventory.AbstractContainerMenu)handler).clicked(spear,0,ClickType.PICKUP,p);
+            ((net.minecraft.world.inventory.AbstractContainerMenu)handler).clicked(spear,0,ContainerInput.PICKUP,p);
             c.assertValueEqual(p.getMainHandItem().getItem(),Convergence.ITEMS.get("convergence:spear"),
                 "Tapping the icon equips the real Infinity spear");
             c.assertTrue(CreativeGearPicker.isPicker(p.getInventory().getItem(8)),
@@ -173,13 +174,13 @@ public class EquipmentGameTests {
         var handler=(CreativeGearPicker.PickerHandler)p.containerMenu;
         int sword=handler.paths.indexOf("convergence:sword");
         var icon=((net.minecraft.world.inventory.AbstractContainerMenu)handler).getSlot(sword).getItem().copy();
-        ((net.minecraft.world.inventory.AbstractContainerMenu)handler).clicked(sword,0,ClickType.THROW,p);
-        ((net.minecraft.world.inventory.AbstractContainerMenu)handler).clicked(sword,0,ClickType.PICKUP_ALL,p);
-        ((net.minecraft.world.inventory.AbstractContainerMenu)handler).clicked(54,0,ClickType.PICKUP,p);
+        ((net.minecraft.world.inventory.AbstractContainerMenu)handler).clicked(sword,0,ContainerInput.THROW,p);
+        ((net.minecraft.world.inventory.AbstractContainerMenu)handler).clicked(sword,0,ContainerInput.PICKUP_ALL,p);
+        ((net.minecraft.world.inventory.AbstractContainerMenu)handler).clicked(54,0,ContainerInput.PICKUP,p);
         c.assertTrue(ItemStack.isSameItemSameComponents(icon,((net.minecraft.world.inventory.AbstractContainerMenu)handler).getSlot(sword).getItem()),
             "Fake preview icons cannot be thrown, collected, or moved");
         c.assertTrue(((net.minecraft.world.inventory.AbstractContainerMenu)handler).getCarried().isEmpty(),"Picker never puts a fake item on the cursor");
-        ((net.minecraft.world.inventory.AbstractContainerMenu)handler).clicked(sword,0,ClickType.QUICK_MOVE,p);
+        ((net.minecraft.world.inventory.AbstractContainerMenu)handler).clicked(sword,0,ContainerInput.QUICK_MOVE,p);
         c.assertTrue(ItemStack.isSameItemSameComponents(p.getInventory().getItem(0),old),
             "Full inventory keeps the unique held tool instead of dropping it");
         c.assertFalse(p.getInventory().contains(gear("sword")),"Failed selection creates no weapon");
@@ -202,7 +203,7 @@ public class EquipmentGameTests {
                         "Selecting the restored compass opens the menu without a command");
                     p.getInventory().setItem(0,ItemStack.EMPTY);
                     var handler=(CreativeGearPicker.PickerHandler)p.containerMenu;
-                    ((net.minecraft.world.inventory.AbstractContainerMenu)handler).clicked(handler.paths.indexOf("convergence:sword"),0,ClickType.PICKUP,p);
+                    ((net.minecraft.world.inventory.AbstractContainerMenu)handler).clicked(handler.paths.indexOf("convergence:sword"),0,ContainerInput.PICKUP,p);
                     c.assertValueEqual(p.getMainHandItem().getItem(),Convergence.ITEMS.get("convergence:sword"),
                         "After clearing a hotbar slot, the picker equips a real weapon");
                     c.succeed();
@@ -241,7 +242,7 @@ public class EquipmentGameTests {
             var contents=new java.util.HashSet<net.minecraft.world.item.Item>();ItemStack first=null;
             for(int i=0;i<36;i++)if(GearCrates.isCrate(p.getInventory().getItem(i))) {
                 var box=p.getInventory().getItem(i);
-                box.get(DataComponents.CONTAINER).stream().forEach(s->contents.add(s.getItem()));
+                box.get(DataComponents.CONTAINER).itemCopies().forEach(s->contents.add(s.getItem()));
                 if(first==null)first=box.copy();
             }
             c.assertTrue(contents.containsAll(Convergence.ITEMS.values()),"Boxes cover every registered Convergence item");
@@ -265,10 +266,10 @@ public class EquipmentGameTests {
     @GameTest public void missingJavaPackUsesCompleteNativeArmorAssetsAndRoundTrips(GameTestHelper c) {
         var p=new ModeGameTests().player(c,"armor-fallback");
         try {
-            var context=xyz.nucleoid.packettweaker.PacketContext.create(p);
+            var context=p.connection.getPacketContext();
             c.assertFalse(eu.pb4.polymer.resourcepack.api.PolymerResourcePackUtils.hasMainPack(context),"Fixture has not accepted Java pack");
             for(String path:java.util.List.of("helmet","chestplate","leggings","boots","backpack","aurora_helmet","aurora_chestplate","ember_leggings")) {
-                var original=gear(path);var wire=eu.pb4.polymer.core.api.item.PolymerItemUtils.getPolymerItemStack(original,context);
+                var original=gear(path);var wire=eu.pb4.polymer.core.api.item.PolymerItemUtils.getPolymerItemStack(original,context,c.getLevel().registryAccess());
                 c.assertValueEqual(wire.get(DataComponents.EQUIPPABLE),CrossplaySupport.BASES.get(path).components().get(DataComponents.EQUIPPABLE),"Native wearable asset is complete when Java art is unavailable: "+path);
                 var restored=eu.pb4.polymer.core.api.item.PolymerItemUtils.getRealItemStack(wire,c.getLevel().registryAccess());
                 c.assertTrue(ItemStack.isSameItemSameComponents(restored,original),"Client fallback never mutates server equipment: "+path);
@@ -289,12 +290,12 @@ public class EquipmentGameTests {
             long occupied=p.getInventory().getNonEquipmentItems().stream().filter(stack->!stack.isEmpty()).count();
             c.assertValueEqual(GearCrates.giveDirect(p),1,"Repeated direct grant finds existing gear");
             c.assertValueEqual(p.getInventory().getNonEquipmentItems().stream().filter(stack->!stack.isEmpty()).count(),occupied,"Repeated direct grant creates no duplicate gear");
-            var context=xyz.nucleoid.packettweaker.PacketContext.create(p);
+            var context=p.connection.getPacketContext();
             for(var entry:Convergence.ITEMS.entrySet()) {
                 var stack=new ItemStack(entry.getValue());var path=entry.getKey().split(":")[1];
                 c.assertValueEqual(stack.getHoverName().getString(),GearNames.label(path),"Server item name is a complete human label");
                 stack.set(DataComponents.CUSTOM_NAME,net.minecraft.network.chat.Component.literal("My own name"));
-                var wire=eu.pb4.polymer.core.api.item.PolymerItemUtils.getPolymerItemStack(stack,context);
+                var wire=eu.pb4.polymer.core.api.item.PolymerItemUtils.getPolymerItemStack(stack,context,c.getLevel().registryAccess());
                 c.assertValueEqual(wire.get(DataComponents.ITEM_NAME).getString(),GearNames.label(path),"Native wire item has a literal translated name");
                 c.assertValueEqual(wire.getHoverName().getString(),"My own name","User anvil name is preserved");
                 if(CrossplaySupport.NATIVE_BEDROCK.contains(path)&&stack.has(DataComponents.EQUIPPABLE))

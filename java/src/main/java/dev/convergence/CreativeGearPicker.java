@@ -1,6 +1,7 @@
 package dev.convergence;
 
 import java.util.ArrayList;
+import net.minecraft.util.Prediction;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -19,7 +20,7 @@ import net.minecraft.world.SimpleMenuProvider;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.ChestMenu;
-import net.minecraft.world.inventory.ClickType;
+import net.minecraft.world.inventory.ContainerInput;
 import net.minecraft.world.inventory.MenuType;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -104,7 +105,7 @@ final class CreativeGearPicker {
         if (swordGranted) message += " A sword is ready in your hotbar.";
         else if (weaponPresent) message += " Your existing Infinity weapon is in your inventory.";
         else message += " Clear a hotbar slot to hold a weapon.";
-        player.displayClientMessage(Component.literal(message), false);
+        player.sendSystemMessage(Component.literal(message));
         OPEN_AFTER.put(player.getUUID(), player.level().getServer().getTickCount() + 3);
     }
 
@@ -140,17 +141,17 @@ final class CreativeGearPicker {
         if (slot < 0) slot = 0;
         ItemStack previous = inventory.getItem(slot).copy();
         if (!previous.isEmpty() && inventory.getFreeSlot() < 0) {
-            player.displayClientMessage(Component.literal("Clear one inventory slot before choosing another item."), false);
+            player.sendSystemMessage(Component.literal("Clear one inventory slot before choosing another item."));
             return 0;
         }
         var item = Convergence.ITEMS.get(name);
         inventory.setItem(slot, new ItemStack(item, item.getDefaultMaxStackSize() > 1 ? 64 : 1));
-        if (!previous.isEmpty()) inventory.placeItemBackInInventory(previous);
+        if (!previous.isEmpty()) inventory.placeItemBackInInventory(previous, Prediction.SERVER_ONLY);
         inventory.setSelectedSlot(slot);
         player.connection.send(new ClientboundSetHeldSlotPacket(slot));
         player.inventoryMenu.sendAllDataToRemote();
         SELECTED.remove(player.getUUID());
-        player.displayClientMessage(Component.literal("Holding " + label(name.substring("convergence:".length())) + ". Tap the compass to choose again."), false);
+        player.sendSystemMessage(Component.literal("Holding " + label(name.substring("convergence:".length())) + ". Tap the compass to choose again."));
         return 1;
     }
 
@@ -171,9 +172,9 @@ final class CreativeGearPicker {
         @Override public ItemStack quickMoveStack(Player player, int slot) { return ItemStack.EMPTY; }
         @Override public void setSelectedBundleItemIndex(int slot, int selected) { }
 
-        @Override public void clicked(int slot, int button, ClickType action, Player player) {
+        @Override public void clicked(int slot, int button, ContainerInput action, Player player) {
             if (player != owner || !allowed(owner)) { owner.closeContainer(); return; }
-            if ((action == ClickType.PICKUP || action == ClickType.QUICK_MOVE)
+            if ((action == ContainerInput.PICKUP || action == ContainerInput.QUICK_MOVE)
                 && slot >= 0 && slot < paths.size() && getCarried().isEmpty()) {
                 String name = paths.get(slot);
                 owner.closeContainer();

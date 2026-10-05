@@ -1,12 +1,13 @@
 package dev.convergence;
 
 import java.nio.file.Files;
+import net.minecraft.world.level.block.entity.SignTextSlot;
 import java.util.*;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerChunkEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
-import net.fabricmc.fabric.api.event.lifecycle.v1.ServerWorldEvents;
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLevelEvents;
 import net.fabricmc.fabric.api.event.player.UseBlockCallback;
 import net.minecraft.ChatFormatting;
 import net.minecraft.commands.Commands;
@@ -41,7 +42,7 @@ final class LobbyServer {
         LOBBIES.put("survival", new Lobby("survival", "Survival Lobby", GameModes.Mode.SURVIVAL, new BlockPos(0, 81, -48), Blocks.MOSSY_STONE_BRICKS, Blocks.OAK_LOG));
         LOBBIES.put("creative", new Lobby("creative", "Creative Lobby", GameModes.Mode.CREATIVE, new BlockPos(48, 81, 0), Blocks.SMOOTH_QUARTZ, Blocks.AMETHYST_BLOCK));
         LOBBIES.put("hardcore", new Lobby("hardcore", "Hardcore Lobby", GameModes.Mode.HARDCORE, new BlockPos(0, 81, 48), Blocks.POLISHED_BLACKSTONE_BRICKS, Blocks.RED_NETHER_BRICKS));
-        LOBBIES.put("minigames", new Lobby("minigames", "Minigames Lobby", GameModes.Mode.MINIGAMES, new BlockPos(-48, 81, 0), Blocks.LIGHT_BLUE_CONCRETE, Blocks.YELLOW_CONCRETE));
+        LOBBIES.put("minigames", new Lobby("minigames", "Minigames Lobby", GameModes.Mode.MINIGAMES, new BlockPos(-48, 81, 0), Blocks.CONCRETE.lightBlue(), Blocks.CONCRETE.yellow()));
         LOBBIES.put("adventure", new Lobby("adventure", "Adventure Lobby", GameModes.Mode.ADVENTURE, new BlockPos(48, 81, 48), Blocks.STONE_BRICKS, Blocks.CHISELED_STONE_BRICKS));
     }
     static final Map<BlockPos, String> MAIN_SIGNS = new HashMap<>();
@@ -60,12 +61,12 @@ final class LobbyServer {
 
     static Palette palette(String id) {
         return switch (id) {
-            case "survival" -> new Palette(Blocks.SPRUCE_LOG, Blocks.LIME_STAINED_GLASS, Blocks.SHROOMLIGHT, Blocks.LIME_BANNER, Blocks.OAK_LEAVES, Blocks.POTTED_FERN);
-            case "creative" -> new Palette(Blocks.QUARTZ_PILLAR, Blocks.PURPLE_STAINED_GLASS, Blocks.PEARLESCENT_FROGLIGHT, Blocks.PURPLE_BANNER, Blocks.FLOWERING_AZALEA_LEAVES, Blocks.POTTED_ALLIUM);
-            case "hardcore" -> new Palette(Blocks.POLISHED_BLACKSTONE_BRICKS, Blocks.RED_STAINED_GLASS, Blocks.SHROOMLIGHT, Blocks.RED_BANNER, Blocks.DARK_OAK_LEAVES, Blocks.POTTED_CRIMSON_FUNGUS);
-            case "minigames" -> new Palette(Blocks.YELLOW_CONCRETE, Blocks.LIGHT_BLUE_STAINED_GLASS, Blocks.SEA_LANTERN, Blocks.LIGHT_BLUE_BANNER, Blocks.AZALEA_LEAVES, Blocks.POTTED_DANDELION);
-            case "adventure" -> new Palette(Blocks.CHISELED_STONE_BRICKS, Blocks.ORANGE_STAINED_GLASS, Blocks.OCHRE_FROGLIGHT, Blocks.ORANGE_BANNER, Blocks.JUNGLE_LEAVES, Blocks.POTTED_BAMBOO);
-            default -> new Palette(Blocks.QUARTZ_PILLAR, Blocks.CYAN_STAINED_GLASS, Blocks.SEA_LANTERN, Blocks.CYAN_BANNER, Blocks.FLOWERING_AZALEA_LEAVES, Blocks.POTTED_AZURE_BLUET);
+            case "survival" -> new Palette(Blocks.SPRUCE_LOG, Blocks.STAINED_GLASS.lime(), Blocks.SHROOMLIGHT, Blocks.BANNER.lime(), Blocks.OAK_LEAVES, Blocks.POTTED_FERN);
+            case "creative" -> new Palette(Blocks.QUARTZ_PILLAR, Blocks.STAINED_GLASS.purple(), Blocks.PEARLESCENT_FROGLIGHT, Blocks.BANNER.purple(), Blocks.FLOWERING_AZALEA_LEAVES, Blocks.POTTED_ALLIUM);
+            case "hardcore" -> new Palette(Blocks.POLISHED_BLACKSTONE_BRICKS, Blocks.STAINED_GLASS.red(), Blocks.SHROOMLIGHT, Blocks.BANNER.red(), Blocks.DARK_OAK_LEAVES, Blocks.POTTED_CRIMSON_FUNGUS);
+            case "minigames" -> new Palette(Blocks.CONCRETE.yellow(), Blocks.STAINED_GLASS.lightBlue(), Blocks.SEA_LANTERN, Blocks.BANNER.lightBlue(), Blocks.AZALEA_LEAVES, Blocks.POTTED_DANDELION);
+            case "adventure" -> new Palette(Blocks.CHISELED_STONE_BRICKS, Blocks.STAINED_GLASS.orange(), Blocks.OCHRE_FROGLIGHT, Blocks.BANNER.orange(), Blocks.JUNGLE_LEAVES, Blocks.POTTED_BAMBOO);
+            default -> new Palette(Blocks.QUARTZ_PILLAR, Blocks.STAINED_GLASS.cyan(), Blocks.SEA_LANTERN, Blocks.BANNER.cyan(), Blocks.FLOWERING_AZALEA_LEAVES, Blocks.POTTED_AZURE_BLUET);
         };
     }
 
@@ -138,7 +139,7 @@ final class LobbyServer {
         int changed = 0;
         for (var entry : DECORATIONS.entrySet()) {
             var pos = entry.getKey();
-            if (onlyChunk != null && (pos.getX() >> 4 != onlyChunk.x || pos.getZ() >> 4 != onlyChunk.z)) continue;
+            if (onlyChunk != null && (pos.getX() >> 4 != onlyChunk.x() || pos.getZ() >> 4 != onlyChunk.z())) continue;
             if (!loadedSite(world, pos) || !world.getBlockState(pos).isAir()) continue;
             var lobby = entry.getValue().lobby;
             var floor = new BlockPos(pos.getX(), lobby.center.getY() - 1, pos.getZ());
@@ -163,7 +164,7 @@ final class LobbyServer {
     }
 
     private static boolean inChunk(BlockPos pos, ChunkPos chunk) {
-        return chunk == null || (pos.getX() >> 4 == chunk.x && pos.getZ() >> 4 == chunk.z);
+        return chunk == null || (pos.getX() >> 4 == chunk.x() && pos.getZ() >> 4 == chunk.z());
     }
 
     private static void tickDecor(ServerLevel world) {
@@ -173,7 +174,7 @@ final class LobbyServer {
         // enqueue work for a later tick instead of recursively installing decorations.
         for (var entry : new LinkedHashMap<>(pending).entrySet()) {
             var pos = entry.getKey();
-            var ready = world.getChunkSource().getChunkNow(pos.x, pos.z);
+            var ready = world.getChunkSource().getChunkNow(pos.x(), pos.z());
             if (ready == null) continue;
             if (!pending.remove(pos, entry.getValue())) continue;
             // Do not apply an old load notification to a replacement chunk instance.
@@ -253,18 +254,18 @@ final class LobbyServer {
     }
 
     private static boolean matches(SignText text, String[] lines) {
-        for (int i = 0; i < 4; i++) if (!text.getMessage(i, false).getString().equals(lines[i])) return false;
+        for (int i = 0; i < 4; i++) if (!text.getMessages(false).get(i).getString().equals(lines[i])) return false;
         return true;
     }
 
     private static int applySignText(SignBlockEntity sign, String[] lines) {
-        if (matches(sign.getFrontText(), lines) && matches(sign.getBackText(), lines)
-            && sign.getFrontText().hasGlowingText() && sign.getBackText().hasGlowingText()
-            && sign.getFrontText().getColor() == DyeColor.WHITE && sign.getBackText().getColor() == DyeColor.WHITE) return 0;
-        var text = new SignText().setHasGlowingText(true).setColor(DyeColor.WHITE);
-        for (int i = 0; i < 4; i++) text = text.setMessage(i, Component.literal(lines[i]));
-        sign.setText(text, true);
-        sign.setText(text, false);
+        if (matches(sign.getText(SignTextSlot.FRONT), lines) && matches(sign.getText(SignTextSlot.BACK), lines)
+            && sign.getText(SignTextSlot.FRONT).hasGlowingText() && sign.getText(SignTextSlot.BACK).hasGlowingText()
+            && sign.getText(SignTextSlot.FRONT).getColor() == DyeColor.WHITE && sign.getText(SignTextSlot.BACK).getColor() == DyeColor.WHITE) return 0;
+        var text = SignText.EMPTY.asMutable().setTextGlowing(true).setColor(DyeColor.WHITE);
+        for (int i = 0; i < 4; i++) text.setLine(i, Component.literal(lines[i]));
+        sign.setText(text.asImmutable(), SignTextSlot.FRONT);
+        sign.setText(text.asImmutable(), SignTextSlot.BACK);
         return 1;
     }
 
@@ -273,14 +274,14 @@ final class LobbyServer {
             || !(world.getBlockEntity(pos) instanceof SignBlockEntity sign)) return 0;
         var old = new String[]{LOBBIES.get(id).label.replace(" Lobby", ""), entry ? "ENTER WORLD" : "VISIT LOBBY", entry ? "/play " + id : "/lobby " + id, "RIGHT CLICK"};
         var current = lobbyLines(id, entry);
-        if ((!matches(sign.getFrontText(), old) && !matches(sign.getFrontText(), current))
-            || (!matches(sign.getBackText(), new String[]{"", "", "", ""}) && !matches(sign.getBackText(), old) && !matches(sign.getBackText(), current))) return 0;
+        if ((!matches(sign.getText(SignTextSlot.FRONT), old) && !matches(sign.getText(SignTextSlot.FRONT), current))
+            || (!matches(sign.getText(SignTextSlot.BACK), new String[]{"", "", "", ""}) && !matches(sign.getText(SignTextSlot.BACK), old) && !matches(sign.getText(SignTextSlot.BACK), current))) return 0;
         return applySignText(sign, current);
     }
 
     static boolean isMenuSign(ServerLevel world, BlockPos pos) {
         return world.getBlockEntity(pos) instanceof SignBlockEntity sign
-            && sign.getFrontText().getMessage(0, false).getString().equals("INFINITY MENU");
+            && sign.getText(SignTextSlot.FRONT).getMessages(false).get(0).getString().equals("INFINITY MENU");
     }
 
     /** Add a menu recovery point without rebuilding lobbies or replacing a player's blocks. */
@@ -293,7 +294,7 @@ final class LobbyServer {
         if (!loadedSite(world, pos) || !loadedSite(world, pos.below())) return 0;
         var lines = new String[]{"INFINITY MENU", "GEAR + POWERS", "AI HELPERS", "TAP TO OPEN"};
         if (world.getBlockEntity(pos) instanceof SignBlockEntity existing) {
-            if (matches(existing.getFrontText(), lines) && matches(existing.getBackText(), lines)) return applySignText(existing, lines);
+            if (matches(existing.getText(SignTextSlot.FRONT), lines) && matches(existing.getText(SignTextSlot.BACK), lines)) return applySignText(existing, lines);
             return 0;
         }
         if (!CourseSelector.canPlaceSign(world, pos)) return 0;
@@ -314,9 +315,9 @@ final class LobbyServer {
     }
     static int menu(ServerPlayer p) {
         CommunityServer.say(p,"Main Hub: /hub. Mode lobbies: /lobby survival, creative, hardcore, minigames, adventure. /play <mode> enters its world.");
-        for (var lobby : LOBBIES.values()) if (!lobby.id.equals("main")) p.displayClientMessage(
+        for (var lobby : LOBBIES.values()) if (!lobby.id.equals("main")) p.sendSystemMessage(
             Component.literal("[ " + lobby.label + " ] /lobby " + lobby.id).withStyle(ChatFormatting.AQUA)
-                .withStyle(style -> style.withClickEvent(new ClickEvent.RunCommand("/lobby " + lobby.id))),false);
+                .withStyle(style -> style.withClickEvent(new ClickEvent.RunCommand("/lobby " + lobby.id))));
         return 1;
     }
     static int request(ServerPlayer p, String id) {
@@ -346,7 +347,7 @@ final class LobbyServer {
         if (p.getY()<74) arrive(p,GameModes.state(p).getStringOr("last_lobby","main"));
     }
     static void register() {
-        ServerChunkEvents.CHUNK_LOAD.register((world, chunk) -> {
+        ServerChunkEvents.CHUNK_LOAD.register((world, chunk, generated) -> {
             if (GameModes.of(world) != GameModes.Mode.HUB) return;
             // Existing saves load their hub lazily. Upgrade only our fixed platform chunks.
             boolean known = DECORATIONS.keySet().stream().anyMatch(pos -> inChunk(pos, chunk.getPos()));
@@ -355,14 +356,14 @@ final class LobbyServer {
                 // be completing, and even native sign setters can wait for that future.
                 PENDING_DECOR.computeIfAbsent(world, key -> new LinkedHashMap<>()).put(chunk.getPos(), chunk);
         });
-        ServerTickEvents.END_WORLD_TICK.register(LobbyServer::tickDecor);
+        ServerTickEvents.END_LEVEL_TICK.register(LobbyServer::tickDecor);
         ServerChunkEvents.CHUNK_UNLOAD.register((world, chunk) -> {
             var pending = PENDING_DECOR.get(world);
             if (pending == null) return;
             pending.remove(chunk.getPos(), chunk);
             if (pending.isEmpty()) PENDING_DECOR.remove(world, pending);
         });
-        ServerWorldEvents.UNLOAD.register((server, world) -> PENDING_DECOR.remove(world));
+        ServerLevelEvents.UNLOAD.register((server, world) -> PENDING_DECOR.remove(world));
         ServerLifecycleEvents.SERVER_STOPPED.register(server -> PENDING_DECOR.keySet().removeIf(world -> world.getServer() == server));
         UseBlockCallback.EVENT.register((player,world,hand,hit)-> {
             if (!(player instanceof ServerPlayer p) || world.isClientSide() || hand!=InteractionHand.MAIN_HAND) return InteractionResult.PASS;

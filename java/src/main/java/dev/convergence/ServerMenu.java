@@ -30,7 +30,7 @@ import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.ChestMenu;
-import net.minecraft.world.inventory.ClickType;
+import net.minecraft.world.inventory.ContainerInput;
 import net.minecraft.world.inventory.MenuType;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
@@ -219,7 +219,7 @@ final class ServerMenu {
                 "Admin/OP4: edit players or loaded AI helpers.",
                 "Review health, speed, damage and more before applying.", "Base stats and equipment bonuses stay separate.");
             icon(view,SELF_STATS,Items.APPLE,"My stats • quick edit","OP4: jump straight to your own health and attributes.");
-            icon(view,CRATES,Items.PURPLE_SHULKER_BOX,"Convergence Set • inventory boxes","Places the complete set into two labeled gear boxes.","Place and open the boxes to take items. Requires Creative or gear permission.");
+            icon(view,CRATES,Items.DYED_SHULKER_BOX.purple(),"Convergence Set • inventory boxes","Places the complete set into two labeled gear boxes.","Place and open the boxes to take items. Requires Creative or gear permission.");
             icon(view,ARMOR,Items.LEATHER_CHESTPLATE,"Armor sets • includes chestplates","Claim Aurora or Ember with all four pieces.","The Infinity winged chestplate uses an elytra on Bedrock.");
             icon(view,INVENTORY_GEAR,Items.NETHERITE_CHESTPLATE,"Armor & tools → inventory","Adds real equipment directly to empty inventory slots.","Keeps your existing items; Creative, Admin or OP2 required.");
             icon(view,RANKS,Items.EMERALD,"Ranks & subscriptions","Your badge, permanent rank and all milestone requirements.");
@@ -309,7 +309,7 @@ final class ServerMenu {
             icon.set(DataComponents.LORE, new ItemLore(lines));
             getSlot(slot).setByPlayer(icon);
             broadcastChanges();
-            owner.displayClientMessage(Component.literal(reason), true);
+            owner.sendOverlayMessage(Component.literal(reason));
         }
 
         private boolean unchangedEquipment() {
@@ -320,11 +320,11 @@ final class ServerMenu {
                 && offhand.getCount() == owner.getOffhandItem().getCount();
         }
 
-        @Override public void clicked(int slot, int button, ClickType action, Player player) {
+        @Override public void clicked(int slot, int button, ContainerInput action, Player player) {
             // A packet for a closed or replaced screen must never close or act through the new one.
             if (player != owner || owner.containerMenu != this || owner.connection != ownerConnection) return;
             if (!stillValid(player)) { owner.closeContainer(); return; }
-            if (!getCarried().isEmpty() || (action != ClickType.PICKUP && action != ClickType.QUICK_MOVE)
+            if (!getCarried().isEmpty() || (action != ContainerInput.PICKUP && action != ContainerInput.QUICK_MOVE)
                 || button < 0 || button > 1 || slot < 0 || slot >= 54) { sendAllDataToRemote(); return; }
             if (slot == BACK) {
                 if (page == Page.MAIN) owner.closeContainer(); else navigate(Page.MAIN, 0);

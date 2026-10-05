@@ -1,6 +1,7 @@
 package dev.convergence;
 
 import com.google.gson.JsonParser;
+import net.minecraft.world.level.block.entity.SignTextSlot;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -22,7 +23,7 @@ import net.minecraft.world.SimpleMenuProvider;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.ChestMenu;
-import net.minecraft.world.inventory.ClickType;
+import net.minecraft.world.inventory.ContainerInput;
 import net.minecraft.world.inventory.MenuType;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
@@ -56,7 +57,7 @@ final class CourseSelector {
             case "dropper" -> Items.WATER_BUCKET;
             case "redlight" -> Items.REDSTONE_TORCH;
             case "crystalhunt" -> Items.AMETHYST_SHARD;
-            case "colorrush" -> Items.MAGENTA_GLAZED_TERRACOTTA;
+            case "colorrush" -> Items.GLAZED_TERRACOTTA.magenta();
             case "ruins" -> Items.CHISELED_STONE_BRICKS;
             case "maze" -> Items.LANTERN;
             default -> Items.MAP;
@@ -96,7 +97,7 @@ final class CourseSelector {
 
     static boolean selectorSign(ServerLevel world, BlockPos pos) {
         return world.getBlockEntity(pos) instanceof SignBlockEntity sign
-            && sign.getFrontText().getMessage(0,false).getString().equals(SIGN_TITLE);
+            && sign.getText(SignTextSlot.FRONT).getMessages(false).get(0).getString().equals(SIGN_TITLE);
     }
 
     static boolean canPlaceSign(ServerLevel world, BlockPos pos) {
@@ -143,11 +144,11 @@ final class CourseSelector {
             var pos = signPos(spec);
             world.setBlock(pos, Blocks.OAK_SIGN.defaultBlockState().setValue(StandingSignBlock.ROTATION, 8), 3);
             if (!(world.getBlockEntity(pos) instanceof SignBlockEntity sign)) throw new IllegalStateException("Course selector sign did not load at " + pos);
-            var lines = sign.getFrontText().setMessage(0, Component.literal(SIGN_TITLE))
-                .setMessage(1, Component.literal(signLabel(spec)))
-                .setMessage(2, Component.literal("RIGHT CLICK"));
-            sign.setText(lines, true);
-            sign.setText(lines, false);
+            var lines = sign.getText(SignTextSlot.FRONT).asMutable().setLine(0, Component.literal(SIGN_TITLE))
+                .setLine(1, Component.literal(signLabel(spec)))
+                .setLine(2, Component.literal("RIGHT CLICK")).asImmutable();
+            sign.setText(lines, SignTextSlot.FRONT);
+            sign.setText(lines, SignTextSlot.BACK);
             done.add(spec.id());
             changed = true;
         }
@@ -200,9 +201,9 @@ final class CourseSelector {
         @Override public ItemStack quickMoveStack(Player player, int slot) { return ItemStack.EMPTY; }
         @Override public void setSelectedBundleItemIndex(int slot, int selected) { }
 
-        @Override public void clicked(int clicked, int button, ClickType action, Player player) {
+        @Override public void clicked(int clicked, int button, ContainerInput action, Player player) {
             if (player != owner || owner.containerMenu != this || !owner.isAlive()) return;
-            if ((action == ClickType.PICKUP || action == ClickType.QUICK_MOVE) && getCarried().isEmpty()) {
+            if ((action == ContainerInput.PICKUP || action == ContainerInput.QUICK_MOVE) && getCarried().isEmpty()) {
                 for (int index = 0; index < choices.size(); index++) if (clicked == slot(index, choices.size())) {
                     String id = choices.get(index).id();
                     owner.closeContainer();

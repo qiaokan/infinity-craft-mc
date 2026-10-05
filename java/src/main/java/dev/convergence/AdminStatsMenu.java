@@ -21,7 +21,7 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.ChestMenu;
-import net.minecraft.world.inventory.ClickType;
+import net.minecraft.world.inventory.ContainerInput;
 import net.minecraft.world.inventory.MenuType;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
@@ -146,7 +146,7 @@ final class AdminStatsMenu {
         return plain.length() <= 22 ? plain : Double.toString(value);
     }
 
-    private static void message(ServerPlayer actor, String text) { actor.displayClientMessage(Component.literal(text), false); }
+    private static void message(ServerPlayer actor, String text) { actor.sendSystemMessage(Component.literal(text)); }
 
     private static void icon(SimpleContainer view, int slot, Item item, String name, String... descriptions) {
         var stack = new ItemStack(item);
@@ -233,8 +233,8 @@ final class AdminStatsMenu {
             int[] minus = {MINUS_SMALL, MINUS_MEDIUM, MINUS_LARGE}, plus = {PLUS_SMALL, PLUS_MEDIUM, PLUS_LARGE};
             for (int i = 0, multiplier = 1; i < 3; i++, multiplier *= 10) {
                 String step = number(selected.step() * multiplier);
-                icon(view, minus[i], Items.RED_DYE, "Subtract " + step);
-                icon(view, plus[i], Items.LIME_DYE, "Add " + step);
+                icon(view, minus[i], Items.DYE.red(), "Subtract " + step);
+                icon(view, plus[i], Items.DYE.lime(), "Add " + step);
             }
             icon(view, MINIMUM, Items.REDSTONE, "Minimum: " + number(selected.minimum()), "Prepare the minimum allowed by Minecraft.");
             icon(view, MAXIMUM, Items.GLOWSTONE_DUST, exactMaximum(selected) ? "Choose your own value" : (selected.id().equals("health") ? "Fill to capacity: " : "Maximum: ") + number(selected.maximum()),
@@ -244,7 +244,7 @@ final class AdminStatsMenu {
                 icon(view, RELATED_HEALTH, Items.APPLE, "Edit health capacity separately", "Optional: exact health entry raises capacity automatically when needed.",
                     "Opens Health capacity without changing any values. Pending edits are discarded.");
             else if (selected.id().equals("max_health"))
-                icon(view, RELATED_HEALTH, Items.RED_DYE, "Edit current health", "After confirming the capacity, choose Fill to capacity here to heal.",
+                icon(view, RELATED_HEALTH, Items.DYE.red(), "Edit current health", "After confirming the capacity, choose Fill to capacity here to heal.",
                     "Opens Current health without changing any values. Pending edits are discarded.");
             else if(selected.id().equals("absorption") && AdminStats.find(target,"max_absorption")!=null)
                 icon(view,RELATED_HEALTH,Items.GOLDEN_APPLE,"Edit absorption capacity separately","Optional: exact absorption entry raises capacity automatically when needed.");
@@ -259,7 +259,7 @@ final class AdminStatsMenu {
             boolean lethal = changes.stream().anyMatch(c -> c.id().equals("health") && c.after() == 0);
             icon(view, 4, targetIcon(target), AdminStats.displayName(target) + " • " + changes.size() + " change(s)",
                 "Target ID: " + target.getStringUUID(), lethal ? "WARNING: health zero kills this " + targetKind(target) + "." : "Apply exactly the changes shown below.");
-            icon(view, CONFIRM, lethal ? Items.RED_DYE : Items.LIME_DYE, lethal ? "Confirm • KILL this " + targetKind(target) : "Confirm changes",
+            icon(view, CONFIRM, lethal ? Items.DYE.red() : Items.DYE.lime(), lethal ? "Confirm • KILL this " + targetKind(target) : "Confirm changes",
                 "Target: " + AdminStats.displayName(target), operation == Operation.SET && changes.stream().allMatch(c -> !AdminStats.find(target,c.id()).attribute())
                     ? "Sets the exact reviewed amount, even if gameplay changes the current value."
                     : "Changed attribute bases cancel this review.", "Changed permissions, sessions or allowed ranges always cancel.");
@@ -373,7 +373,7 @@ final class AdminStatsMenu {
 
         private void reviewReset(boolean all) {
             var preview = restorations(all);
-            if (preview.isEmpty()) { owner.displayClientMessage(Component.literal("No saved admin edits to restore."), true); return; }
+            if (preview.isEmpty()) { owner.sendOverlayMessage(Component.literal("No saved admin edits to restore.")); return; }
             show(Page.CONFIRM, 0, statId, pending, all ? Operation.RESET_ALL : Operation.RESET, preview);
         }
 
@@ -394,10 +394,10 @@ final class AdminStatsMenu {
             if (result.success() && allowed(owner) && targetSession.valid()) openStats(owner, target, 0);
         }
 
-        @Override public void clicked(int slot, int button, ClickType action, Player player) {
+        @Override public void clicked(int slot, int button, ContainerInput action, Player player) {
             if (player != owner || owner.containerMenu != this || owner.connection != actorSession.connection()) return;
             if (!stillValid(player)) { fail("This player, AI helper or permission changed. Reopen the admin editor."); return; }
-            if ((action != ClickType.PICKUP && action != ClickType.QUICK_MOVE)
+            if ((action != ContainerInput.PICKUP && action != ContainerInput.QUICK_MOVE)
                     || button < 0 || button > 1 || !getCarried().isEmpty() || slot < 0 || slot >= 54) {
                 broadcastChanges(); return;
             }

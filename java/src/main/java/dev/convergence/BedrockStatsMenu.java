@@ -76,7 +76,7 @@ final class BedrockStatsMenu {
     private static boolean emptyScreen(ServerPlayer actor) {
         return actor.containerMenu==actor.inventoryMenu && actor.inventoryMenu.getCarried().isEmpty();
     }
-    private static void message(ServerPlayer actor,String text) { actor.displayClientMessage(Component.literal(text),false); }
+    private static void message(ServerPlayer actor,String text) { actor.sendSystemMessage(Component.literal(text)); }
     private static Ticket begin(ServerPlayer actor,LivingEntity target) {
         var t=new Ticket(UUID.randomUUID(),new AdminStatsMenu.Session(actor),target==null?null:new AdminStatsMenu.TargetSession(target),actor.level().getServer().getTickCount()+1800);
         ACTIVE.put(actor.getUUID(),t);return t;

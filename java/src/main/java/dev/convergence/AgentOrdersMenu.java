@@ -10,7 +10,7 @@ import net.minecraft.world.SimpleMenuProvider;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.ChestMenu;
-import net.minecraft.world.inventory.ClickType;
+import net.minecraft.world.inventory.ContainerInput;
 import net.minecraft.world.inventory.MenuType;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -61,9 +61,9 @@ final class AgentOrdersMenu {
             if(proposals.isEmpty())AgentMenu.icon(view,4,Items.BARRIER,"No pending orders");
         } else {
             AgentMenu.icon(view,4,Items.PAPER,"Review exact order");AgentMenu.description(view,4,selected.description()+" • ID: "+proposalId);
-            AgentMenu.icon(view,APPROVE,Items.LIME_DYE,selected.state==AgentActions.State.PENDING?"Approve as owner":"Owner approved • Codex still required");
+            AgentMenu.icon(view,APPROVE,Items.DYE.lime(),selected.state==AgentActions.State.PENDING?"Approve as owner":"Owner approved • Codex still required");
             AgentMenu.description(view,APPROVE,"This is only your approval. Ask Codex in this chat to review the displayed ID before expiry.");
-            AgentMenu.icon(view,CANCEL,Items.RED_DYE,"Cancel this order");
+            AgentMenu.icon(view,CANCEL,Items.DYE.red(),"Cancel this order");
         }
         AgentMenu.icon(view,BACK,Items.ARROW,"Back");
         var snapshot=selected;var state=selected==null?null:selected.state;
@@ -85,10 +85,10 @@ final class AgentOrdersMenu {
         @Override public ItemStack quickMoveStack(Player player,int slot) { return ItemStack.EMPTY; }
         @Override public void setSelectedBundleItemIndex(int slot,int selected) {}
         private void next(Page page,int index,String id) { owner.closeContainer();show(owner,page,index,id); }
-        @Override public void clicked(int slot,int button,ClickType action,Player player) {
+        @Override public void clicked(int slot,int button,ContainerInput action,Player player) {
             if(player!=owner||owner.containerMenu!=this)return;
             if(!stillValid(player)) { owner.closeContainer();return; }
-            if((action!=ClickType.PICKUP&&action!=ClickType.QUICK_MOVE)||button<0||button>1||!getCarried().isEmpty()||slot<0||slot>=54) { broadcastChanges();return; }
+            if((action!=ContainerInput.PICKUP&&action!=ContainerInput.QUICK_MOVE)||button<0||button>1||!getCarried().isEmpty()||slot<0||slot>=54) { broadcastChanges();return; }
             var queue=AgentActions.get(owner.level().getServer());queue.expire();
             if(slot==BACK) { if(page==Page.MAIN) { owner.closeContainer();AgentMenu.open(owner); } else next(Page.MAIN,0,null);return; }
             if(page==Page.MAIN) {

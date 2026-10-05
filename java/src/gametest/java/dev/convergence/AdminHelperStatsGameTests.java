@@ -1,5 +1,6 @@
 package dev.convergence;
 
+import net.minecraft.world.entity.EntityTypes;
 import java.util.List;
 import java.util.UUID;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
@@ -16,7 +17,7 @@ import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.animal.golem.IronGolem;
-import net.minecraft.world.inventory.ClickType;
+import net.minecraft.world.inventory.ContainerInput;
 import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.storage.TagValueInput;
@@ -70,7 +71,7 @@ public class AdminHelperStatsGameTests {
         helper.load(TagValueInput.create(ProblemReporter.DISCARDING, helper.registryAccess(), data));
     }
     private void click(ServerPlayer owner, int slot) {
-        owner.containerMenu.clicked(slot, 0, ClickType.PICKUP, owner);
+        owner.containerMenu.clicked(slot, 0, ContainerInput.PICKUP, owner);
     }
 
     @GameTest public void helperEditorChangesActualHealthCombatAndMovementAttributes(GameTestHelper c) {
@@ -147,7 +148,7 @@ public class AdminHelperStatsGameTests {
     @GameTest public void unregisteredUnloadedDismissedAndStaleHelperObjectsAreRejected(GameTestHelper c) {
         var owner = owner(c, "helper-identity-op");
         var agents = AgentCompanions.get(c.getLevel().getServer());
-        var ordinary = EntityType.IRON_GOLEM.create(c.getLevel(), EntitySpawnReason.COMMAND);
+        var ordinary = EntityTypes.IRON_GOLEM.create(c.getLevel(), EntitySpawnReason.COMMAND);
         IronGolem copy = null;
         try {
             var helper = helper(c, owner, "identity");
@@ -156,7 +157,7 @@ public class AdminHelperStatsGameTests {
             agents.loaded.put(ordinary.getUUID(), ordinary);
             c.assertFalse(AdminStats.set(owner.createCommandSourceStack(), ordinary, "max_health", 400).success(), "A tag and loaded entry without roster ownership do not forge a helper");
             agents.loaded.remove(ordinary.getUUID());
-            copy = EntityType.IRON_GOLEM.create(c.getLevel(), EntitySpawnReason.LOAD);
+            copy = EntityTypes.IRON_GOLEM.create(c.getLevel(), EntitySpawnReason.LOAD);
             read(copy, save(helper));
             c.assertValueEqual(copy.getUUID(), helper.getUUID(), "Stale copy has the same persistent UUID");
             c.assertFalse(AdminStats.set(owner.createCommandSourceStack(), copy, "max_health", 400).success(), "Matching UUID cannot replace exact loaded entity identity");
@@ -228,7 +229,7 @@ public class AdminHelperStatsGameTests {
     @GameTest public void editedDamageChangesRealMeleeWithoutGrantingPlayerTargetApproval(GameTestHelper c) {
         var owner = owner(c, "helper-damage-op");
         var agents = AgentCompanions.get(c.getLevel().getServer());
-        var zombie = EntityType.ZOMBIE.create(c.getLevel(), EntitySpawnReason.COMMAND);
+        var zombie = EntityTypes.ZOMBIE.create(c.getLevel(), EntitySpawnReason.COMMAND);
         try {
             var helper = helper(c, owner, "fighter");
             set(c, owner, helper, "attack_damage", 80);

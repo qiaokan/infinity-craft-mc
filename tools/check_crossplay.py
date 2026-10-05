@@ -10,24 +10,23 @@ import shutil
 import subprocess
 import urllib.request
 import xml.etree.ElementTree as ET
-import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
-FRAMEWORK = "fabric-gametest-api-v1-3.1.27+4fc5413f3e.jar"
-FRAMEWORK_URL = "https://maven.fabricmc.net/net/fabricmc/fabric-api/fabric-gametest-api-v1/3.1.27+4fc5413f3e/" + FRAMEWORK
+FRAMEWORK = "fabric-gametest-api-v1-4.0.32+3434d6d95d.jar"
+FRAMEWORK_URL = "https://maven.fabricmc.net/net/fabricmc/fabric-api/fabric-gametest-api-v1/4.0.32+3434d6d95d/" + FRAMEWORK
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--java", required=True, help="Java 21 executable")
+    parser.add_argument("--java", required=True, help="Java 25 executable")
     args = parser.parse_args()
-    # Vanilla's headless TestServer uses only the flat preset and drops data-pack dimensions.
-    # The test-only flat preset includes the exact production dimension JSON definitions.
-    fixture = json.loads((ROOT / "java/src/gametest/resources/data/minecraft/worldgen/world_preset/flat.json").read_text())["dimensions"]
+    # Vanilla's headless TestServer uses only the flat_all_dimensions preset and drops data-pack dimensions.
+    # The test-only preset includes the exact production dimension JSON definitions.
+    fixture = json.loads((ROOT / "java/src/gametest/resources/data/minecraft/worldgen/world_preset/flat_all_dimensions.json").read_text())["dimensions"]
     for file in (ROOT / "java/src/main/resources/data/convergence/dimension").glob("*.json"):
         assert fixture["convergence:" + file.stem] == json.loads(file.read_text()), "Dimension test fixture drift"
 
-    subprocess.run([str(ROOT / "java/gradlew"), "-p", str(ROOT / "java"), "--no-daemon", "build", "remapGametestJar"],
+    subprocess.run([str(ROOT / "java/gradlew"), "-p", str(ROOT / "java"), "--no-daemon", "build", "gametestJar"],
         env={**__import__("os").environ, "JAVA_HOME": str(Path(args.java).resolve().parents[1])}, check=True)
     subprocess.run([__import__("sys").executable, str(ROOT / "tools/prepare_crossplay.py")], check=True)
     subprocess.run([__import__("sys").executable, str(ROOT / "server/server.py"), "--setup"], check=True)
@@ -47,20 +46,8 @@ def main():
     expected = (ROOT / "tools/gametest-framework.sha256").read_text().split()[0]
     if hashlib.sha256(framework).hexdigest() != expected:
         raise RuntimeError("Unexpected GameTest framework download")
-    import io
-    with zipfile.ZipFile(io.BytesIO(framework)) as archive:
-        entries = {name: archive.read(name) for name in archive.namelist()
-                   if not (name.startswith("META-INF/") and name.endswith((".SF", ".RSA", ".DSA")))}
-    # Test-only upstream framework repair: annotation defaults use Enum.name(), not
-    # intermediary field names. This does not modify Minecraft or any released mod.
-    name = "net/fabricmc/fabric/api/gametest/v1/GameTest.class"
-    before = b"\x00\x0bfield_11467"
-    assert entries[name].count(before) == 1
-    entries[name] = entries[name].replace(before, b"\x00\x04NONE")
-    entries["META-INF/MANIFEST.MF"] = b"Manifest-Version: 1.0\r\n\r\n"
-    with zipfile.ZipFile(mods / FRAMEWORK, "w", zipfile.ZIP_DEFLATED) as archive:
-        for name, data in entries.items():
-            archive.writestr(name, data)
+    # 26.x is unobfuscated, so the framework's annotation defaults need no repair.
+    (mods / FRAMEWORK).write_bytes(framework)
     shutil.copy2(ROOT / "server/fabric/fabric-server-launch.jar", runtime / "fabric-server-launch.jar")
     (runtime / "config/polymer").mkdir(parents=True, exist_ok=True)
     (runtime / "config/polymer/auto-host.json").write_text('{"enabled":false}')

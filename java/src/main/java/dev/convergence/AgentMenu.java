@@ -12,7 +12,7 @@ import net.minecraft.world.SimpleMenuProvider;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.ChestMenu;
-import net.minecraft.world.inventory.ClickType;
+import net.minecraft.world.inventory.ContainerInput;
 import net.minecraft.world.inventory.MenuType;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
@@ -81,18 +81,18 @@ final class AgentMenu {
 
     private static int open(ServerPlayer player, Page page, String helperId) {
         if (!allowed(player)) {
-            player.displayClientMessage(Component.literal("Helper controls require a living, non-spectator OP4 owner."), false);
+            player.sendSystemMessage(Component.literal("Helper controls require a living, non-spectator OP4 owner."));
             return 0;
         }
         if (player.containerMenu != player.inventoryMenu
             || !player.containerMenu.getCarried().isEmpty()) {
-            player.displayClientMessage(Component.literal("Close your current screen and empty the cursor before opening helpers."), false);
+            player.sendSystemMessage(Component.literal("Close your current screen and empty the cursor before opening helpers."));
             return 0;
         }
         var helpers = AgentCompanions.get(player.level().getServer());
         var selected = helperId == null ? null : helpers.data.agents.get(helperId);
         if (page != Page.ROSTER && (selected == null || !selected.owner().equals(player.getStringUUID()))) {
-            player.displayClientMessage(Component.literal("That helper is no longer in your roster."), false);
+            player.sendSystemMessage(Component.literal("That helper is no longer in your roster."));
             page = Page.ROSTER;
             helperId = null;
         }
@@ -115,7 +115,7 @@ final class AgentMenu {
                     choices.put(slot, entry.getKey());
                     rosterIcon(view, slot, helpers, entry.getKey(), agent);
                 } else {
-                    icon(view, slot, Items.LIME_DYE, roster.isEmpty() && index == 0
+                    icon(view, slot, Items.DYE.lime(), roster.isEmpty() && index == 0
                         ? "Create your first helper" : "Create a helper • slot " + (index + 1));
                     description(view, slot, "Tap to summon a named AI player avatar beside you. Stand on clear solid ground.");
                 }
@@ -128,15 +128,15 @@ final class AgentMenu {
             title = selected.name() + (page == Page.DISMISS ? " • Dismiss?" : " • Helper");
             icon(view, 4, Items.IRON_INGOT, selected.name() + " • " + selected.profile().label());
             if (page == Page.DISMISS) {
-                icon(view, CONFIRM, Items.RED_DYE, "Confirm dismiss " + selected.name());
-                icon(view, CANCEL, Items.LIME_DYE, "Keep this helper");
+                icon(view, CONFIRM, Items.DYE.red(), "Confirm dismiss " + selected.name());
+                icon(view, CANCEL, Items.DYE.lime(), "Keep this helper");
             } else {
                 profileChoices(view, selected);
                 movement(view, selected.name());
                 icon(view, INFO, Items.SPYGLASS, "Status • profile, location, and health");
                 askButton(view, player);
                 recallButton(view);
-                icon(view, DISMISS, Items.RED_DYE, "Dismiss helper • confirmation required");
+                icon(view, DISMISS, Items.DYE.red(), "Dismiss helper • confirmation required");
                 hive(view, helpers, player);
             }
             icon(view, BACK, Items.ARROW, "Back to your squad");
@@ -191,7 +191,7 @@ final class AgentMenu {
         description(view,ORDERS,"Choose a player, propose an action, review, approve or cancel without typing a command. Live Codex review is still required.");
         icon(view, 22, Items.COMPASS, helpers.playerTargetStatus(owner));
         description(view, 22, "Use Orders to choose a target. Owner and live Codex approval are required.");
-        icon(view, CEASEFIRE, Items.WHITE_BANNER, "Ceasefire • clear your player target and queued orders");
+        icon(view, CEASEFIRE, Items.BANNER.white(), "Ceasefire • clear your player target and queued orders");
     }
 
     static final class Handler extends ChestMenu {
@@ -262,15 +262,15 @@ final class AgentMenu {
         }
 
         private void stale() {
-            owner.displayClientMessage(Component.literal("Your helper roster changed. Choose the helper again."), false);
+            owner.sendSystemMessage(Component.literal("Your helper roster changed. Choose the helper again."));
             reopen(Page.ROSTER, null);
         }
 
-        @Override public void clicked(int clicked, int button, ClickType action, Player player) {
+        @Override public void clicked(int clicked, int button, ContainerInput action, Player player) {
             // A packet for an old window cannot affect a newer screen or another owner.
             if (player != owner || owner.containerMenu != this) return;
             if (!stillValid(player)) { owner.closeContainer(); return; }
-            if ((action != ClickType.PICKUP && action != ClickType.QUICK_MOVE)
+            if ((action != ContainerInput.PICKUP && action != ContainerInput.QUICK_MOVE)
                 || button < 0 || button > 1 || !getCarried().isEmpty()) { sendAllDataToRemote(); return; }
             var helpers = AgentCompanions.get(owner.level().getServer());
             if(clicked==ORDERS && page!=Page.DISMISS) { owner.closeContainer();AgentOrdersMenu.open(owner);return; }
@@ -295,10 +295,10 @@ final class AgentMenu {
                             helpers.spawn(owner, name);
                             if (helpers.owned(owner, name) != null) {
                                 var message = Component.literal(name + " appeared beside you. Look for the named iron golem.");
-                                owner.displayClientMessage(message, false);
-                                owner.displayClientMessage(message, true);
+                                owner.sendSystemMessage(message);
+                                owner.sendOverlayMessage(message);
                             }
-                        } else owner.displayClientMessage(Component.literal("All helper slots are in use. Dismiss a helper to free one."), false);
+                        } else owner.sendSystemMessage(Component.literal("All helper slots are in use. Dismiss a helper to free one."));
                     }
                     return;
                 }
@@ -311,12 +311,12 @@ final class AgentMenu {
                 }
                 if (clicked == INFO) {
                     owner.closeContainer();
-                    owner.displayClientMessage(Component.literal(
+                    owner.sendSystemMessage(Component.literal(
                         "Choose a helper and its profile, then tap Ask Codex or Ask helper for guidance. "
                         + "/agent ask <name> <message> lets you write your own question. "
                         + "Player targeting: /agent target <player>; /agent ceasefire stops it. "
                         + "CLI proposals: /agent pending, /agent approve <id>, /agent cancel <id>. "
-                        + "Every server-changing proposal also waits for live Codex review; this menu cannot run it."), false);
+                        + "Every server-changing proposal also waits for live Codex review; this menu cannot run it."));
                     return;
                 }
             } else {

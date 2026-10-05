@@ -1,6 +1,7 @@
 package dev.convergence;
 
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
+import net.minecraft.util.Prediction;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -17,7 +18,7 @@ import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.fabricmc.fabric.api.event.player.AttackEntityCallback;
 import net.fabricmc.fabric.api.event.player.PlayerBlockBreakEvents;
 import net.fabricmc.fabric.api.event.player.PlayerBlockBreakEvents.After;
-import net.fabricmc.fabric.api.itemgroup.v1.FabricItemGroup;
+import net.fabricmc.fabric.api.creativetab.v1.FabricCreativeModeTab;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.core.Holder;
@@ -116,7 +117,7 @@ public class Convergence implements ModInitializer {
    }
 
    static void say(Player p, String s) {
-      p.displayClientMessage(Component.literal(s), true);
+      p.sendOverlayMessage(Component.literal(s));
    }
 
    static boolean ready(Player p, String k, int ticks) {
@@ -134,20 +135,18 @@ public class Convergence implements ModInitializer {
       return !Memberships.unlimitedGameplay(p)&&state(p).cooldown.getOrDefault(key,0L)>clock;
    }
 
-   static <T> void copy(Properties s, TypedDataComponent<T> c) {
-      s.component(c.type(), c.value());
-   }
-
    static Item register(String name, Item base, int count, float attack, int durability, int protection) {
       Identifier id = Identifier.parse(name);
       Properties s = new Properties().setId(ResourceKey.create(Registries.ITEM, id));
       s.component(DataComponents.ITEM_NAME,GearNames.text(id.getPath()));
 
-      for (TypedDataComponent<?> c : base.components()) {
-         if (c.type() != DataComponents.ITEM_NAME && c.type() != DataComponents.ITEM_MODEL) {
-            copy(s, c);
+      BaseComponents.then(s, base, (b, defaults) -> {
+         for (TypedDataComponent<?> c : defaults) {
+            if (c.type() != DataComponents.ITEM_NAME && c.type() != DataComponents.ITEM_MODEL) {
+               BaseComponents.copy(b, c);
+            }
          }
-      }
+      });
 
       if (durability > 0) {
          s.durability(durability);
@@ -175,23 +174,28 @@ public class Convergence implements ModInitializer {
          );
       }
 
-      Equippable eq = (Equippable)base.components().get(DataComponents.EQUIPPABLE);
       if (name.equals("convergence:sword")) {
-         Tool tool = (Tool)Items.NETHERITE_PICKAXE.components().get(DataComponents.TOOL);
-         s.component(
-            DataComponents.TOOL,
-            new Tool(tool.rules().stream().map(r -> new Rule(r.blocks(), Optional.of(999.0F), r.correctForDrops())).toList(), 999.0F, 0, true)
-         );
+         BaseComponents.then(s, Items.NETHERITE_PICKAXE, (b, pickaxe) -> {
+            Tool tool = pickaxe.get(DataComponents.TOOL);
+            b.set(
+               DataComponents.TOOL,
+               new Tool(tool.rules().stream().map(r -> new Rule(r.blocks(), Optional.of(999.0F), r.correctForDrops())).toList(), 999.0F, 0, true)
+            );
+         });
       }
 
       if (PoweredTools.IDS.contains(name)) {
-         Tool tool=base.components().get(DataComponents.TOOL);
-         if(tool!=null)s.component(DataComponents.TOOL,new Tool(
-            tool.rules().stream().map(r->new Rule(r.blocks(),r.speed().map(v->40.0F),r.correctForDrops())).toList(),tool.defaultMiningSpeed(),0,true));
+         BaseComponents.then(s, base, (b, defaults) -> {
+            Tool tool=defaults.get(DataComponents.TOOL);
+            if(tool!=null)b.set(DataComponents.TOOL,new Tool(
+               tool.rules().stream().map(r->new Rule(r.blocks(),r.speed().map(v->40.0F),r.correctForDrops())).toList(),tool.defaultMiningSpeed(),0,true));
+         });
          s.component(DataComponents.ENCHANTMENT_GLINT_OVERRIDE,true);
       }
-      if (eq != null) {
-         ItemAttributeModifiers original = (ItemAttributeModifiers)base.components().get(DataComponents.ATTRIBUTE_MODIFIERS);
+      BaseComponents.then(s, base, (b, defaults) -> {
+         Equippable eq = defaults.get(DataComponents.EQUIPPABLE);
+         if (eq == null) return;
+         ItemAttributeModifiers original = defaults.get(DataComponents.ATTRIBUTE_MODIFIERS);
          Builder armor = ItemAttributeModifiers.builder();
 
          for (Entry e : original.modifiers()) {
@@ -205,12 +209,12 @@ public class Convergence implements ModInitializer {
             );
          }
 
-         s.attributes(armor.build());
+         b.set(DataComponents.ATTRIBUTE_MODIFIERS, armor.build());
          ResourceKey<EquipmentAsset> model = ResourceKey.create(
             ResourceKey.createRegistryKey(Identifier.fromNamespaceAndPath("minecraft", "equipment_asset")), Identifier.fromNamespaceAndPath(id.getNamespace(), "armor")
          );
-         s.component(DataComponents.EQUIPPABLE, Equippable.builder(eq.slot()).setAsset(model).setDamageOnHurt(false).build());
-      }
+         b.set(DataComponents.EQUIPPABLE, Equippable.builder(eq.slot()).setAsset(model).setDamageOnHurt(false).build());
+      });
 
       if (name.equals("convergence:chestplate")) {
          s.component(DataComponents.GLIDER, Unit.INSTANCE);
@@ -224,8 +228,8 @@ public class Convergence implements ModInitializer {
    static int giveBuildingKit(ServerPlayer player) {
       if(!player.isAlive()||player.isSpectator()||!player.isCreative()&&!Memberships.gameplayBypass(player))return 0;
       for(String path:ExpandedGear.BLOCKS.stream().sorted().toList())
-         player.getInventory().placeItemBackInInventory(new ItemStack(ITEMS.get("convergence:"+path),64));
-      for(String path:List.of("builder_wand","sculptor_wand"))player.getInventory().placeItemBackInInventory(ITEMS.get("convergence:"+path).getDefaultInstance());
+         player.getInventory().placeItemBackInInventory(new ItemStack(ITEMS.get("convergence:"+path),64), Prediction.SERVER_ONLY);
+      for(String path:List.of("builder_wand","sculptor_wand"))player.getInventory().placeItemBackInInventory(ITEMS.get("convergence:"+path).getDefaultInstance(), Prediction.SERVER_ONLY);
       say(player,"Building kit: ten block styles and two Creative wands. Hold a block, then choose Swap Hands in Infinity Menu to use it in offhand.");return 1;
    }
 
@@ -234,10 +238,10 @@ public class Convergence implements ModInitializer {
           || (!player.isCreative() && !Memberships.gameplayBypass(player) && !player.createCommandSourceStack().permissions()
               .hasPermission(new HasCommandLevel(PermissionLevel.GAMEMASTERS)))) return 0;
       for (Item item : ITEMS.values()) {
-         player.getInventory().placeItemBackInInventory(new ItemStack(item, item.getDefaultMaxStackSize() > 1 ? 64 : 1));
+         player.getInventory().placeItemBackInInventory(new ItemStack(item, item.getDefaultMaxStackSize() > 1 ? 64 : 1), Prediction.SERVER_ONLY);
       }
-      player.getInventory().placeItemBackInInventory(new ItemStack(Items.FIREWORK_ROCKET, 64));
-      player.getInventory().placeItemBackInInventory(new ItemStack(Items.WHEAT_SEEDS, 64));
+      player.getInventory().placeItemBackInInventory(new ItemStack(Items.FIREWORK_ROCKET, 64), Prediction.SERVER_ONLY);
+      player.getInventory().placeItemBackInInventory(new ItemStack(Items.WHEAT_SEEDS, 64), Prediction.SERVER_ONLY);
       return 1;
    }
 
@@ -255,21 +259,21 @@ public class Convergence implements ModInitializer {
    static int holdCreativeItem(ServerPlayer player, String path) {
       if ((!player.isCreative() && !Memberships.gameplayBypass(player) && !player.createCommandSourceStack().permissions()
          .hasPermission(new HasCommandLevel(PermissionLevel.GAMEMASTERS))) || !player.isAlive() || player.isSpectator()) {
-         player.displayClientMessage(Component.literal("Infinity gear requires Creative, Admin or OP2."), false);
+         player.sendSystemMessage(Component.literal("Infinity gear requires Creative, Admin or OP2."));
          return 0;
       }
       Item item = ITEMS.get("convergence:" + path);
       if (item == null) return 0;
       ItemStack previous = player.getMainHandItem().copy();
       if (!previous.isEmpty() && player.getInventory().getFreeSlot() < 0) {
-         player.displayClientMessage(Component.literal("Clear one inventory slot before replacing the item in your hand."), false);
+         player.sendSystemMessage(Component.literal("Clear one inventory slot before replacing the item in your hand."));
          return 0;
       }
       player.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(item, item.getDefaultMaxStackSize() > 1 ? 64 : 1));
-      if (!previous.isEmpty()) player.getInventory().placeItemBackInInventory(previous);
+      if (!previous.isEmpty()) player.getInventory().placeItemBackInInventory(previous, Prediction.SERVER_ONLY);
       player.containerMenu.broadcastChanges();
-      player.displayClientMessage(Component.literal("Holding " + item.getDefaultInstance().getHoverName().getString()
-         + ". Select Infinity Menu to choose another."), false);
+      player.sendSystemMessage(Component.literal("Holding " + item.getDefaultInstance().getHoverName().getString()
+         + ". Select Infinity Menu to choose another."));
       return 1;
    }
 
@@ -307,7 +311,7 @@ public class Convergence implements ModInitializer {
       Registry.register(
          BuiltInRegistries.CREATIVE_MODE_TAB,
          Identifier.fromNamespaceAndPath("convergence", "powers"),
-         FabricItemGroup.builder()
+         FabricCreativeModeTab.builder()
             .title(Component.literal("Infinity Armor"))
             .icon(() -> new ItemStack((ItemLike)ITEMS.get("convergence:mace")))
             .displayItems((ctx, e) -> ITEMS.values().forEach(e::accept))
@@ -378,7 +382,7 @@ public class Convergence implements ModInitializer {
                      }
                   }
 
-                  if ((double)world.random.nextFloat() < 0.5) {
+                  if ((double)world.getRandom().nextFloat() < 0.5) {
                      Item[] extra = new Item[]{
                         Items.DIAMOND,
                         Items.EMERALD,
@@ -396,7 +400,7 @@ public class Convergence implements ModInitializer {
                            (double)pos.getX() + 0.5,
                            (double)pos.getY() + 0.5,
                            (double)pos.getZ() + 0.5,
-                           new ItemStack(extra[world.random.nextInt(extra.length)], 1 + world.random.nextInt(3))
+                           new ItemStack(extra[world.getRandom().nextInt(extra.length)], 1 + world.getRandom().nextInt(3))
                         )
                      );
                   }
@@ -413,7 +417,7 @@ public class Convergence implements ModInitializer {
          && p.level() == e.level()
          && !(e instanceof ArmorStand)
          && (!(e instanceof TamableAnimal t) || !t.isTame())
-         && !e.getTags().contains("convergence_friend")
+         && !e.entityTags().contains("convergence_friend")
          && (!(e instanceof Player q) || !q.isCreative() && !q.isSpectator() && p.canHarmPlayer(q));
    }
 
@@ -747,7 +751,7 @@ public class Convergence implements ModInitializer {
                }
 
                if (dest != null) {
-                  p.randomTeleport(dest.x, dest.y, dest.z, false);
+                  p.randomTeleport(dest.x, dest.y, dest.z, false, state -> false);
                   p.fallDistance = 0;
                   p.setDeltaMovement(Vec3.ZERO);
                   p.needsSync = true;
