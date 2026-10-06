@@ -21,7 +21,9 @@
     "ItemPropertiesAccess",
     "ComponentInitializersAccess",
     "ComponentInitializerEntryAccess",
-    "AgentTargetMixin"
+    "AgentTargetMixin",
+    "PhysicsSafetyMixin",
+    "KnockbackSafetyMixin"
   ],
   "injectors": {
     "defaultRequire": 1

@@ -1,4 +1,4 @@
-# Infinity Armor Exploration Server — 2.12.0-explore.16
+# Infinity Armor Exploration Server — 2.12.0-explore.17
 
 Multi-mode build based on Infinity Armor 2.3.0 and the crossplay preview. Updated October 4, 2026.
 
@@ -15,6 +15,8 @@ This release fixes a saved-lobby chunk-loading loop that could freeze Minecraft 
 ## Admin health and stat editor
 
 Huge health values now use a compact client health bar. Above 40 health capacity, the bar shows the remaining percentage on a 40-point display; displayed absorption stops at 40 and displayed hunger at 20. The actual server values, damage, modifiers, saved stats and exact numbers in the Admin editor remain unchanged. This prevents enormous edited values from asking Java or Bedrock to render an enormous heart bar.
+
+Extremely large knockback keeps its saved attribute value, but each physical knockback impulse stops at 8. Native velocity and collision movement stop at 32 blocks per tick; invalid non-finite motion becomes stationary. These physics bounds prevent an enormous collision scan from freezing the server. Ordinary movement, a jump velocity of 15 and normal knockback remain unchanged. They are separate from the editable health, armor, damage and exact stat values.
 
 Select **Infinity Menu → Admin editor • players and AI**. An Admin or OP4 can choose themselves, another online player or a loaded AI helper, select a stat, adjust the proposed value, then review and confirm it. Values do not change while browsing. The confirmation identifies the exact target and change; setting health to zero kills that target. A target that dies, disconnects, unloads or changes worlds must be selected again. AI behavior/profile changes also cancel an open review.
 

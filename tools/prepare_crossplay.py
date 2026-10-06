@@ -9,7 +9,7 @@ import uuid
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
-VERSION = "2.13.0-explore.17"
+VERSION = "2.13.0-explore.18"
 
 
 def expected_native_tests():
