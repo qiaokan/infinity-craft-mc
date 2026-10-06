@@ -1,4 +1,4 @@
-INFINITY ARMOR — EXPLORATION SERVER 2.12.0-explore.17
+INFINITY ARMOR — EXPLORATION SERVER 2.13.0-explore.18
 
 1. Extract the entire ZIP into a folder you will keep.
 2. Double-click Start-Mac.command (Mac) or start.bat (Windows).
@@ -8,7 +8,7 @@ Python and Java are set up automatically. First setup needs internet and may tak
 Keep the launcher/Terminal window open while playing.
 
 When the panel says WORLD IS RUNNING:
-- Java 1.21.11: copy the Java address into Multiplayer > Direct Connection.
+- Java 26.3: copy the Java address into Multiplayer > Direct Connection.
 - Bedrock 26.30–26.51: add a server using the Bedrock address and port in the panel.
 - Use devices on the same Wi-Fi. Accept the offered texture packs.
 

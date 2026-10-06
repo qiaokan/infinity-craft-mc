@@ -1,6 +1,17 @@
-# Bounded collision movement, compact health display and robot helpers — 2.12.0-explore.17
+# Bounded collision movement, compact health display and robot helpers — 2.13.0-explore.18
 
-Validated October 4, 2026 with Java 21, Minecraft 1.21.11 and the checksum-pinned Fabric, Polymer, Floodgate and Geyser dependencies. Test worlds are isolated from the owner's playable save.
+Validated October 5, 2026 with Java 25, Minecraft 26.3, Fabric Loader 0.19.5, Fabric API 0.161.0, Polymer 0.18.2, Floodgate 2.2.7-b69, ViaFabric 0.4.22, ViaBackwards 5.12.0 and Geyser 2.11.3-b1248. Test worlds are isolated from the owner's playable save.
+
+## Minecraft 26.3 port
+
+- **323 native Minecraft GameTests passed on 26.3** in three consecutive runs with the release dependencies (and 319/319 in six consecutive runs before the explore.17 merge). The same suite also passed on 1.21.11 after the Yarn-to-Mojang-name migration, before any version change.
+- **99 Python launcher tests passed**, including a new check that setup removes superseded pinned mod JARs while keeping owner-added mods.
+- **Geyser smoke passed** with 21 custom items and 209 block overrides; the Bedrock ping advertises 26.51.
+- Fixed 26.x behavior changes found by the tests: item components now bind after registration (gear inherits its vanilla base at bind time), Polymer 0.18 item hooks gained a registry parameter, golem targeting now filters players, the hurt cooldown moved to `damageCooldownTime`, and the GameTest server uses the `flat_all_dimensions` preset.
+
+**Not yet run for 26.3:** the full-stack Fabric/Geyser start-restart cycle, a converted copy of the owner's existing world, and a real Java 26.3 or Bedrock/iPad login through ViaBackwards. Those checks need a local test server with an accepted Minecraft EULA. Run them before installing on the live server.
+
+## Earlier 1.21.11 checks
 
 ## Completed checks
 

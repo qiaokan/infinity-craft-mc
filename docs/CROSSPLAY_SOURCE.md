@@ -1,4 +1,4 @@
-# Infinity Armor Exploration Server source — 2.12.0-explore.15
+# Infinity Armor Exploration Server source — 2.13.0-explore.18
 
 This is a server-only Java and Bedrock crossplay build derived from the user-supplied Infinity Armor v2.3.0 source. The original Java and Bedrock downloads remain unchanged. Start with `server/README.md` for installation, menus, optional commands, and current limitations.
 
@@ -22,7 +22,7 @@ Lobby visuals use themed vanilla-block arches, colored glass, banners, lighted c
 
 ## Build and validate
 
-Use Java 21, Python 3.9+, and network access for checksum-pinned dependencies. The project pins Gradle 9.5.0 and Loom 1.17.21. `JAVA_HOME` must point to Java 21 when invoking Gradle directly.
+Use Java 25, Python 3.9+, and network access for checksum-pinned dependencies. The project pins Gradle 9.7.1 and Loom 1.18.2 for unobfuscated Minecraft 26.3. `JAVA_HOME` must point to Java 21 when invoking Gradle directly.
 
 ```sh
 python3 tools/check_crossplay.py --java /path/to/java

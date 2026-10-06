@@ -1,4 +1,4 @@
-# Infinity Armor Exploration Server — 2.12.0-explore.17
+# Infinity Armor Exploration Server — 2.13.0-explore.18
 
 Multi-mode build based on Infinity Armor 2.3.0 and the crossplay preview. Updated October 4, 2026.
 
@@ -7,6 +7,12 @@ This server build lets Java and Bedrock players share **one Fabric server with s
 Select the named **Infinity Menu** recovery compass in your hotbar to open gear, powers, worlds and AI helpers. Every `/convergence` feature has a menu button; typing that command is optional. If the compass is in your main inventory, move it to the hotbar first. Tap or right-click an **INFINITY MENU** sign in the Main Hub or a mode lobby to reopen the menu and recover a missing compass. Clear one inventory slot if your inventory is full; the server never replaces your items to make room.
 
 Choose **Minigames** or **Adventure maps**, then tap a course icon to play. `/guide` gives directions for your current location, `/best` shows personal times, and `/leaderboard <map>` shows saved minigame records. See [EXPLORATION.md](EXPLORATION.md) for navigation and scores.
+
+## Minecraft 26.3 upgrade
+
+This release runs **Minecraft Java 26.3** with Fabric Loader 0.19.5, Fabric API 0.161.0, Polymer 0.18.2 and Floodgate 2.2.7. The launcher sets up a private Java 25 runtime and replaces an older Java 21 runtime automatically. Java players need a 26.3 client. Bedrock and iPad players join through Geyser 2.11.3 (Bedrock 26.30–26.52), bridged to 26.3 by ViaBackwards.
+
+Upgrading an existing server: **Save & Stop, then make a full private backup of the stopped world first.** Minecraft converts the world when 26.3 first loads it, and 1.21.11 cannot open the converted world. Setup removes the older pinned Fabric API, Polymer, Floodgate, Via and Infinity Armor JARs from `fabric/mods` so two versions never load together; other mods you added stay in place but must also support 26.3.
 
 ## Lobby joining fix
 
@@ -54,7 +60,7 @@ The Codex connection currently requires the audited native **CLI 0.155.1**; othe
 2. **Open the launcher:** `Start-Mac.command` on Mac, `start.bat` on Windows 10/11, or `bash start.sh` on Linux.
 3. In the browser panel, read the Minecraft EULA, check the agreement box if you agree, and click **Start shared world**. Wait for **World is running**.
 
-The launcher downloads its own Python and, if needed, Java 21 into `.runtime` in this server folder. It verifies the downloads and does not need administrator access or change system settings. No manual Java, Python, Docker, or mod installation is required on the supported computers. You need an internet connection for the first setup. Keep the Terminal/launcher window open while playing; closing just the browser tab does not stop the world.
+The launcher downloads its own Python and, if needed, Java 25 into `.runtime` in this server folder. It verifies the downloads and does not need administrator access or change system settings. No manual Java, Python, Docker, or mod installation is required on the supported computers. You need an internet connection for the first setup. Keep the Terminal/launcher window open while playing; closing just the browser tab does not stop the world.
 
 **The panel handles the rest:** copy the Java/Bedrock join addresses, change memory or ports in **Settings**, read setup progress, and click **Save & Stop** when finished. Your settings are remembered. Double-clicking the launcher again reopens the same panel. After saving, **Close launcher** shuts down the panel; open the same launcher next time to use the same world.
 
@@ -143,17 +149,17 @@ For public access, 24/7 hosting, initial staff setup, spawn protection limits, a
 
 | Player | Address | Port |
 |---|---|---|
-| Java **1.21.11**, on the host | `localhost` | `25565` |
-| Java **1.21.11**, another device | Host computer's LAN IP | `25565` |
+| Java **26.3**, on the host | `localhost` | `25565` |
+| Java **26.3**, another device | Host computer's LAN IP | `25565` |
 | Bedrock **26.30–26.51** | Host computer's LAN IP | `19132` |
 
-Java players can join using an ordinary Java 1.21.11 client; accept the offered server resource pack for Infinity textures. **Do not install this server-only JAR in a Java client.** Use a clean Java profile for the initial test. The original 2.3.0 Fabric client package remains a separate single-edition distribution.
+Java players can join using an ordinary Java 26.3 client; accept the offered server resource pack for Infinity textures. **Do not install this server-only JAR in a Java client.** Use a clean Java profile for the initial test. The original 2.3.0 Fabric client package remains a separate single-edition distribution.
 
 On Bedrock mobile/Windows, choose **Servers → Add Server** and enter the host's IP and port. Accept the required Infinity resource pack. Bedrock players sign in with their Microsoft/Xbox account; Floodgate lets them join without a separate Java license. Do not activate the separate Infinity `.mcaddon` in this Java-hosted world; its behavior scripts do not run through Geyser.
 
 Xbox, PlayStation and Switch do not expose the same Add Server UI; see [Geyser's console connection instructions](https://geysermc.org/wiki/geyser/using-geyser-with-consoles/). For players outside your home network, use the optional [Pinggy joining helper](PINGGY_JOINING.md) on an Apple Silicon Mac, or forward **TCP 25565** and **UDP 19132** to the host (or the ports you selected) and allow them through its firewall. The optional [Dynu companion](DYNU_JOINING.md) keeps an owner-reserved hostname pointed at your home's public IPv4. Port forwarding is not performed by either launcher.
 
-The launcher uses Geyser **2.11.3 build 1245**, reporting support for Bedrock 26.30–26.51 when checked on September 22, 2026. Bedrock updates may require a new bridge build; dependencies deliberately do not silently upgrade your world. See [Geyser supported versions](https://geysermc.org/wiki/geyser/supported-versions/).
+The launcher uses Geyser **2.11.3 build 1248**, which supports Bedrock 26.30–26.52 and speaks the Java 26.2 protocol. ViaBackwards 5.12.0 on the server lets it join this 26.3 world. Bedrock updates may require a new bridge build; dependencies deliberately do not silently upgrade your world. See [Geyser supported versions](https://geysermc.org/wiki/geyser/supported-versions/).
 
 ## Get and use Infinity gear
 
