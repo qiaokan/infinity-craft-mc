@@ -42,7 +42,7 @@
   "bundled": [
     {
       "path": "fabric/mods/Infinity-Armor-2.13.0-explore.18.jar",
-      "sha256": "88492315851290a17fde8b3d876272de9f1c3a5d87eb6dd12f9847be84f97eb4"
+      "sha256": "2d13bcb2ba7fe9d2e65b7840932e2824a46e43f9f21a3219d1869d0cad58ac3c"
     },
     {
       "path": "fabric/mods/fabric-api-0.161.0+26.3.jar",

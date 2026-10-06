@@ -128,7 +128,7 @@ public class AgentGameTests {
         for (String command : new String[]{"help", "spawn", "follow", "guard", "stay", "dismiss", "list", "profile", "status", "squad", "recall"}) c.assertTrue(root.getChild(command) != null, "Command exists: " + command);
         c.succeed();
     }
-    @GameTest public void manualRecallCrossesModesPreservingIdentityStatsAndResetHistory(GameTestHelper c) {
+    @GameTest(maxTicks = 200) public void manualRecallCrossesModesPreservingIdentityStatsAndResetHistory(GameTestHelper c) {
         var owner = player(c, "recall-owner");
         var helpers = AgentCompanions.get(c.getLevel().getServer());
         var destination = GameModes.world(helpers.server, GameModes.Mode.HARDCORE);
@@ -175,13 +175,13 @@ public class AgentGameTests {
             c.assertFalse(AgentCompanions.allowRecallTeleport(moved, target), "Permit is cleared after synchronous transfer");
             var back = new TeleportTransition(c.getLevel(), Vec3.atBottomCenterOf(feet), Vec3.ZERO, 0, 0, TeleportTransition.DO_NOTHING);
             c.assertTrue(moved.teleport(back) == null, "Later generic portals remain blocked");
-            c.runAfterDelay(5,()->{
-                try {
-                    var oldWorldEntity=c.getLevel().getEntity(id);
-                    c.assertTrue((oldWorldEntity==null || oldWorldEntity.isRemoved()) && destination.getEntity(id)==moved && !moved.isRemoved(),
-                        "After native chunk/entity tracking updates, exactly one live world entity has the same UUID. source="+oldWorldEntity+" destination="+destination.getEntity(id)+" removed="+moved.isRemoved()+" age="+moved.tickCount+" ready="+destination.isPositionEntityTicking(moved.blockPosition()));
-                    c.succeed();
-                } finally {release.run();}
+            // Since 26.1 a newly ticketed chunk can take several ticks to become entity-ticking;
+            // re-check each tick until tracking settles instead of at a fixed delay.
+            c.succeedWhen(()->{
+                var oldWorldEntity=c.getLevel().getEntity(id);
+                c.assertTrue((oldWorldEntity==null || oldWorldEntity.isRemoved()) && destination.getEntity(id)==moved && !moved.isRemoved(),
+                    "After native chunk/entity tracking updates, exactly one live world entity has the same UUID. source="+oldWorldEntity+" destination="+destination.getEntity(id)+" removed="+moved.isRemoved()+" age="+moved.tickCount+" ready="+destination.isPositionEntityTicking(moved.blockPosition()));
+                release.run();
             });
             waiting[0]=true;
         } finally { if(!waiting[0])release.run(); }
@@ -593,6 +593,8 @@ public class AgentGameTests {
             float health = target.getHealth();
             c.assertTrue(first.doHurtTarget(c.getLevel(), target), "Real golem melee attack is permitted for the approved player");
             c.assertTrue(target.getHealth() < health, "Approved melee causes real player damage");
+            s.dismiss(owner, "alpha");
+            c.assertFalse(AgentCompanions.approvedPlayerTarget(first, target), "A removed helper keeps no player-target approval");
         } finally { c.getLevel().getGameRules().set(GameRules.PVP, pvp, s.server); zombie.discard(); cleanup(s, owner); cleanup(s, target); cleanup(s, bystander); }
         c.succeed();
     }

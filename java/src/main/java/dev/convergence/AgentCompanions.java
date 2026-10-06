@@ -248,6 +248,8 @@ public final class AgentCompanions {
         prepare(golem); tags(golem, agent); loaded.put(golem.getUUID(), golem);
     }
     void unload(Entity entity) {
+        // Dismissal, death, chunk unload and dimension change all remove the entity object.
+        APPROVED_TARGETS.remove(entity);
         if (loaded.remove(entity.getUUID(), entity)) {
             AgentAvatars.remove((IronGolem)entity);
             aerial.remove(entity.getUUID()); lastAttack.remove(entity.getUUID()); nextLeap.remove(entity.getUUID());
