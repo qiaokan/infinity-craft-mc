@@ -150,4 +150,79 @@ public class ClientVitalsGameTests {
         }
         c.succeed();
     }
+
+    @GameTest public void observersReceiveBoundedPlayerVitalsWithoutChangingTheirOwnHud(GameTestHelper c) {
+        try (var target = new Fixture(c, "hud-observed"); var viewer = new Fixture(c, "hud-viewer")) {
+            target.set(c, "health", 1e21); target.set(c, "absorption", 1e21);
+            target.player.setHealth(target.player.getMaxHealth() / 4);
+            var attributes = new ClientboundUpdateAttributesPacket(target.player.getId(), List.of(
+                target.player.getAttribute(Attributes.MAX_HEALTH), target.player.getAttribute(Attributes.MAX_ABSORPTION)));
+            var before = TagValueOutput.createWithContext(ProblemReporter.DISCARDING, target.player.registryAccess());
+            target.player.saveWithoutId(before);
+            viewer.player.connection.send(attributes);
+            var packets = viewer.drain();
+            var projected = (ClientboundUpdateAttributesPacket)packets.stream().filter(p -> p instanceof ClientboundUpdateAttributesPacket).findFirst().orElseThrow();
+            c.assertTrue(projected.getValues().stream().allMatch(e -> e.base() == 40), "Other player's capacity is bounded for the observer too");
+            var metadata = (ClientboundSetEntityDataPacket)packets.stream().filter(p -> p instanceof ClientboundSetEntityDataPacket).findFirst().orElseThrow();
+            c.assertValueEqual(metadata.packedItems().getFirst().value(), 10f, "Observed current health keeps its percentage");
+            c.assertValueEqual(metadata.packedItems().getLast().value(), 40f, "Observed absorption stays bounded");
+            c.assertFalse(packets.stream().anyMatch(p -> p instanceof ClientboundSetHealthPacket), "Observed vitals never replace the viewer's own HUD");
+            c.assertTrue(attributes.getValues().stream().allMatch(e -> e.base() > 1e20), "Shared source attribute packet is intact");
+            var tracked = new ClientboundSetEntityDataPacket(target.player.getId(), List.of(
+                SynchedEntityData.DataValue.create(LivingVitalsAccess.infinity$health(), target.player.getHealth()),
+                SynchedEntityData.DataValue.create(PlayerVitalsAccess.infinity$absorption(), target.player.getAbsorptionAmount())));
+            viewer.player.connection.send(tracked);
+            var updated = (ClientboundSetEntityDataPacket)viewer.drain().getFirst();
+            c.assertValueEqual(updated.packedItems().getFirst().value(), 10f, "Subsequent observed health updates are bounded");
+            c.assertValueEqual(updated.packedItems().getLast().value(), 40f, "Subsequent observed absorption updates are bounded");
+            var after = TagValueOutput.createWithContext(ProblemReporter.DISCARDING, target.player.registryAccess());
+            target.player.saveWithoutId(after);
+            c.assertValueEqual(after.buildResult(), before.buildResult(), "Sending another player's vitals preserves all saved stats");
+            target.set(c, "max_health", 20);
+            viewer.player.connection.send(new ClientboundUpdateAttributesPacket(target.player.getId(), List.of(target.player.getAttribute(Attributes.MAX_HEALTH))));
+            var reset = (ClientboundSetEntityDataPacket)viewer.drain().stream().filter(p -> p instanceof ClientboundSetEntityDataPacket).findFirst().orElseThrow();
+            c.assertValueEqual(reset.packedItems().getFirst().value(), 20f, "Capacity reset also refreshes observers");
+        }
+        c.succeed();
+    }
+
+    @GameTest public void helpersUseBoundedObservedHealthWhileOrdinaryMobsAreUntouched(GameTestHelper c) {
+        try (var f = new Fixture(c, "hud-helper-owner")) {
+            var feet = c.absolutePos(new net.minecraft.core.BlockPos(3, 20, 3));
+            for (var pos : net.minecraft.core.BlockPos.betweenClosed(feet.offset(-7, -1, -7), feet.offset(7, 4, 7)))
+                c.getLevel().setBlockAndUpdate(pos, pos.getY() == feet.getY() - 1 ? net.minecraft.world.level.block.Blocks.STONE.defaultBlockState() : net.minecraft.world.level.block.Blocks.AIR.defaultBlockState());
+            f.player.setPos(net.minecraft.world.phys.Vec3.atBottomCenterOf(feet));
+            f.player.setNoGravity(true);
+            var agents = AgentCompanions.get(c.getLevel().getServer());
+            agents.spawn(f.player, "hud-robot");
+            var record = agents.owned(f.player, "hud-robot");
+            c.assertTrue(record != null, "Real helper is registered");
+            try {
+                var helper = agents.loaded.get(UUID.fromString(record.getKey()));
+                c.assertTrue(AdminStats.set(f.player.createCommandSourceStack(), helper, "health", 1e21).success(), "Actual helper capacity is expanded");
+                helper.setHealth(helper.getMaxHealth() / 2);
+                var before = TagValueOutput.createWithContext(ProblemReporter.DISCARDING, helper.registryAccess()); helper.saveWithoutId(before);
+                f.drain();
+                f.player.connection.send(new ClientboundUpdateAttributesPacket(helper.getId(), List.of(helper.getAttribute(Attributes.MAX_HEALTH))));
+                var packets = f.drain();
+                c.assertTrue(packets.stream().anyMatch(p -> p instanceof ClientboundUpdateAttributesPacket a && a.getValues().getFirst().base() == 40), "Huge helper capacity stays bounded on the actual outbound path");
+                var metadata = (ClientboundSetEntityDataPacket)packets.stream().filter(p -> p instanceof ClientboundSetEntityDataPacket).findFirst().orElseThrow();
+                c.assertValueEqual(metadata.packedItems().getFirst().value(), 20f, "Helper health preserves its percentage");
+                c.assertValueEqual(metadata.packedItems().size(), 1, "Native helper metadata never borrows a player-only absorption field");
+                c.assertFalse(packets.stream().anyMatch(p -> p instanceof ClientboundSetHealthPacket), "Helper never changes owner's HUD");
+                var tracked = new ClientboundSetEntityDataPacket(helper.getId(), List.of(SynchedEntityData.DataValue.create(LivingVitalsAccess.infinity$health(), helper.getHealth())));
+                c.assertValueEqual(((ClientboundSetEntityDataPacket)ClientVitals.rewrite(tracked, f.player)).packedItems().getFirst().value(), 20f, "Helper health updates stay bounded too");
+                var after = TagValueOutput.createWithContext(ProblemReporter.DISCARDING, helper.registryAccess()); helper.saveWithoutId(after);
+                c.assertValueEqual(after.buildResult(), before.buildResult(), "Sending helper vitals preserves saved entity state");
+                var ordinary = net.minecraft.world.entity.EntityTypes.IRON_GOLEM.create(c.getLevel(), net.minecraft.world.entity.EntitySpawnReason.COMMAND);
+                try {
+                    c.getLevel().addFreshEntity(ordinary);
+                    var nativeAttrs = new ClientboundUpdateAttributesPacket(ordinary.getId(), List.of(ordinary.getAttribute(Attributes.MAX_HEALTH)));
+                    var nativeHealth = new ClientboundSetEntityDataPacket(ordinary.getId(), List.of(SynchedEntityData.DataValue.create(LivingVitalsAccess.infinity$health(), ordinary.getHealth())));
+                    c.assertTrue(ClientVitals.rewrite(nativeAttrs, f.player) == nativeAttrs && ClientVitals.rewrite(nativeHealth, f.player) == nativeHealth, "Unregistered mobs retain native health packets");
+                } finally { ordinary.discard(); }
+            } finally { agents.dismiss(f.player, "hud-robot"); }
+        }
+        c.succeed();
+    }
 }

@@ -1,4 +1,4 @@
-INFINITY ARMOR — EXPLORATION SERVER 2.13.0-explore.18
+INFINITY ARMOR — EXPLORATION SERVER 2.13.0-explore.19
 
 1. Extract the entire ZIP into a folder you will keep.
 2. Double-click Start-Mac.command (Mac) or start.bat (Windows).
@@ -75,7 +75,7 @@ Also available through Infinity Menu: building kits, wardrobe and backpack contr
 Missing AI helpers: Infinity Menu > AI Helpers > choose a loaded helper > Bring here. This preserves the existing golem and resumes Follow beside you. Unloaded helpers need their area visited first.
 
 FIXES IN EXPLORE.13
-My stats on Bedrock/iPad now uses native buttons and an exact-number form, then Confirm changes. Manual stat edits do not wait for Codex approval. Change Health capacity first, then Current health.
+My stats on Bedrock/iPad now uses native buttons and an exact-number form, then Confirm changes. Manual stat edits do not wait for Codex approval. Enter health or absorption directly; Confirm includes any needed capacity increase.
 Infinity Menu > Armor sets offers Aurora/Ember with all four pieces, including chestplates. Clear four slots. Bedrock uses native dyed-leather wearables; reconnect for the refreshed pack.
 Ultimate Finals equips native spear, mace and elytra mechanics. Golem bodies do not render held gear/wings. Player targeting still requires both approvals.
 

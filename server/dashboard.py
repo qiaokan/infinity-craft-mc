@@ -55,11 +55,12 @@ class Panel:
         return {"memory": memory, "java_port": ports[0], "bedrock_port": ports[1], "bind": bind,
                 **community.settings(data)}
 
-    def arguments(self):
+    def arguments(self, settings=None):
         args = copy.copy(self.args)
-        for key, value in self.settings.items():
+        settings = self.settings if settings is None else settings
+        for key, value in settings.items():
             setattr(args, key, value)
-        args.community = community.settings(self.settings)
+        args.community = community.settings(settings)
         return args
 
     def accepted(self):
@@ -130,13 +131,15 @@ class Panel:
             settings = self.valid_settings(data.get("settings", {}))
             if not self.accepted() and data.get("accept_eula") is not True:
                 raise ValueError("Read and accept the Minecraft EULA before starting your world.")
-            if (self.root / "launcher.lock").exists():
-                raise ValueError("Another server launcher is open. Close it before starting here. See README.md if it crashed.")
+            args = self.arguments(settings)
+            try:
+                self.launcher.check_launcher_lock(args, self.root)
+            except RuntimeError as error:
+                raise ValueError("Another server launcher may be open. " + str(error)) from error
             self.settings = settings
             temporary = self.root / "settings.json.tmp"
             temporary.write_text(json.dumps(settings, indent=2) + "\n")
             temporary.replace(self.root / "settings.json")
-            args = self.arguments()
             args.accept_eula = True  # The checked form or existing file supplies explicit acceptance.
             self.addresses = self.launcher.join_addresses(args)
             self.error = ""

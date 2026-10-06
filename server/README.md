@@ -1,12 +1,16 @@
-# Infinity Armor Exploration Server — 2.13.0-explore.18
+# Infinity Armor Exploration Server — 2.13.0-explore.19
 
-Multi-mode build based on Infinity Armor 2.3.0 and the crossplay preview. Updated October 4, 2026.
+Multi-mode build based on Infinity Armor 2.3.0 and the crossplay preview. Updated October 5, 2026.
 
 This server build lets Java and Bedrock players share **one Fabric server with shared game worlds** with Infinity Armor's Java powers. It is a crossplay preview based on your 2.3.0 source. Read VALIDATION.md for the checks and remaining play-test limits.
 
 Select the named **Infinity Menu** recovery compass in your hotbar to open gear, powers, worlds and AI helpers. Every `/convergence` feature has a menu button; typing that command is optional. If the compass is in your main inventory, move it to the hotbar first. Tap or right-click an **INFINITY MENU** sign in the Main Hub or a mode lobby to reopen the menu and recover a missing compass. Clear one inventory slot if your inventory is full; the server never replaces your items to make room.
 
 Choose **Minigames** or **Adventure maps**, then tap a course icon to play. `/guide` gives directions for your current location, `/best` shows personal times, and `/leaderboard <map>` shows saved minigame records. See [EXPLORATION.md](EXPLORATION.md) for navigation and scores.
+
+## Restarting after a crash
+
+Press **Start server** in the dashboard. On this Mac, a leftover launcher lock can recover automatically only when its process is gone, the file belongs to you and both configured game ports are free. A live launcher or an unverifiable lock still blocks starting, before settings are changed. You do not need to delete lock files manually.
 
 ## Minecraft 26.3 upgrade
 

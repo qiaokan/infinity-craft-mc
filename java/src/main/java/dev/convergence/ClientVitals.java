@@ -12,9 +12,11 @@ import net.minecraft.network.protocol.game.ClientboundSetHealthPacket;
 import net.minecraft.network.protocol.game.ClientboundUpdateAttributesPacket;
 import net.minecraft.network.syncher.SynchedEntityData;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.attributes.Attributes;
+import net.minecraft.world.entity.player.Player;
 
-/** Bounded HUD packets only. The authoritative stats, damage and saved values stay untouched. */
+/** Bounded client vitals only. Authoritative stats, damage and saved values stay untouched. */
 public final class ClientVitals {
     static final float DISPLAY_MAXIMUM = 40;
 
@@ -53,30 +55,37 @@ public final class ClientVitals {
             return value == update.getHealth() && food == update.getFood() && saturation == update.getSaturation()
                 ? packet : new ClientboundSetHealthPacket(value, food, saturation);
         }
-        if (packet instanceof ClientboundUpdateAttributesPacket attributes && attributes.getEntityId() == player.getId()) {
-            var copy = new ClientboundUpdateAttributesPacket(player.getId(), List.of());
+        if (packet instanceof ClientboundUpdateAttributesPacket attributes) {
+            var target = visibleTarget(player, attributes.getEntityId());
+            if (target == null) return packet;
+            var copy = new ClientboundUpdateAttributesPacket(target.getId(), List.of());
             boolean changed = false;
             boolean capacity = false;
             for (var entry : attributes.getValues()) {
                 capacity |= entry.attribute().equals(Attributes.MAX_HEALTH) || entry.attribute().equals(Attributes.MAX_ABSORPTION);
-                double display = entry.attribute().equals(Attributes.MAX_HEALTH) ? player.getMaxHealth()
-                    : entry.attribute().equals(Attributes.MAX_ABSORPTION) ? player.getMaxAbsorption() : -1;
+                double display = entry.attribute().equals(Attributes.MAX_HEALTH) ? target.getMaxHealth()
+                    : entry.attribute().equals(Attributes.MAX_ABSORPTION) ? target.getMaxAbsorption() : -1;
                 if (display > DISPLAY_MAXIMUM) {
                     copy.getValues().add(new ClientboundUpdateAttributesPacket.AttributeSnapshot(entry.attribute(), DISPLAY_MAXIMUM, List.of()));
                     changed = true;
                 } else copy.getValues().add(entry);
             }
             // A capacity-only edit does not change native lastSentHealth. Refresh the HUD anyway.
-            return capacity ? new ClientboundBundlePacket(List.of(changed ? copy : attributes, healthPacket(player), absorptionPacket(player))) : packet;
+            if (!capacity) return packet;
+            return target == player
+                ? new ClientboundBundlePacket(List.of(changed ? copy : attributes, healthPacket(player), absorptionPacket(player)))
+                : new ClientboundBundlePacket(List.of(changed ? copy : attributes, trackedVitals(target)));
         }
-        if (packet instanceof ClientboundSetEntityDataPacket tracker && tracker.id() == player.getId()) {
+        if (packet instanceof ClientboundSetEntityDataPacket tracker) {
+            var target = visibleTarget(player, tracker.id());
+            if (target == null) return packet;
             var values = new ArrayList<SynchedEntityData.DataValue<?>>();
             boolean changed = false;
             for (var entry : tracker.packedItems()) {
                 var replacement = entry;
                 if (entry.id() == LivingVitalsAccess.infinity$health().id() && entry.value() instanceof Float value)
-                    replacement = SynchedEntityData.DataValue.create(LivingVitalsAccess.infinity$health(), health(value, player.getMaxHealth()));
-                else if (entry.id() == PlayerVitalsAccess.infinity$absorption().id() && entry.value() instanceof Float value)
+                    replacement = SynchedEntityData.DataValue.create(LivingVitalsAccess.infinity$health(), health(value, target.getMaxHealth()));
+                else if (target instanceof Player && entry.id() == PlayerVitalsAccess.infinity$absorption().id() && entry.value() instanceof Float value)
                     replacement = SynchedEntityData.DataValue.create(PlayerVitalsAccess.infinity$absorption(), absorption(value));
                 changed |= !replacement.equals(entry);
                 values.add(replacement);
@@ -84,6 +93,20 @@ public final class ClientVitals {
             return changed ? new ClientboundSetEntityDataPacket(tracker.id(), values) : packet;
         }
         return packet;
+    }
+
+    private static LivingEntity visibleTarget(ServerPlayer viewer, int id) {
+        if (viewer.getId() == id) return viewer;
+        var entity = viewer.level().getEntity(id);
+        return entity instanceof LivingEntity living && (living instanceof ServerPlayer || AdminStats.helper(living)) ? living : null;
+    }
+
+    private static ClientboundSetEntityDataPacket trackedVitals(LivingEntity target) {
+        var values = new ArrayList<SynchedEntityData.DataValue<?>>();
+        values.add(SynchedEntityData.DataValue.create(LivingVitalsAccess.infinity$health(), health(target.getHealth(), target.getMaxHealth())));
+        if (target instanceof Player player)
+            values.add(SynchedEntityData.DataValue.create(PlayerVitalsAccess.infinity$absorption(), absorption(player.getAbsorptionAmount())));
+        return new ClientboundSetEntityDataPacket(target.getId(), values);
     }
 
     private static ClientboundSetEntityDataPacket absorptionPacket(ServerPlayer player) {

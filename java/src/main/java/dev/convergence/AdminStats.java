@@ -47,7 +47,8 @@ public final class AdminStats {
         "step_height", "block_interaction_range", "entity_interaction_range", "movement_efficiency", "water_movement_efficiency", "sneaking_speed", "camera_distance", "luck", "follow_range");
     public static boolean expanded(Stat stat) { return stat.attribute() && !PHYSICS.contains(stat.id()); }
     public static String boundsHint(Stat stat) {
-        return capacityId(stat.id())!=null ? "Enter the amount directly. Any needed capacity increase is included in the confirmation. 2 points = 1 heart. Damage still consumes hearts."
+        return stat.id().equals("attack_knockback") ? "Your saved value is preserved. Physical knockback is bounded to keep collision checks responsive."
+            : capacityId(stat.id())!=null ? "Enter the amount directly. Any needed capacity increase is included in the confirmation. 2 points = 1 heart. Damage still consumes hearts."
             : expanded(stat) ? "Normal attribute cap removed. The menu's number is authoritative; client bars may stop growing."
             : stat.attribute() ? "Minecraft movement, size and interaction limits apply on unmodified clients."
             : stat.id().equals("xp_level") ? "XP must fit Minecraft's total experience integer."
