@@ -10,10 +10,9 @@
         "infinity_armor_enchanted": "armor_enchanted"
       },
       "textures": {
-        "default": "textures/models/armor/elytra",
+        "default": "textures/convergence/models/armor/armor_wings",
         "enchanted": "textures/misc/enchanted_actor_glint",
-        "infinity_wings": "textures/convergence/models/armor/armor_wings",
-        "infinity_armor": "textures/convergence/models/armor/armor_1"
+        "infinity_armor": "textures/convergence/models/armor/refresh19/convergence_refresh19"
       },
       "geometry": {
         "default": "geometry.elytra",
@@ -29,15 +28,13 @@
       },
       "scripts": {
         "parent_setup": "variable.chest_layer_visible = 0.0;",
-        "pre_animation": [
-          "variable.convergence_flight_visual = query.has_property('convergence:flight_visual') ? query.property('convergence:flight_visual') : 0;"
-        ],
-        "animate": ["default_controller"]
+        "animate": [
+          "default_controller"
+        ]
       },
       "render_controllers": [
-        {"controller.render.armor": "variable.convergence_flight_visual == 0"},
-        {"controller.render.convergence.flight_wings": "variable.convergence_flight_visual > 0"},
-        {"controller.render.convergence.flight_chest": "variable.convergence_flight_visual > 0"}
+        "controller.render.armor",
+        "controller.render.convergence.flight_chest"
       ]
     }
   }

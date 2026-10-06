@@ -9,7 +9,7 @@ import uuid
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
-VERSION = "2.12.0-explore.19"
+VERSION = "2.12.0-explore.20"
 
 
 def expected_native_tests():
@@ -49,9 +49,9 @@ def prepare():
     resources = ROOT / "bedrock/resource_pack"
     files = {p.relative_to(resources).as_posix(): p.read_bytes() for p in resources.rglob("*") if p.is_file()}
     for name in list(files):
-        if name.startswith("attachables/") and name not in ["attachables/helmet.json", "attachables/leggings.json", "attachables/boots.json"]:
+        if name.startswith("attachables/") and name not in ["attachables/helmet.json", "attachables/leggings.json", "attachables/boots.json", "attachables/elytra.json"]:
             del files[name]
-        if name.startswith("render_controllers/") and name != "render_controllers/infinity_visor.json":
+        if name.startswith("render_controllers/") and name not in ["render_controllers/infinity_visor.json", "render_controllers/flight.json"]:
             del files[name]
     manifest = json.loads(files["manifest.json"])
     # Bedrock caches UUID+version. Reusing [2,12,0] across exploration builds

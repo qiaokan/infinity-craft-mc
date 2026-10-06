@@ -1,6 +1,7 @@
-# Exploration and scores — 2.12.0-explore.19
+# Exploration and scores — 2.12.0-explore.20
 
-Explore.19 refreshes the Convergence and Aurora armor textures and 25 matching gear icons. Java uses complete custom worn armor and custom tool artwork with the resource pack. Bedrock keeps the working native wearable/flight and ranged-item controls; mapped weapons, mining tools and wands receive the new sprites. Use Infinity Menu → Gear or Creative tools to obtain the same items; existing inventory, names and powers remain intact. Ordinary Bedrock armor textures are unchanged.
+Explore.20 applies the refreshed Convergence and Aurora armor to iPad/Bedrock as well as Java. The server resource pack restyles shared native netherite and leather textures and inventory icons; all ordinary gear using those materials receives the same patterns while the pack is active. Dyed leather retains its native dye coloring, so Ember armor/backpacks share Aurora's leather pattern with their own tint. Native elytra now displays the Convergence chestplate and wings, with its native flight/swim/sneak animations and controls preserved. The new skin is cosmetic: gear names, powers, stats and inventories are unchanged. Rejoin and accept resource pack revision 20.
+
 
 
 

@@ -187,6 +187,40 @@ class LauncherTests(unittest.TestCase):
         launcher.copy_bridge_data(self.root)
         self.assertEqual((self.root / "geyser/key.pem").read_bytes(), key.read_bytes())
 
+
+    def test_bedrock_native_armor_refresh_targets_live_native_assets(self):
+        import zipfile
+        root = Path(__file__).resolve().parents[1]
+        with zipfile.ZipFile(root / "server/geyser/packs/Infinity_Armor_Crossplay.mcpack") as pack:
+            for material, collection in [("netherite", "convergence"), ("leather", "aurora")]:
+                for layer, kind in [(1, "humanoid"), (2, "humanoid_leggings")]:
+                    expected = root / f"java/src/main/resources/assets/convergence/textures/entity/equipment/{kind}/{collection}_refresh19.png"
+                    self.assertEqual(pack.read(f"textures/models/armor/{material}_{layer}.png"), expected.read_bytes())
+                for slot in ("helmet", "chestplate", "leggings", "boots"):
+                    name = slot if collection == "convergence" else "aurora_" + slot
+                    expected = root / f"java/src/main/resources/assets/convergence/textures/item/refresh19/{name}.png"
+                    self.assertEqual(pack.read(f"textures/items/{material}_{slot}.png"), expected.read_bytes())
+            chest_icon = root / "java/src/main/resources/assets/convergence/textures/item/refresh19/chestplate.png"
+            for name in ("elytra", "broken_elytra"):
+                self.assertEqual(pack.read(f"textures/items/{name}.png"), chest_icon.read_bytes())
+            desc = json.loads(pack.read("attachables/elytra.json"))["minecraft:attachable"]["description"]
+            self.assertEqual(desc["identifier"], "minecraft:elytra")
+            self.assertEqual(desc["geometry"]["default"], "geometry.elytra")
+            self.assertEqual(desc["geometry"]["infinity_armor"], "geometry.humanoid.armor.chestplate")
+            self.assertEqual(desc["scripts"]["animate"], ["default_controller"])
+            self.assertNotIn("pre_animation", desc["scripts"], "Chest appearance must not depend on an unset custom entity property")
+            for name in ("default", "gliding", "sneaking", "sleeping", "swimming"):
+                self.assertEqual(desc["animations"][name], "animation.elytra." + name)
+            self.assertEqual(desc["animations"]["default_controller"], "controller.animation.elytra.default")
+            self.assertEqual(desc["render_controllers"], ["controller.render.armor", "controller.render.convergence.flight_chest"])
+            for name in ("default", "infinity_armor"):
+                self.assertIn(desc["textures"][name] + ".png", pack.namelist())
+            controllers = json.loads(pack.read("render_controllers/flight.json"))["render_controllers"]
+            chest = controllers["controller.render.convergence.flight_chest"]
+            self.assertEqual(chest["geometry"], "Geometry.infinity_armor")
+            self.assertEqual(chest["textures"], ["Texture.infinity_armor", "Texture.enchanted"])
+            self.assertNotIn("convergence_flight_visual", json.dumps(desc) + json.dumps(chest))
+
     def test_current_catalog_and_pack_cover_all_mapped_textures(self):
         import zipfile
         root = Path(__file__).resolve().parents[1]
@@ -216,7 +250,7 @@ class LauncherTests(unittest.TestCase):
                     texture_id = material["texture"]
                     texture = terrain[texture_id]["textures"]
                     self.assertIn(texture + ".png", pack.namelist())
-            self.assertNotIn("attachables/elytra.json", pack.namelist())
+            self.assertIn("attachables/elytra.json", pack.namelist())
             manifest = json.loads(pack.read("manifest.json"))
             self.assertEqual([m["type"] for m in manifest["modules"]], ["resources"])
 
