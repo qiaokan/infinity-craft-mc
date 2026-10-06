@@ -317,8 +317,20 @@ def acquire_launcher_lock(args, root):
     try:
         return os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
     except FileExistsError:
-        if os.name != "posix":
-            raise RuntimeError("launcher.lock exists. Close the other launcher before starting this world.")
+        return inspect_stale_launcher_lock(args, root, replace=True)
+
+
+def check_launcher_lock(args, root):
+    """Validate dashboard preflight without removing a lock or changing settings."""
+    path = root / "launcher.lock"
+    if path.exists() or path.is_symlink():
+        inspect_stale_launcher_lock(args, root, replace=False)
+
+
+def inspect_stale_launcher_lock(args, root, *, replace):
+    path = root / "launcher.lock"
+    if os.name != "posix":
+        raise RuntimeError("launcher.lock exists. Close the other launcher before starting this world.")
 
     import fcntl
     previous = None
@@ -341,6 +353,8 @@ def acquire_launcher_lock(args, root):
         current = path.lstat()
         if (current.st_dev, current.st_ino) != (info.st_dev, info.st_ino):
             raise RuntimeError("launcher.lock changed during recovery.")
+        if not replace:
+            return None  # The real start repeats these checks before acquiring its lease.
         path.unlink()
         return os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
     except (OSError, UnicodeError, ValueError) as error:

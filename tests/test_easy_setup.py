@@ -1,5 +1,6 @@
 import io
 import json
+import os
 from pathlib import Path
 import socket
 import subprocess
@@ -38,6 +39,61 @@ class EasySetupTests(unittest.TestCase):
                 panel.start({"accept_eula": False})
             start.assert_not_called()
         self.assertFalse((self.root / "fabric/eula.txt").exists())
+        self.assertFalse((self.root / "settings.json").exists())
+
+    @unittest.skipUnless(os.name == 'posix', 'Stale-lock recovery requires POSIX')
+    def test_dashboard_start_recovers_crashed_lock_through_real_launcher_lease(self):
+        lock = self.root / "launcher.lock"
+        lock.write_text("999999999")
+        original = lock.stat().st_ino
+        panel = self.panel()
+        def fake_run(args, stop, ready, root, console, on_console_ready):
+            self.assertEqual(lock.stat().st_ino, original, "Preflight must not remove the stale lock")
+            fd = launcher.acquire_launcher_lock(args, root)
+            try:
+                self.assertNotEqual(lock.stat().st_ino, original)
+                self.assertEqual(args.java_port, 25599)
+                ready(launcher.join_addresses(args))
+            finally:
+                os.close(fd)
+                lock.unlink()
+        with patch.object(launcher.os, "kill", side_effect=ProcessLookupError), patch.object(launcher, "check_ports") as ports, \
+             patch.object(launcher, "run_server", side_effect=fake_run):
+            panel.start({"accept_eula": True, "settings": {"java_port": 25599, "bind": "127.0.0.1"}})
+            panel.worker.join(2)
+        self.assertFalse(panel.worker.is_alive())
+        self.assertEqual(panel.state, "stopped", panel.error)
+        self.assertEqual(ports.call_count, 2, "Availability is checked again during real acquisition")
+        self.assertFalse(lock.exists())
+
+    @unittest.skipUnless(os.name == 'posix', 'Stale-lock recovery requires POSIX')
+    def test_dashboard_preserves_live_or_invalid_lock_and_settings(self):
+        panel = self.panel()
+        settings = panel.settings.copy()
+        lock = self.root / "launcher.lock"
+        for value in (str(os.getpid()), "not a process ID"):
+            with self.subTest(value=value):
+                lock.write_text(value)
+                with patch.object(launcher, "run_server") as run:
+                    with self.assertRaises(ValueError):
+                        panel.start({"accept_eula": True, "settings": {"java_port": 25599}})
+                    run.assert_not_called()
+                self.assertEqual(lock.read_text(), value)
+                self.assertEqual(panel.settings, settings)
+                self.assertFalse((self.root / "settings.json").exists())
+
+    @unittest.skipUnless(os.name == 'posix', 'Stale-lock recovery requires POSIX')
+    def test_dashboard_keeps_crashed_lock_when_configured_game_port_is_busy(self):
+        lock = self.root / "launcher.lock"
+        lock.write_text("999999999")
+        panel = self.panel()
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udp:
+            udp.bind(("127.0.0.1", 0))
+            with patch.object(launcher.os, "kill", side_effect=ProcessLookupError), patch.object(launcher, "run_server") as run:
+                with self.assertRaisesRegex(ValueError, "Bedrock port"):
+                    panel.start({"accept_eula": True, "settings": {"bind": "127.0.0.1", "bedrock_port": udp.getsockname()[1]}})
+                run.assert_not_called()
+        self.assertEqual(lock.read_text(), "999999999")
         self.assertFalse((self.root / "settings.json").exists())
 
     def test_panel_lifecycle_persists_settings_and_rejects_duplicate_start(self):

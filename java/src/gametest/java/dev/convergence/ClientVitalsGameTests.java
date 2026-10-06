@@ -150,4 +150,79 @@ public class ClientVitalsGameTests {
         }
         c.complete();
     }
+
+    @GameTest public void observersReceiveBoundedPlayerVitalsWithoutChangingTheirOwnHud(TestContext c) {
+        try (var target = new Fixture(c, "hud-observed"); var viewer = new Fixture(c, "hud-viewer")) {
+            target.set(c, "health", 1e21); target.set(c, "absorption", 1e21);
+            target.player.setHealth(target.player.getMaxHealth() / 4);
+            var attributes = new EntityAttributesS2CPacket(target.player.getId(), List.of(
+                target.player.getAttributeInstance(EntityAttributes.MAX_HEALTH), target.player.getAttributeInstance(EntityAttributes.MAX_ABSORPTION)));
+            var before = NbtWriteView.create(ErrorReporter.EMPTY, target.player.getRegistryManager());
+            target.player.writeData(before);
+            viewer.player.networkHandler.sendPacket(attributes);
+            var packets = viewer.drain();
+            var projected = (EntityAttributesS2CPacket)packets.stream().filter(p -> p instanceof EntityAttributesS2CPacket).findFirst().orElseThrow();
+            c.assertTrue(projected.getEntries().stream().allMatch(e -> e.base() == 40), "Other player's capacity is bounded for the observer too");
+            var metadata = (EntityTrackerUpdateS2CPacket)packets.stream().filter(p -> p instanceof EntityTrackerUpdateS2CPacket).findFirst().orElseThrow();
+            c.assertEquals(metadata.trackedValues().getFirst().value(), 10f, "Observed current health keeps its percentage");
+            c.assertEquals(metadata.trackedValues().getLast().value(), 40f, "Observed absorption stays bounded");
+            c.assertFalse(packets.stream().anyMatch(p -> p instanceof HealthUpdateS2CPacket), "Observed vitals never replace the viewer's own HUD");
+            c.assertTrue(attributes.getEntries().stream().allMatch(e -> e.base() > 1e20), "Shared source attribute packet is intact");
+            var tracked = new EntityTrackerUpdateS2CPacket(target.player.getId(), List.of(
+                DataTracker.SerializedEntry.of(LivingVitalsAccess.infinity$health(), target.player.getHealth()),
+                DataTracker.SerializedEntry.of(PlayerVitalsAccess.infinity$absorption(), target.player.getAbsorptionAmount())));
+            viewer.player.networkHandler.sendPacket(tracked);
+            var updated = (EntityTrackerUpdateS2CPacket)viewer.drain().getFirst();
+            c.assertEquals(updated.trackedValues().getFirst().value(), 10f, "Subsequent observed health updates are bounded");
+            c.assertEquals(updated.trackedValues().getLast().value(), 40f, "Subsequent observed absorption updates are bounded");
+            var after = NbtWriteView.create(ErrorReporter.EMPTY, target.player.getRegistryManager());
+            target.player.writeData(after);
+            c.assertEquals(after.getNbt(), before.getNbt(), "Sending another player's vitals preserves all saved stats");
+            target.set(c, "max_health", 20);
+            viewer.player.networkHandler.sendPacket(new EntityAttributesS2CPacket(target.player.getId(), List.of(target.player.getAttributeInstance(EntityAttributes.MAX_HEALTH))));
+            var reset = (EntityTrackerUpdateS2CPacket)viewer.drain().stream().filter(p -> p instanceof EntityTrackerUpdateS2CPacket).findFirst().orElseThrow();
+            c.assertEquals(reset.trackedValues().getFirst().value(), 20f, "Capacity reset also refreshes observers");
+        }
+        c.complete();
+    }
+
+    @GameTest public void helpersUseBoundedObservedHealthWhileOrdinaryMobsAreUntouched(TestContext c) {
+        try (var f = new Fixture(c, "hud-helper-owner")) {
+            var feet = c.getAbsolutePos(new net.minecraft.util.math.BlockPos(3, 20, 3));
+            for (var pos : net.minecraft.util.math.BlockPos.iterate(feet.add(-7, -1, -7), feet.add(7, 4, 7)))
+                c.getWorld().setBlockState(pos, pos.getY() == feet.getY() - 1 ? net.minecraft.block.Blocks.STONE.getDefaultState() : net.minecraft.block.Blocks.AIR.getDefaultState());
+            f.player.setPosition(net.minecraft.util.math.Vec3d.ofBottomCenter(feet));
+            f.player.setNoGravity(true);
+            var agents = AgentCompanions.get(c.getWorld().getServer());
+            agents.spawn(f.player, "hud-robot");
+            var record = agents.owned(f.player, "hud-robot");
+            c.assertTrue(record != null, "Real helper is registered");
+            try {
+                var helper = agents.loaded.get(UUID.fromString(record.getKey()));
+                c.assertTrue(AdminStats.set(f.player.getCommandSource(), helper, "health", 1e21).success(), "Actual helper capacity is expanded");
+                helper.setHealth(helper.getMaxHealth() / 2);
+                var before = NbtWriteView.create(ErrorReporter.EMPTY, helper.getRegistryManager()); helper.writeData(before);
+                f.drain();
+                f.player.networkHandler.sendPacket(new EntityAttributesS2CPacket(helper.getId(), List.of(helper.getAttributeInstance(EntityAttributes.MAX_HEALTH))));
+                var packets = f.drain();
+                c.assertTrue(packets.stream().anyMatch(p -> p instanceof EntityAttributesS2CPacket a && a.getEntries().getFirst().base() == 40), "Huge helper capacity stays bounded on the actual outbound path");
+                var metadata = (EntityTrackerUpdateS2CPacket)packets.stream().filter(p -> p instanceof EntityTrackerUpdateS2CPacket).findFirst().orElseThrow();
+                c.assertEquals(metadata.trackedValues().getFirst().value(), 20f, "Helper health preserves its percentage");
+                c.assertEquals(metadata.trackedValues().size(), 1, "Native helper metadata never borrows a player-only absorption field");
+                c.assertFalse(packets.stream().anyMatch(p -> p instanceof HealthUpdateS2CPacket), "Helper never changes owner's HUD");
+                var tracked = new EntityTrackerUpdateS2CPacket(helper.getId(), List.of(DataTracker.SerializedEntry.of(LivingVitalsAccess.infinity$health(), helper.getHealth())));
+                c.assertEquals(((EntityTrackerUpdateS2CPacket)ClientVitals.rewrite(tracked, f.player)).trackedValues().getFirst().value(), 20f, "Helper health updates stay bounded too");
+                var after = NbtWriteView.create(ErrorReporter.EMPTY, helper.getRegistryManager()); helper.writeData(after);
+                c.assertEquals(after.getNbt(), before.getNbt(), "Sending helper vitals preserves saved entity state");
+                var ordinary = net.minecraft.entity.EntityType.IRON_GOLEM.create(c.getWorld(), net.minecraft.entity.SpawnReason.COMMAND);
+                try {
+                    c.getWorld().spawnEntity(ordinary);
+                    var nativeAttrs = new EntityAttributesS2CPacket(ordinary.getId(), List.of(ordinary.getAttributeInstance(EntityAttributes.MAX_HEALTH)));
+                    var nativeHealth = new EntityTrackerUpdateS2CPacket(ordinary.getId(), List.of(DataTracker.SerializedEntry.of(LivingVitalsAccess.infinity$health(), ordinary.getHealth())));
+                    c.assertTrue(ClientVitals.rewrite(nativeAttrs, f.player) == nativeAttrs && ClientVitals.rewrite(nativeHealth, f.player) == nativeHealth, "Unregistered mobs retain native health packets");
+                } finally { ordinary.discard(); }
+            } finally { agents.dismiss(f.player, "hud-robot"); }
+        }
+        c.complete();
+    }
 }
