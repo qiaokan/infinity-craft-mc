@@ -1,4 +1,22 @@
-# Crossplay vitals and safe dashboard recovery — 2.12.0-explore.18
+# Refreshed armor and gear — 2.12.0-explore.19
+
+The Convergence and Aurora sets use new complete 128×64 armor atlases. Generated artwork was cropped into every native head, torso, arm and leg UV rectangle, with unused pixels transparent. The legacy visor overlay is omitted from the new Convergence layer because the refreshed visor is already painted into the new helmet. Original PNG bytes are preserved. Twenty-four distinct inventory designs produce 25 new icons, including both wand variants. The four powered mining tools now resolve custom Java models. Bedrock item-atlas entries point at matching sprites for mapped gear. The Creative asset generator preserves the new Aurora/wand model references when run again. No stat, helper, combat, menu or item-power behavior changes are included.
+
+Bedrock wearables and native ranged/offhand items retain existing complete native assets and touch controls. This update does not replace ordinary Bedrock netherite/leather/elytra textures or enable unsupported custom glider mappings. Thus full custom worn armor is a Java resource-pack feature; Bedrock mapped weapons, mining tools and wands get the new sprite artwork.
+
+## Fresh explore.19 checks
+
+- 325 native Minecraft GameTests passed with the release dependencies.
+- 101 Python launcher tests passed, including all Java model/equipment references and mapped Bedrock resource coverage.
+- Geyser registered 21 custom items and 209 block overrides, answered local UDP and shut down cleanly.
+- Two isolated full-stack cycles passed startup, mode worlds, command response, backup, restart and clean shutdown.
+- All four new worn layers have fully opaque UV faces and transparent unused regions. All 25 inventory icons have clear margins and no clipped sprites or neighboring-row contamination.
+- Clean-room repacking from the included raw artwork reproduces every one of the 56 Java/Bedrock production PNGs exactly. The built JAR and Bedrock pack match those hashes; Bedrock cache revision is 19. All original PNG hashes remain unchanged.
+- Isolated Creative asset regeneration preserves the refreshed Aurora and wand references.
+
+A real Java/iPad client must still verify resource-pack reload and graphical appearance. These checks do not prove every possible bug is gone.
+
+## Retained behavior and earlier fixes
 
 Validated October 5, 2026 with Java 21, Minecraft 1.21.11 and the checksum-pinned Fabric, Polymer, Floodgate and Geyser dependencies. Test worlds are isolated from the owner's playable save.
 
@@ -24,9 +42,9 @@ The owner earlier reported an iPad app exit just after joining. Both authenticat
 
 ## Scope and review limits
 
-This update uses dependency inspection and native network regression checks. No fresh Gemini or Claude consultation was performed. The earlier signed-texture verification remains valid; the skin and original texture assets are unchanged.
+This update uses dependency inspection and native network regression checks. No fresh Gemini or Claude consultation was performed. The earlier signed-texture verification remains valid; the helper skin and original texture assets are unchanged.
 
-A real Java and iPad client must still verify the new appearance, touch controls and resource-pack reload. Native packets/tests establish server behavior, not graphical client rendering, an authenticated public join or public-server capacity. All Bedrock wearables now use complete native dyed-leather/netherite/elytra assets; pack-enabled Java keeps original custom artwork. Original PNGs are unchanged. The Infinity chestplate uses the native elytra form on Bedrock. Direct inventory gear works alongside full shulker gear boxes; custom gear does not enter Geyser's unsupported native Creative search catalogue.
+A real Java and iPad client must still verify the new appearance, touch controls and resource-pack reload. Native packets/tests establish server behavior, not graphical client rendering, an authenticated public join or public-server capacity. All Bedrock wearables now use complete native dyed-leather/netherite/elytra assets; pack-enabled Java uses the refreshed custom artwork. Original PNGs are unchanged. The Infinity chestplate uses the native elytra form on Bedrock. Direct inventory gear works alongside full shulker gear boxes; custom gear does not enter Geyser's unsupported native Creative search catalogue.
 
 Manual stat edits require the admin's own confirmation. Health/absorption can raise capacity in the same review; numeric storage, native physics and client/HUD bounds remain. Damage consumes health and absorption normally. Food reserves can be consumed/reset by gameplay. Armor-bypassing damage and native enchantment effects still apply.
 

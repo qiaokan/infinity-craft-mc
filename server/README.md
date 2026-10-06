@@ -1,4 +1,7 @@
-# Infinity Armor Exploration Server — 2.12.0-explore.18
+# Infinity Armor Exploration Server — 2.12.0-explore.19
+
+Explore.19 refreshes the Convergence and Aurora armor textures and 25 matching gear icons. Java uses complete custom worn armor and custom tool artwork with the resource pack. Bedrock keeps the working native wearable/flight and ranged-item controls; mapped weapons, mining tools and wands receive the new sprites. Use Infinity Menu → Gear or Creative tools to obtain the same items; existing inventory, names and powers remain intact. Ordinary Bedrock armor textures are unchanged.
+
 
 Multi-mode build based on Infinity Armor 2.3.0 and the crossplay preview. Updated October 5, 2026.
 

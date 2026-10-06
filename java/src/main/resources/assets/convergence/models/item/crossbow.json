@@ -1,6 +1,6 @@
 {
   "parent": "minecraft:item/handheld",
   "textures": {
-    "layer0": "convergence:item/crossbow"
+    "layer0": "convergence:item/refresh19/crossbow"
   }
 }

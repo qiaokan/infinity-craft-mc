@@ -174,12 +174,13 @@ def generate():
         tex = ASSETS / f'textures/item/{name}.png'
         png(tex, 16, 16, item_art(name))
         target = BEDROCK / f'textures/convergence/items/{name}.png'; target.parent.mkdir(parents=True, exist_ok=True); shutil.copy2(tex, target)
-        write_json(ASSETS / f'models/item/{name}.json', {'parent': 'minecraft:item/handheld' if name.endswith('wand') else 'minecraft:item/generated', 'textures': {'layer0': 'convergence:item/' + name}})
+        write_json(ASSETS / f'models/item/{name}.json', {'parent': 'minecraft:item/handheld' if name.endswith('wand') else 'minecraft:item/generated', 'textures': {'layer0': 'convergence:item/' + ('refresh19/' if (ASSETS / f'textures/item/refresh19/{name}.png').is_file() else '') + name}})
         write_json(ASSETS / f'items/{name}.json', {'model': {'type': 'minecraft:model', 'model': 'convergence:item/' + name}})
         names['item.convergence.' + name] = name.replace('_', ' ').title()
     for outfit in ('aurora', 'ember'):
         asset = outfit + '_armor'
-        write_json(ASSETS / f'equipment/{asset}.json', {'layers': {'humanoid': [{'texture': 'convergence:' + asset}], 'humanoid_leggings': [{'texture': 'convergence:' + asset}]}})
+        texture = 'aurora_refresh19' if outfit == 'aurora' and (ASSETS / 'textures/entity/equipment/humanoid/aurora_refresh19.png').is_file() else asset
+        write_json(ASSETS / f'equipment/{asset}.json', {'layers': {'humanoid': [{'texture': 'convergence:' + texture}], 'humanoid_leggings': [{'texture': 'convergence:' + texture}]}})
         png(ASSETS / f'textures/entity/equipment/humanoid/{asset}.png', 64, 32, worn_art(outfit))
         png(ASSETS / f'textures/entity/equipment/humanoid_leggings/{asset}.png', 64, 32, worn_art(outfit, True))
     write_json(ROOT / 'research/creative-gear-names.json', names)

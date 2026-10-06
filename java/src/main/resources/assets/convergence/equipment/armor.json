@@ -2,15 +2,12 @@
   "layers": {
     "humanoid": [
       {
-        "texture": "convergence:armor"
-      },
-      {
-        "texture": "convergence:infinity_visor"
+        "texture": "convergence:convergence_refresh19"
       }
     ],
     "humanoid_leggings": [
       {
-        "texture": "convergence:armor"
+        "texture": "convergence:convergence_refresh19"
       }
     ],
     "wings": [
