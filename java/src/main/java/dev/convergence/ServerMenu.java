@@ -47,6 +47,7 @@ final class ServerMenu {
     static final int ADMIN = 47;
     static final int SELF_STATS = 51, CRATES = 46, ARMOR = 48;
     static final int INVENTORY_GEAR = 50, RANKS = 52;
+    static final int PROPHECY = 6;
     static final int PREVIOUS = 45, BACK = 49, NEXT = 53, PAGE_SIZE = 45;
     private static final String MARKER = "infinity_server_menu";
     private static final String OWNER = "owner";
@@ -197,6 +198,7 @@ final class ServerMenu {
         if (page == Page.MAIN) {
             icon(view, 4, Items.RECOVERY_COMPASS, "Your tools, worlds and helpers",
                 "Held: " + player.getMainHandItem().getHoverName().getString(), "Tap an icon. No /convergence command needed.");
+            icon(view,PROPHECY,Items.WRITTEN_BOOK,"The Odyssey • your prophecy","Receive or recover your starting prophecy book.","Discover rare biome-themed ruins across three realms.");
             icon(view, GEAR, Items.NETHERITE_SWORD, "Weapons, tools and blocks", "Choose any Infinity item.", "Requires Creative, Admin or OP2.", "Your old items are preserved.");
             icon(view, KIT, Items.CHEST, "Full Infinity kit", "All gear plus rockets and seeds.", "Requires Creative, Admin or OP2.");
             icon(view, BUILDING, Items.QUARTZ_BLOCK, "Building kit", "Building blocks and both wands.", "Requires Creative, Admin or OP4.");
@@ -351,6 +353,7 @@ final class ServerMenu {
                 return;
             }
             if (page != Page.MAIN) return;
+            if(slot==PROPHECY){owner.closeContainer();OdysseyProphecy.give(owner,true);return;}
             if (slot == GEAR) { navigate(Page.GEAR, 0); return; }
             if (slot == ARMOR) { navigate(Page.ARMOR, 0); return; }
             if (slot == HELP) { navigate(Page.HELP, 0); return; }

@@ -23,7 +23,8 @@
     "ComponentInitializerEntryAccess",
     "AgentTargetMixin",
     "PhysicsSafetyMixin",
-    "KnockbackSafetyMixin"
+    "KnockbackSafetyMixin",
+    "OdysseyCommandMixin"
   ],
   "injectors": {
     "defaultRequire": 1

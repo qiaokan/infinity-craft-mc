@@ -1,4 +1,16 @@
-# Native Bedrock armor appearance — 2.13.0-explore.21
+# The Odyssey ruins and prophecy — 2.13.0-explore.22
+
+Validated October 6, 2026 with the combined Java 26.3 / Java 25 toolchain. This build retains the refreshed Java and native Bedrock gear, client protections, menus, stats and helpers.
+
+- **336 native Minecraft GameTests passed** with release dependencies. Ten Odyssey regressions cover all 21 templates, the lower chest's exact 27 decoded stacks and original book, actual chest loading, all native biome tags, native sparse generation, Nether cavern selection, inventory-safe prophecy delivery and menu recovery, scoped command permission, persistent piece rotation and initial native repeater scheduling.
+- **103 Python launcher tests passed**, and Geyser loaded its item/block mappings, answered the loopback Bedrock UDP ping and shut down cleanly.
+- **Two isolated full-stack cycles passed** with real Fabric + Geyser, all five mode dimensions, responsive cold lobby loading, restart, stopped-world backup and clean shutdown without ERROR lines.
+- A fresh, isolated normal world with seed `26100622` located and generated an Odyssey ruin in each of the Overworld, Nether and End. Reading the saved native chunks verified one ruin chest, all 27 original stacks and the exact always-active repeater in each dimension. With command blocks enabled, a generated repeater successfully executed the native ban against a seeded, disposable cached test profile; the real owner's ban list was untouched.
+- Preparation and packaging verify deterministic templates against the sanitized blueprint. The exporter uses 26.3's `id`/`properties` native block-state format; the placed-container regression catches a template that silently loads as air.
+
+The owner's playable world remains on 1.21.11 / explore.20 pending installation approval. The combined update requires a stopped-world backup and a one-way world conversion to 26.3. No live world, player inventory, helpers or private settings were edited for these checks. Java/iPad client gameplay and the new structure's appearance still require a device check after installation.
+
+## Retained native Bedrock armor appearance
 
 Explore.19 refreshed Java armor and mapped Bedrock tool sprites but deliberately left native Bedrock worn armor unchanged. This fix routes the artwork through the native texture paths actually selected by the iPad client. Native netherite layers now use Convergence, and native leather layers use Aurora with native dye coloring. Their inventory images are refreshed too. Normal netherite/leather armor shares the changed patterns while this resource pack is active; Ember/backpack leather shares Aurora's pattern with its original dye tint.
 
@@ -60,6 +72,7 @@ The fixed Dynu hostname still requires forwarding and an awake reachable host. V
 ## Reproduce
 
 ```sh
+python3 tools/generate_odyssey_assets.py --check
 python3 tools/check_crossplay.py --java /path/to/java
 python3 -m unittest discover -s tests -p 'test_*.py' -v > research/launcher-tests.log 2>&1
 python3 tools/smoke_geyser.py --java /path/to/java > research/geyser-smoke.log 2>&1

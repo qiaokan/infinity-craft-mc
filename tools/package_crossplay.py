@@ -7,6 +7,7 @@ import re
 import shutil
 import xml.etree.ElementTree as ET
 import zipfile
+from generate_odyssey_assets import verify as verify_odyssey
 from prepare_crossplay import ROOT, VERSION, expected_native_tests, expected_launcher_tests
 
 
@@ -23,6 +24,7 @@ def archive(path, entries, prefix):
 
 
 def main():
+    verify_odyssey()
     report = ROOT / "research/integration/results.xml"
     tests = list(ET.parse(report).getroot().iter("testcase"))
     assert len(tests) == expected_native_tests() and all(t.find("failure") is None and t.find("error") is None and t.find("skipped") is None for t in tests)
@@ -49,7 +51,7 @@ def main():
     entries = {name: (server / name).read_bytes() for name in ["README.md", "VALIDATION.md", "THIRD_PARTY.md",
         "TEXTURE_CREDITS.md", "server.py", "dependencies.lock.json", "Start-Mac.command", "start.sh", "start.bat",
         "runtime.py", "runtime.lock.json", "dashboard.py", "dashboard.html", "bootstrap.sh", "bootstrap.ps1", "START_HERE.txt",
-        "community.py", "MODES.md", "LOBBIES.md", "MEMBERSHIPS.md", "SUBSCRIPTIONS.md", "REWARDS.md", "TRADING.md", "AGENTS_GUIDE.md", "EXPANSION.md", "EXPLORATION.md", "PLAYER_TRADING.md", "HOSTING.md", "infinity.service.example",
+        "community.py", "MODES.md", "LOBBIES.md", "MEMBERSHIPS.md", "SUBSCRIPTIONS.md", "REWARDS.md", "TRADING.md", "AGENTS_GUIDE.md", "EXPANSION.md", "EXPLORATION.md", "ODYSSEY.md", "PLAYER_TRADING.md", "HOSTING.md", "infinity.service.example",
         "Start-Pinggy-Mac.command", "Stop-Pinggy-Mac.command", "PINGGY_JOINING.md", "pinggy_install.py", "pinggy_joining.py", "remote_joining.py", "remote_tunnels.py",
         "Start-Dynu-Mac.command", "DYNU_JOINING.md", "dynu_joining.py"]}
     for pin in sorted((server / "setup").glob("*.txt")):
@@ -73,16 +75,16 @@ def main():
     source_archive = dist / f"Infinity_Armor_Lobbies_Source_v{VERSION}.zip"
     archive(server_archive, entries, "Infinity_Armor_Lobbies_Server")
     source = {"server/" + k: v for k, v in entries.items()}
-    for directory in ["java/src", "java/gradle", "bedrock/resource_pack", "artwork/refresh19", "vendor"]:
+    for directory in ["java/src", "java/gradle", "bedrock/resource_pack", "artwork/refresh19", "artwork/odyssey", "vendor"]:
         for file in (ROOT / directory).rglob("*"):
             if file.is_file():
                 source[file.relative_to(ROOT).as_posix()] = file.read_bytes()
     for name in ["java/build.gradle", "java/settings.gradle", "java/gradle.properties", "java/gradlew", "java/gradlew.bat",
-        "TEXTURE_CREDITS.md", "TEXTURE_SHA256.json", "tools/check_crossplay.py", "tools/prepare_crossplay.py",
-        "tools/smoke_geyser.py", "tools/generate_creative_assets.py", "tools/package_crossplay.py", "tools/gametest-framework.sha256", "tools/smoke_fullstack.py",
+        "TEXTURE_CREDITS.md", "TEXTURE_SHA256.json", "docs/CROSSPLAY_SOURCE.md", "tools/check_crossplay.py", "tools/prepare_crossplay.py",
+        "tools/smoke_geyser.py", "tools/generate_creative_assets.py", "tools/generate_odyssey_assets.py", "tools/package_crossplay.py", "tools/gametest-framework.sha256", "tools/smoke_fullstack.py",
         *(p.relative_to(ROOT).as_posix() for p in sorted((ROOT / "tests").glob("test_*.py")))]:
         source[name] = (ROOT / name).read_bytes()
-    source["README.md"] = (ROOT / "CROSSPLAY_SOURCE.md").read_bytes()
+    source["README.md"] = (ROOT / "docs/CROSSPLAY_SOURCE.md").read_bytes()
     source["ORIGINAL_GUIDE_2.3.0.md"] = (ROOT / "README.md").read_bytes()
     archive(source_archive, source, "Infinity_Armor_Lobbies_Source")
     shutil.copy2(server / "README.md", dist / "Infinity_Armor_Lobbies_Guide.md")
@@ -96,12 +98,13 @@ def main():
     shutil.copy2(server / "AGENTS_GUIDE.md", dist / "Infinity_Armor_Agents.md")
     shutil.copy2(server / "EXPANSION.md", dist / "Infinity_Armor_Expansion.md")
     shutil.copy2(server / "EXPLORATION.md", dist / "Infinity_Armor_Exploration.md")
+    shutil.copy2(server / "ODYSSEY.md", dist / "Infinity_Armor_Odyssey.md")
     shutil.copy2(server / "PINGGY_JOINING.md", dist / "Infinity_Armor_Pinggy_Joining.md")
     shutil.copy2(server / "DYNU_JOINING.md", dist / "Infinity_Armor_Dynu_Joining.md")
     shutil.copy2(server / "PLAYER_TRADING.md", dist / "Infinity_Armor_Player_Trading.md")
     files = sorted([server_archive, source_archive, *(dist / name for name in [
         "Infinity_Armor_Lobbies_Guide.md", "Infinity_Armor_Public_Hosting.md",
-        "Infinity_Armor_Game_Modes.md", "Infinity_Armor_Lobbies.md", "Infinity_Armor_Memberships.md", "Infinity_Armor_Subscriptions.md", "Infinity_Armor_Rewards.md", "Infinity_Armor_Trading.md", "Infinity_Armor_Agents.md", "Infinity_Armor_Expansion.md", "Infinity_Armor_Exploration.md", "Infinity_Armor_Pinggy_Joining.md", "Infinity_Armor_Dynu_Joining.md", "Infinity_Armor_Player_Trading.md"])])
+        "Infinity_Armor_Game_Modes.md", "Infinity_Armor_Lobbies.md", "Infinity_Armor_Memberships.md", "Infinity_Armor_Subscriptions.md", "Infinity_Armor_Rewards.md", "Infinity_Armor_Trading.md", "Infinity_Armor_Agents.md", "Infinity_Armor_Expansion.md", "Infinity_Armor_Exploration.md", "Infinity_Armor_Odyssey.md", "Infinity_Armor_Pinggy_Joining.md", "Infinity_Armor_Dynu_Joining.md", "Infinity_Armor_Player_Trading.md"])])
     (dist / "SHA256SUMS.txt").write_text("\n".join(hashlib.sha256(p.read_bytes()).hexdigest() + "  " + p.name for p in files) + "\n")
     for file in files:
         print(file.name, file.stat().st_size, "bytes")

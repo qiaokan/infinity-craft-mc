@@ -7,9 +7,10 @@ from pathlib import Path
 import shutil
 import uuid
 import zipfile
+from generate_odyssey_assets import verify as verify_odyssey
 
 ROOT = Path(__file__).resolve().parents[1]
-VERSION = "2.13.0-explore.21"
+VERSION = "2.13.0-explore.22"
 
 
 def expected_native_tests():
@@ -29,6 +30,7 @@ def expected_launcher_tests():
 
 
 def prepare():
+    verify_odyssey()
     server = ROOT / "server"
     if (server / "launcher.lock").exists():
         raise RuntimeError("Stop the live server before installing a new mod build.")

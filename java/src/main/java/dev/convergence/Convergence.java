@@ -289,6 +289,7 @@ public class Convergence implements ModInitializer {
    public void onInitialize() {
       Catalog.register();
       ExpandedGear.register();
+      OdysseyStructure.register();
       ExpandedGear.registerEvents();
       BackpackStorage.registerItems();
       CrossplaySupport.register();
@@ -305,6 +306,7 @@ public class Convergence implements ModInitializer {
       ServerAssistant.initialize();
       ServerMenu.register();
       GearCrates.register();
+      OdysseyProphecy.register();
       AdminStatsMenu.register();
       AdminStats.setMenuOpener(AdminStatsMenu::open);
       AdminStats.register();

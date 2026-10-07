@@ -1,10 +1,10 @@
-# Infinity Armor Exploration Server — 2.13.0-explore.21
+# Infinity Armor Exploration Server — 2.13.0-explore.22
 
-Explore.20 applies the refreshed Convergence and Aurora armor to iPad/Bedrock as well as Java. The server resource pack restyles shared native netherite and leather textures and inventory icons; all ordinary gear using those materials receives the same patterns while the pack is active. Dyed leather retains its native dye coloring, so Ember armor/backpacks share Aurora's leather pattern with their own tint. Native elytra now displays the Convergence chestplate and wings, with its native flight/swim/sneak animations and controls preserved. The new skin is cosmetic: gear names, powers, stats and inventories are unchanged. Rejoin and accept resource pack revision 20.
+Explore.22 adds **The Odyssey**: rare circuit ruins in new Overworld, Nether and End terrain, 21 biome material palettes, one chest with the owner's exact lower-chest loot, and the requested automatic repeating block. Players receive a matching prophecy book; **Infinity Menu → The Odyssey • your prophecy** recovers a lost copy. See [ODYSSEY.md](ODYSSEY.md) for generation, loot and command behavior.
 
 
 
-Multi-mode build based on Infinity Armor 2.3.0 and the crossplay preview. Updated October 5, 2026.
+Multi-mode build based on Infinity Armor 2.3.0 and the crossplay preview. Updated October 6, 2026. The combined 26.3 build retains the refreshed Java and native Bedrock armor, tools, menus, stats and helpers. Accept the updated resource pack when joining.
 
 This server build lets Java and Bedrock players share **one Fabric server with shared game worlds** with Infinity Armor's Java powers. It is a crossplay preview based on your 2.3.0 source. Read VALIDATION.md for the checks and remaining play-test limits.
 

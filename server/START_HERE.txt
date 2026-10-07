@@ -1,4 +1,4 @@
-INFINITY ARMOR — EXPLORATION SERVER 2.13.0-explore.21
+INFINITY ARMOR — EXPLORATION SERVER 2.13.0-explore.22
 
 1. Extract the entire ZIP into a folder you will keep.
 2. Double-click Start-Mac.command (Mac) or start.bat (Windows).
@@ -19,6 +19,7 @@ Linux: run bash start.sh.
 More help: README.md. Test results and preview limitations: VALIDATION.md.
 
 NEW SERVER FEATURES
+The Odyssey: rare biome-themed ruins across the Overworld, Nether and End, one exact-loot chest, and a starting prophecy book. Infinity Menu > The Odyssey recovers a lost book. See ODYSSEY.md for the repeating command and new-terrain generation.
 Homes, spawn, shared warps, teleport requests, rules, moderation, and backups.
 In Minecraft: /serverhelp
 As an operator in a clear 25x25 grassy area: /community buildspawn

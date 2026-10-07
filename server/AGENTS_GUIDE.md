@@ -1,4 +1,4 @@
-# Helper squads, AI modes, and full operator controls — 2.13.0-explore.21
+# Helper squads, AI modes, and full operator controls — 2.13.0-explore.22
 
 Admins can edit a loaded helper through **Infinity Menu → Admin editor • players and AI**. Select its golem icon, change health, damage, speed, armor, size or another supported base attribute, then confirm. On iPad/Bedrock this opens native buttons and a number input field; Java uses Review and Confirm. Manual stat edits do not require Codex approval. Original attribute values can be restored. Exact saved stats stay unchanged by the compact health display sent to observers. Physical knockback stays bounded to keep the world responsive. The edits and reset values save with the entity; helper behavior/profile changes invalidate an open stat review. Follow, guard and profile controls remain in **AI Helpers**, and player-target orders still require both approvals.
 
