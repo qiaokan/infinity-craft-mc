@@ -45,7 +45,8 @@ final class CrossplaySupport {
     static final Map<String, Item> BASES = new LinkedHashMap<>();
     static final Map<String, BlockState> BLOCK_STATES = new LinkedHashMap<>();
     // Bedrock custom items cannot reproduce all native shield/glider/projectile behavior.
-    // Preserve those native controls, at the cost of native Bedrock artwork for these items.
+    // Preserve native controls. The Bedrock pack restyles shared native armor textures
+    // and the elytra attachable; native ranged/offhand artwork remains unchanged.
     static final Set<String> NATIVE_BEDROCK = Set.of("helmet", "chestplate", "leggings", "boots", "shield", "totem", "bow", "crossbow",
         "infinity_arrow", "void_arrow", "starfire_arrow", "backpack",
         "aurora_helmet","aurora_chestplate","aurora_leggings","aurora_boots",

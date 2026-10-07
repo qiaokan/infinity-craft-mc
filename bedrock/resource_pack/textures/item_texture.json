@@ -3,82 +3,82 @@
   "texture_name": "atlas.items",
   "texture_data": {
     "convergence_helmet": {
-      "textures": "textures/convergence/items/helmet"
+      "textures": "textures/convergence/items/refresh19/helmet"
     },
     "convergence_chestplate": {
-      "textures": "textures/convergence/items/chestplate"
+      "textures": "textures/convergence/items/refresh19/chestplate"
     },
     "convergence_leggings": {
-      "textures": "textures/convergence/items/leggings"
+      "textures": "textures/convergence/items/refresh19/leggings"
     },
     "convergence_boots": {
-      "textures": "textures/convergence/items/boots"
+      "textures": "textures/convergence/items/refresh19/boots"
     },
     "convergence_sword": {
-      "textures": "textures/convergence/items/sword"
+      "textures": "textures/convergence/items/refresh19/sword"
     },
     "convergence_mace": {
-      "textures": "textures/convergence/items/mace"
+      "textures": "textures/convergence/items/refresh19/mace"
     },
     "convergence_spear": {
-      "textures": "textures/convergence/items/spear"
+      "textures": "textures/convergence/items/refresh19/spear"
     },
     "convergence_ingot": {
-      "textures": "textures/convergence/items/ingot"
+      "textures": "textures/convergence/items/refresh19/ingot"
     },
     "convergence_pickaxe": {
-      "textures": "textures/items/netherite_pickaxe"
+      "textures": "textures/convergence/items/refresh19/pickaxe"
     },
     "convergence_axe": {
-      "textures": "textures/items/netherite_axe"
+      "textures": "textures/convergence/items/refresh19/axe"
     },
     "convergence_shovel": {
-      "textures": "textures/items/netherite_shovel"
+      "textures": "textures/convergence/items/refresh19/shovel"
     },
     "convergence_hoe": {
-      "textures": "textures/items/netherite_hoe"
+      "textures": "textures/convergence/items/refresh19/hoe"
     },
     "convergence_totem": {
-      "textures": "textures/convergence/items/totem"
+      "textures": "textures/convergence/items/refresh19/totem"
     },
     "convergence_shield": {
-      "textures": "textures/convergence/items/shield"
+      "textures": "textures/convergence/items/refresh19/shield"
     },
     "convergence_bow": {
-      "textures": "textures/convergence/items/bow"
+      "textures": "textures/convergence/items/refresh19/bow"
     },
     "convergence_crossbow": {
-      "textures": "textures/convergence/items/crossbow"
+      "textures": "textures/convergence/items/refresh19/crossbow"
     },
     "convergence_infinity_arrow": {
-      "textures": "textures/convergence/items/infinity_arrow"
+      "textures": "textures/convergence/items/refresh19/infinity_arrow"
     },
     "convergence_void_arrow": {
-      "textures": "textures/convergence/items/void_arrow"
+      "textures": "textures/convergence/items/refresh19/void_arrow"
     },
     "convergence_starfire_arrow": {
-      "textures": "textures/convergence/items/starfire_arrow"
+      "textures": "textures/convergence/items/refresh19/starfire_arrow"
     },
     "convergence_backpack": {
       "textures": "textures/convergence/backpack"
     },
     "convergence_builder_wand": {
-      "textures": "textures/convergence/items/builder_wand"
+      "textures": "textures/convergence/items/refresh19/builder_wand"
     },
     "convergence_sculptor_wand": {
-      "textures": "textures/convergence/items/sculptor_wand"
+      "textures": "textures/convergence/items/refresh19/sculptor_wand"
     },
     "convergence_aurora_helmet": {
-      "textures": "textures/convergence/items/aurora_helmet"
+      "textures": "textures/convergence/items/refresh19/aurora_helmet"
     },
     "convergence_aurora_chestplate": {
-      "textures": "textures/convergence/items/aurora_chestplate"
+      "textures": "textures/convergence/items/refresh19/aurora_chestplate"
     },
     "convergence_aurora_leggings": {
-      "textures": "textures/convergence/items/aurora_leggings"
+      "textures": "textures/convergence/items/refresh19/aurora_leggings"
     },
     "convergence_aurora_boots": {
-      "textures": "textures/convergence/items/aurora_boots"
+      "textures": "textures/convergence/items/refresh19/aurora_boots"
     },
     "convergence_ember_helmet": {
       "textures": "textures/convergence/items/ember_helmet"

@@ -1,16 +1,27 @@
-# Crossplay vitals and safe dashboard recovery — 2.13.0-explore.19
+# Native Bedrock armor appearance — 2.13.0-explore.21
 
-Validated October 5, 2026 with Java 25, Minecraft 26.3, Fabric Loader 0.19.5, Fabric API 0.161.0, Polymer 0.18.2, Floodgate 2.2.7-b69, ViaFabric 0.4.22, ViaBackwards 5.12.0 and Geyser 2.11.3-b1248. Test worlds are isolated from the owner's playable save.
+Explore.19 refreshed Java armor and mapped Bedrock tool sprites but deliberately left native Bedrock worn armor unchanged. This fix routes the artwork through the native texture paths actually selected by the iPad client. Native netherite layers now use Convergence, and native leather layers use Aurora with native dye coloring. Their inventory images are refreshed too. Normal netherite/leather armor shares the changed patterns while this resource pack is active; Ember/backpack leather shares Aurora's pattern with its original dye tint.
+
+The native elytra attachable is now included by preparation. It uses the existing wings with native geometry and animations, plus a Convergence chestplate render layer. The old dormant custom-property condition is removed. No wearable IDs, Geyser component mappings, equip slots, flight mechanics, authoritative stats, saved inventories or helper state are changed. Original PNGs remain unchanged.
+
+A new launcher regression inspects the actual prepared pack: both native worn layers, every native inventory icon, retained native elytra animations, chest texture/controller presence, and absence of the unset-property gate. Fresh explore.20 checks passed: 325 native Minecraft GameTests, 102 Python launcher tests (including the new prepared-pack native armor regression), Geyser mapping/UDP startup and shutdown, and two isolated full-stack server cycles with backup/restart. The actual prepared pack contains resource revision [2,12,20], both native netherite/leather layers and their inventory images, and the native elytra plus Convergence chest render controller. All original PNG checksums still match. Graphical Java/iPad rendering, dye appearance and flight controls still need an actual client check.
+
+## Retained behavior and earlier fixes
+
+Validated October 6, 2026 with Java 25, Minecraft 26.3, Fabric Loader 0.19.5, Fabric API 0.161.0, Polymer 0.18.2, Floodgate 2.2.7-b69, ViaFabric 0.4.22, ViaBackwards 5.12.0 and Geyser 2.11.3-b1248. Test worlds are isolated from the owner's playable save.
 
 ## Minecraft 26.3 port
 
-- **325 native Minecraft GameTests passed on 26.3** in five consecutive runs with the release dependencies. Helper recall now waits for the arrival chunk to become entity-ticking, which can take several ticks since 26.1, before checking that exactly one live helper exists.
-- **102 Python launcher tests passed**, including a check that setup removes superseded pinned mod JARs while keeping owner-added mods.
+- **326 native Minecraft GameTests passed on 26.3** in three consecutive runs with the release dependencies (earlier builds of this port passed ten consecutive runs). Helper recall waits for the arrival chunk to become entity-ticking, which can take several ticks since 26.1, before checking that exactly one live helper exists.
+- **103 Python launcher tests passed**, including a check that setup removes superseded pinned mod JARs while keeping owner-added mods.
 - **Geyser smoke passed** with 21 custom items and 209 block overrides; the Bedrock ping advertises 26.51.
+- **Full-stack smoke passed** twice: real Fabric 26.3 + Geyser, all five mode dimensions, cold lobby chunk loading while responsive, restart, stopped-world backup and clean shutdown with no ERROR lines.
+- **A copy of the owner's latest stopped-world backup converted cleanly**: all five mode dimensions and their region files migrated and loaded, every Infinity data file was byte-identical after loading, the player's saved Infinity state survived, and the log had no errors. Vanilla 26.x moves player saves to `players/data`; the first-visit check now reads that location (it previously would have sent every returning Survival player to the hub).
+- **Protocol bridge:** on that converted copy, a Java 26.2-protocol client (what Geyser speaks) and a 26.3 client both received a status reply and completed login into the configuration phase through ViaBackwards.
 - Fixed 26.x behavior changes found by the tests: item components now bind after registration (gear inherits its vanilla base at bind time), Polymer 0.18 item hooks gained a registry parameter, golem targeting now filters players (only a helper's approved order passes, and removal clears it), the hurt cooldown moved to `damageCooldownTime`, and the GameTest server uses the `flat_all_dimensions` preset.
 - A Codex review of the port (gpt-6-astra) found one issue, stale helper target approvals after removal, which is fixed and tested.
 
-**Not yet run for 26.3:** the full-stack Fabric/Geyser start-restart cycle, a converted copy of the owner's existing world, and a real Java 26.3 or Bedrock/iPad login through ViaBackwards. Those checks need a local test server with an accepted Minecraft EULA. Run them before installing on the live server.
+Not covered: a real Java 26.3 or Bedrock/iPad player joining and playing. The protocol test stops at configuration, and authenticated device play still needs a person.
 
 ## Earlier 1.21.11 checks
 
@@ -31,14 +42,14 @@ The owner earlier reported an iPad app exit just after joining. Both authenticat
 - New inventory/name checks verify actual starter gear and all eight Aurora/Ember armor pieces, including chestplates, in empty player slots; repeated grants avoid duplicates and full inventories preserve every existing item. Every registered custom item has a literal human label on server and native client wire stacks while anvil names survive. Native wearable assets round-trip without mutating the server equipment. Existing armor/crafting/menu checks remain.
 - Helper avatars use native PLAYER spawn types, matching unlisted player-info UUIDs sent before spawning, bounded profile names, typed player metadata and current equipment. The player-info packet round-trips the real native codec; ordinary golems are unchanged and dismissal cleans profile viewers. A new autonomous combat check runs normal lifecycle ticks without calling control, attack or aerial methods manually: the helper acquires a hostile and lands a native weapon hit. Earlier actual spear charging, elytra glide, mace fall damage, close-range fallback, walls, ceilings, cooldowns, target side-effect guards and both approval gates passed.
 - The ranks menu recognizes the actual permanent rank and separates it from Admin/OP roles. General AI facts and bounded helper data include the caller's actual badge and permanent rank; their display retains the data/privacy notice. Earlier mode, lobby, minigame, reward, trade, admin and answer-only Codex tests passed.
-- **101 Python launcher tests passed**, including mappings/resource coverage, unchanged original PNG checksums, pack/module cache revisions, runtime, dashboard, backups, ports, providers and private state. All wearables are excluded from incompatible Bedrock custom item definitions; custom exported names are literal.
+- **102 Python launcher tests passed**, including mappings/resource coverage, unchanged original PNG checksums, pack/module cache revisions, runtime, dashboard, backups, ports, providers and private state. All wearables are excluded from incompatible Bedrock custom item definitions; custom exported names are literal.
 - **Geyser smoke passed:** 21 custom items (20 exported plus the bridge's built-in mapping) and 209 block overrides registered. Bedrock UDP ping answered and clean shutdown passed without ERROR entries. Two full-stack Fabric/Geyser cycles started isolated mode worlds, answered UDP, loaded the saved hub while command-responsive, backed up, restarted and stopped cleanly.
 
 ## Scope and review limits
 
-This update uses dependency inspection and native network regression checks. No fresh Gemini or Claude consultation was performed. The earlier signed-texture verification remains valid; the skin and original texture assets are unchanged.
+This update uses dependency inspection and native network regression checks. No fresh Gemini or Claude consultation was performed. The earlier signed-texture verification remains valid; the helper skin and original texture assets are unchanged.
 
-A real Java and iPad client must still verify the new appearance, touch controls and resource-pack reload. Native packets/tests establish server behavior, not graphical client rendering, an authenticated public join or public-server capacity. All Bedrock wearables now use complete native dyed-leather/netherite/elytra assets; pack-enabled Java keeps original custom artwork. Original PNGs are unchanged. The Infinity chestplate uses the native elytra form on Bedrock. Direct inventory gear works alongside full shulker gear boxes; custom gear does not enter Geyser's unsupported native Creative search catalogue.
+A real Java and iPad client must still verify the new appearance, touch controls and resource-pack reload. Native packets/tests establish server behavior, not graphical client rendering, an authenticated public join or public-server capacity. All Bedrock wearables keep complete native dyed-leather/netherite/elytra equipment assets with refreshed shared native textures; pack-enabled Java uses the refreshed custom artwork. Original PNGs are unchanged. The Infinity chestplate uses the native elytra form on Bedrock. Direct inventory gear works alongside full shulker gear boxes; custom gear does not enter Geyser's unsupported native Creative search catalogue.
 
 Manual stat edits require the admin's own confirmation. Health/absorption can raise capacity in the same review; numeric storage, native physics and client/HUD bounds remain. Damage consumes health and absorption normally. Food reserves can be consumed/reset by gameplay. Armor-bypassing damage and native enchantment effects still apply.
 

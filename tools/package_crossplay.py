@@ -73,7 +73,7 @@ def main():
     source_archive = dist / f"Infinity_Armor_Lobbies_Source_v{VERSION}.zip"
     archive(server_archive, entries, "Infinity_Armor_Lobbies_Server")
     source = {"server/" + k: v for k, v in entries.items()}
-    for directory in ["java/src", "java/gradle", "bedrock/resource_pack", "vendor"]:
+    for directory in ["java/src", "java/gradle", "bedrock/resource_pack", "artwork/refresh19", "vendor"]:
         for file in (ROOT / directory).rglob("*"):
             if file.is_file():
                 source[file.relative_to(ROOT).as_posix()] = file.read_bytes()

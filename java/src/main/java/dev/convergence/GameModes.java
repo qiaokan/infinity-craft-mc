@@ -60,6 +60,10 @@ public final class GameModes {
         community.server.getPlayerList().saveAll();
     }
     public static CompoundTag state(ServerPlayer p) { return ((ModePlayer)p).infinity$state(); }
+    /** Since 26.1 vanilla stores player saves under players/data rather than playerdata. */
+    static java.nio.file.Path savedPlayerFile(MinecraftServer server,UUID id) {
+        return server.getWorldPath(net.minecraft.world.level.storage.LevelResource.PLAYER_DATA_DIR).resolve(id+".dat");
+    }
     public static Mode current(ServerPlayer p) {
         try { return Mode.valueOf(state(p).getStringOr("active","SURVIVAL")); }
         catch(IllegalArgumentException e) { throw new IllegalStateException("Unknown saved Infinity mode for "+p.getUUID(),e); }
@@ -266,7 +270,7 @@ public final class GameModes {
             if(current(p)==Mode.MINIGAMES || current(p)==Mode.ADVENTURE) ModeMaps.begin(p,ModeMaps.selectedMap(p,current(p)));
             if(!operator(p)&&current(p)==Mode.HUB) restore(p,new CompoundTag());
             if(current(p)==Mode.CREATIVE) CreativeGearPicker.onEnter(p);
-            var savedPlayer = server.getWorldPath(net.minecraft.world.level.storage.LevelResource.ROOT).resolve("playerdata").resolve(p.getStringUUID()+".dat");
+            var savedPlayer = savedPlayerFile(server,p.getUUID());
             // The headless TestServer's mock players are spawned for combat tests;
             // their first-login routing is exercised explicitly in LobbyGameTests.
             if(!(server instanceof net.minecraft.gametest.framework.GameTestServer) && current(p)==Mode.SURVIVAL && !java.nio.file.Files.exists(savedPlayer)) FIRST_VISITS.add(p.getUUID());

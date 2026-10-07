@@ -23,6 +23,15 @@ import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 
 public class LobbyGameTests {
     private ServerPlayer player(GameTestHelper c,String name){return new ModeGameTests().player(c,name);}
+    @GameTest public void firstVisitDetectionReadsTheActualSavedPlayerFile(GameTestHelper c) {
+        var p=player(c,"returning-visitor");var server=c.getLevel().getServer();
+        try {
+            server.getPlayerList().saveAll();
+            c.assertTrue(java.nio.file.Files.isRegularFile(GameModes.savedPlayerFile(server,p.getUUID())),"A saved player is recognized as returning, not as a first visit");
+            c.assertFalse(java.nio.file.Files.exists(GameModes.savedPlayerFile(server,java.util.UUID.randomUUID())),"An unknown player has no saved file");
+        } finally {server.getPlayerList().remove(p);}
+        c.succeed();
+    }
     @GameTest public void lobbyMainAndFiveModeAreasAreSafeAndLabeled(GameTestHelper c) {
         var server=c.getLevel().getServer();var world=GameModes.world(server,GameModes.Mode.HUB);
         c.assertTrue(world!=null,"Dedicated hub dimension loaded");

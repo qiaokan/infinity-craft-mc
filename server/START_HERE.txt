@@ -1,4 +1,4 @@
-INFINITY ARMOR — EXPLORATION SERVER 2.13.0-explore.19
+INFINITY ARMOR — EXPLORATION SERVER 2.13.0-explore.21
 
 1. Extract the entire ZIP into a folder you will keep.
 2. Double-click Start-Mac.command (Mac) or start.bat (Windows).
