@@ -308,4 +308,62 @@ public class EquipmentGameTests {
         c.succeed();
     }
 
+    @GameTest public void savedLegacyGearNamesAreReadableWithoutChangingTheSavedItem(GameTestHelper c) {
+        var p=new ModeGameTests().player(c,"gear-legacy-names");
+        try {
+            var ops=net.minecraft.resources.RegistryOps.create(net.minecraft.nbt.NbtOps.INSTANCE,c.getLevel().registryAccess());
+            for(var entry:Convergence.ITEMS.entrySet()) {
+                String path=entry.getKey().split(":")[1];
+                String key=(ExpandedGear.BLOCKS.contains(path)?"block":"item")+".convergence."+path;
+                var original=new ItemStack(entry.getValue(),1);
+                original.set(DataComponents.ITEM_NAME,net.minecraft.network.chat.Component.translatable(key));
+                original.set(DataComponents.CUSTOM_NAME,net.minecraft.network.chat.Component.translatable(key)
+                    .withStyle(net.minecraft.ChatFormatting.AQUA).append(net.minecraft.network.chat.Component.literal(" • treasured")));
+                var saved=ItemStack.CODEC.encodeStart(ops,original).getOrThrow();
+                var restored=ItemStack.CODEC.parse(ops,saved).getOrThrow();
+                var wire=eu.pb4.polymer.core.api.item.PolymerItemUtils.getPolymerItemStack(restored,p.connection.getPacketContext(),c.getLevel().registryAccess());
+                c.assertFalse(wire.get(DataComponents.CUSTOM_NAME).getContents() instanceof net.minecraft.network.chat.contents.TranslatableContents,
+                    "Native name must not depend on the missing client language key: "+key);
+                c.assertValueEqual(wire.getHoverName().getString(),GearNames.label(path)+" • treasured","Old translated custom names resolve on native clients: "+path);
+                c.assertValueEqual(wire.get(DataComponents.CUSTOM_NAME).getStyle(),original.get(DataComponents.CUSTOM_NAME).getStyle(),"Name colors survive");
+                c.assertValueEqual(ItemStack.CODEC.encodeStart(ops,restored).getOrThrow(),saved,"Sending a readable name never rewrites saved items");
+                var returned=eu.pb4.polymer.core.api.item.PolymerItemUtils.getRealItemStack(wire,c.getLevel().registryAccess());
+                c.assertValueEqual(ItemStack.CODEC.encodeStart(ops,returned).getOrThrow(),saved,"Creative round-trip restores every original saved component and count");
+            }
+        } finally {p.level().getServer().getPlayerList().remove(p);}
+        c.succeed();
+    }
+
+    @GameTest public void readableGearNamesPreservePlayerTextAndOtherLanguages(GameTestHelper c) {
+        var p=new ModeGameTests().player(c,"gear-player-names");
+        try {
+            var stack=gear("sword");
+            for(var custom:java.util.List.of(
+                net.minecraft.network.chat.Component.literal("My sword ✨").withStyle(net.minecraft.ChatFormatting.GOLD),
+                net.minecraft.network.chat.Component.literal("item.convergence.sword"),
+                net.minecraft.network.chat.Component.translatable("item.minecraft.diamond_sword"),
+                net.minecraft.network.chat.Component.translatable("block.convergence.sword"),
+                net.minecraft.network.chat.Component.translatable("item.convergence.moonstone"),
+                net.minecraft.network.chat.Component.translatable("item.convergence.not_registered"),
+                net.minecraft.network.chat.Component.translatableWithFallback("anothermod.custom", "Other label", "arg"))) {
+                stack.set(DataComponents.CUSTOM_NAME,custom);
+                var wire=eu.pb4.polymer.core.api.item.PolymerItemUtils.getPolymerItemStack(stack,p.connection.getPacketContext(),c.getLevel().registryAccess());
+                c.assertValueEqual(wire.get(DataComponents.CUSTOM_NAME),custom,"Player text and other translation keys remain intact");
+                c.assertValueEqual(stack.get(DataComponents.CUSTOM_NAME),custom,"Authoritative name is untouched");
+            }
+            var nested=net.minecraft.network.chat.Component.translatable("chat.type.text","Alex",
+                net.minecraft.network.chat.Component.translatable("item.convergence.sword").withStyle(net.minecraft.ChatFormatting.AQUA));
+            stack.set(DataComponents.CUSTOM_NAME,nested);
+            var wire=eu.pb4.polymer.core.api.item.PolymerItemUtils.getPolymerItemStack(stack,p.connection.getPacketContext(),c.getLevel().registryAccess());
+            var outer=(net.minecraft.network.chat.contents.TranslatableContents)wire.get(DataComponents.CUSTOM_NAME).getContents();
+            var argument=(net.minecraft.network.chat.Component)outer.getArgs()[1];
+            c.assertValueEqual(outer.getKey(),"chat.type.text","Vanilla language-sensitive wrapper is retained");
+            c.assertFalse(argument.getContents() instanceof net.minecraft.network.chat.contents.TranslatableContents,"Nested gear label needs no custom language file");
+            c.assertValueEqual(argument.getString(),"Infinity Sword","Nested gear label is readable");
+            c.assertValueEqual(argument.getStyle(),((net.minecraft.network.chat.Component)((net.minecraft.network.chat.contents.TranslatableContents)nested.getContents()).getArgs()[1]).getStyle(),"Nested style survives");
+            c.assertValueEqual(stack.get(DataComponents.CUSTOM_NAME),nested,"Nested saved name is untouched");
+        } finally {p.level().getServer().getPlayerList().remove(p);}
+        c.succeed();
+    }
+
 }

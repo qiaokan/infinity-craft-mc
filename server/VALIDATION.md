@@ -1,3 +1,13 @@
+# Legacy gear name repair — 2.13.0-explore.23
+
+The October 8 review reproduced an older saved item whose `CUSTOM_NAME` contains an `item.convergence.*` or `block.convergence.*` translation key. That component takes precedence over the readable `ITEM_NAME`. The old assertion checked `getString()` on the server, where the custom language file is present, so it missed the raw translation key sent to clients without that file. The new raw-component regression failed on the original code.
+
+The outgoing Polymer copy now resolves only known Infinity item/block translation nodes in custom names. Literal player-written names, other translation keys/fallbacks, nested arguments, styling and sibling text survive. Authoritative items are not rewritten. The regressions cover every registered gear item, native codec save/reload and Creative round-trip preservation. The fix applies to the native item representation used by Java without the pack and by Geyser; a real iPad client still needs to confirm the displayed result.
+
+Fresh release checks passed: **338 native Minecraft GameTests**, **103 Python launcher tests**, Geyser mapping/UDP startup and clean shutdown, and **two isolated full-stack Fabric 26.3/Geyser cycles**. Claude reviewed the name projection and regressions read-only and found no concrete regression in that scope. This does not establish that all name or graphical glitches are fixed.
+
+The playable Mac server is still on **Minecraft 1.21.11 / explore.20**. This source/package change has not been installed there. The failed private 26.3 installer remains unresolved and is not bundled. The draft review also records Claude's public-distribution objection to the owner's exact auto-running ruin ban command; that gameplay behavior has not been changed silently.
+
 # The Odyssey ruins and prophecy — 2.13.0-explore.22
 
 Validated October 6, 2026 with the combined Java 26.3 / Java 25 toolchain. This build retains the refreshed Java and native Bedrock gear, client protections, menus, stats and helpers.

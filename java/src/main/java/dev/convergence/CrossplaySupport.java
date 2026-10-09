@@ -118,6 +118,8 @@ final class CrossplaySupport {
                 }
                 @Override public void modifyBasePolymerItemStack(ItemStack out,ItemStack stack,PacketContext context,HolderLookup.Provider registries) {
                     out.set(DataComponents.ITEM_NAME,GearNames.text(entry.getKey()));
+                    var customName=stack.get(DataComponents.CUSTOM_NAME);
+                    if(customName!=null)out.set(DataComponents.CUSTOM_NAME,GearNames.readableName(customName));
                     // A custom Java equipment asset is invisible/missing when its pack
                     // was declined, and unsupported for native Bedrock wearable mappings.
                     // Keep a complete native wearable asset until the Java pack is loaded.
