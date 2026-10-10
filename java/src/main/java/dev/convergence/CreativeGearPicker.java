@@ -15,6 +15,8 @@ import net.minecraft.core.component.DataComponents;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.protocol.game.ClientboundSetHeldSlotPacket;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.network.ServerGamePacketListenerImpl;
 import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.SimpleMenuProvider;
 import net.minecraft.world.entity.player.Inventory;
@@ -27,6 +29,7 @@ import net.minecraft.world.item.Items;
 
 /** Vanilla chest icons and a vanilla compass keep the picker usable through Geyser. */
 final class CreativeGearPicker {
+    static final int STUDIO=47;
     private static final String PICKER_NAME = "Infinity Gear Picker";
     private static final Map<UUID,Integer> OPEN_AFTER = new HashMap<>();
     private static final Set<UUID> SELECTED = new HashSet<>();
@@ -114,21 +117,29 @@ final class CreativeGearPicker {
     }
 
     static int open(ServerPlayer player) {
+        return open(player,0);
+    }
+
+    private static int open(ServerPlayer player,int page) {
         if (!allowed(player) || player.containerMenu != player.inventoryMenu
             || !player.containerMenu.getCarried().isEmpty()) return 0;
         List<String> paths = new ArrayList<>(Convergence.ITEMS.keySet());
-        if (paths.size() > 54) throw new IllegalStateException("Infinity gear picker exceeds six rows");
+        int pageIndex=Math.max(0,Math.min(page,Math.max(0,(paths.size()-1)/45)));
         var view = new SimpleContainer(54);
-        for (int slot = 0; slot < paths.size(); slot++) {
-            String name = paths.get(slot);
+        for (int slot = 0; slot < Math.min(45,paths.size()-pageIndex*45); slot++) {
+            String name = paths.get(pageIndex*45+slot);
             var icon = CrossplaySupport.BASES.get(name.substring("convergence:".length()));
             if (icon == null) throw new IllegalStateException("Missing safe picker icon for " + name);
             ItemStack stack = new ItemStack(icon);
             stack.set(DataComponents.CUSTOM_NAME, Component.literal(label(name.substring("convergence:".length()))));
             view.setItem(slot, stack);
         }
+        if(pageIndex>0)CreativeStudio.icon(view,45,Items.ARROW,"Previous gear page");
+        CreativeStudio.icon(view,STUDIO,Items.PAINTING,"Creative Studio");
+        CreativeStudio.icon(view,49,Items.RECOVERY_COMPASS,"Infinity Menu");
+        if((pageIndex+1)*45<paths.size())CreativeStudio.icon(view,53,Items.ARROW,"Next gear page");
         player.openMenu(new SimpleMenuProvider((sync, inventory, who) ->
-            new PickerHandler(sync, inventory, view, player, paths), Component.literal("Infinity Gear • Pick One")));
+            new PickerHandler(sync, inventory, view, player, paths,pageIndex), Component.literal("Infinity Gear • Page "+(pageIndex+1))));
         if (isPicker(player.getMainHandItem())) SELECTED.add(player.getUUID());
         return 1;
     }
@@ -158,25 +169,36 @@ final class CreativeGearPicker {
     static final class PickerHandler extends ChestMenu {
         final ServerPlayer owner;
         final List<String> paths;
+        final int pageIndex;
+        final ServerGamePacketListenerImpl connection;
+        final ServerLevel world;
 
-        PickerHandler(int sync, Inventory inventory, SimpleContainer view, ServerPlayer owner, List<String> paths) {
+        PickerHandler(int sync, Inventory inventory, SimpleContainer view, ServerPlayer owner, List<String> paths,int pageIndex) {
             super(MenuType.GENERIC_9x6, sync, inventory, view, 6);
             this.owner = owner;
             this.paths = paths;
+            this.pageIndex=pageIndex;connection=owner.connection;world=owner.level();
         }
 
         @Override public boolean stillValid(Player player) {
-            return player == owner && allowed(owner);
+            return player == owner && owner.containerMenu==this&&owner.connection==connection&&owner.level()==world&&ServerMenu.allowed(owner)&&allowed(owner);
         }
 
         @Override public ItemStack quickMoveStack(Player player, int slot) { return ItemStack.EMPTY; }
         @Override public void setSelectedBundleItemIndex(int slot, int selected) { }
 
         @Override public void clicked(int slot, int button, ContainerInput action, Player player) {
-            if (player != owner || !allowed(owner)) { owner.closeContainer(); return; }
+            if(player!=owner||owner.containerMenu!=this||owner.connection!=connection)return;
+            if(!stillValid(player)){owner.closeContainer();return;}
             if ((action == ContainerInput.PICKUP || action == ContainerInput.QUICK_MOVE)
-                && slot >= 0 && slot < paths.size() && getCarried().isEmpty()) {
-                String name = paths.get(slot);
+                && button>=0&&button<=1&&slot>=0&&slot<54&&getCarried().isEmpty()) {
+                if(slot==45&&pageIndex>0){owner.closeContainer();open(owner,pageIndex-1);return;}
+                if(slot==53&&(pageIndex+1)*45<paths.size()){owner.closeContainer();open(owner,pageIndex+1);return;}
+                if(slot==STUDIO){owner.closeContainer();CreativeStudio.open(owner);return;}
+                if(slot==49){owner.closeContainer();ServerMenu.open(owner);return;}
+                int index=pageIndex*45+slot;
+                if(slot>=45||index>=paths.size()){sendAllDataToRemote();return;}
+                String name = paths.get(index);
                 owner.closeContainer();
                 equip(owner, name);
             } else sendAllDataToRemote();
@@ -197,7 +219,7 @@ final class CreativeGearPicker {
                 if (!selected) SELECTED.remove(id);
                 else if (player.containerMenu == player.inventoryMenu) {
                     if (SELECTED.add(id)) open(player);
-                } else if (!(player.containerMenu instanceof PickerHandler)) SELECTED.remove(id);
+                } else if (!(player.containerMenu instanceof PickerHandler)&&!(player.containerMenu instanceof CreativeStudio.Handler)) SELECTED.remove(id);
                 if (!allowed(player) && player.containerMenu instanceof PickerHandler) player.closeContainer();
             }
         });

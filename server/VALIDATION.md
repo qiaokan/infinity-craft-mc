@@ -1,3 +1,22 @@
+# Creative Studio and TNT safeguards — 2.13.0-explore.24
+
+Fresh checks on October 9 passed: **355/355 native Minecraft GameTests**, **103/103 Python launcher tests**, reproducibility of all **21 Odyssey templates**, Geyser mapping/texture validation and local UDP response, and **two isolated Fabric 26.3/Geyser startup, cold-lobby, save, restart and shutdown cycles**. Tests used Java 25 and the pinned release dependencies. The live world was not used for these checks.
+
+The sixteen new native tests exercise real chest clicks, foreign/stale packets, permission changes, full-inventory atomic delivery, actual terrain edits and conflict-aware undo, exact blueprint confirmation, player-data serialization, Creative inventory separation, all four native outfit slots, registered gadget dispatch, plane movement/hover/collision/recall, orphan plane cleanup, a five-charge TNT queue, native explosion radius bounds and helper identity/health preservation.
+
+| Reproduction | Expected and observed before repair | Root cause and retest |
+| --- | --- | --- |
+| Create two identical blueprint previews in one tick, then submit the older object. | The current preview should survive; the stale submission removed it. | Record equality made conditional map removal accept an equal but different preview. Identity validation now preserves the exact current preview; native regression passes. |
+| Build the Java pack with the new gadget IDs. | Every registered item should have a rendered model; the five new IDs had no pack models. | Minecraft 26.3 finalizes each item's model after its copied component chain. Explicit item definitions now use existing native geometry, and the real resource-pack generation test passes for all 45 IDs. |
+| Dispatch a Studio gadget from held-power controls after leaving Creative. | The rejected action should return failure; generic dispatch reported success without an effect. | Dispatch now checks live Studio access and returns the actual gadget result. Creative, Survival and Spectator native regressions pass. |
+| Equip ordinary leather/netherite while using the earlier Bedrock pack. | Normal Minecraft armor was requested; shared native paths showed custom armor patterns. | Preparation excludes those native texture/icon overrides while preserving source PNGs and the custom wing controller. The regression inspects the actual prepared pack; original artwork checksums are retained. |
+
+The plane and TNT lifecycle fixtures explicitly load and ticket their disposable chunks. A mock player's direct test teleport does not provide the real client's chunk tickets; without those tickets, plane parts correctly unload and queued TNT cannot tick. These fixture repairs do not make production planes force-load terrain. Failed early test reports were superseded by the final complete passing report.
+
+Primed TNT is delayed rather than deleted: at most two explosions per tick across all worlds, with the second deferred after an eight-millisecond work window. Ordinary radii are unchanged; excessive radii stop at eight. This is a bounded workload safeguard, **not a promise of zero lag**. Large entity counts, TNT minecarts, other repeated explosions and client hardware remain limits. The reported frozen iPad app recovered after fully closing and reopening Minecraft; no server crash was established from that report.
+
+**Delivery state:** explore.24 is a local tested package, not installed on the live server by these checks. Claude separately installed **Minecraft 26.3 / explore.23** on October 9. The converted world must not be loaded with 1.21.11. Java/iPad visual rendering, aircraft smoothness, touch interactions and authenticated crafting still need a real client playtest after the new package is installed. Bedrock Aurora/Ember/backpack clothing keeps native dyed-leather shapes after restoring ordinary armor textures; dedicated Java artwork and native elytra artwork remain. Existing gear-name, mode, stat, helper combat and both AI approval regressions passed with the combined code.
+
 # Legacy gear name repair — 2.13.0-explore.23
 
 The October 8 review reproduced an older saved item whose `CUSTOM_NAME` contains an `item.convergence.*` or `block.convergence.*` translation key. That component takes precedence over the readable `ITEM_NAME`. The old assertion checked `getString()` on the server, where the custom language file is present, so it missed the raw translation key sent to clients without that file. The new raw-component regression failed on the original code.
@@ -6,7 +25,7 @@ The outgoing Polymer copy now resolves only known Infinity item/block translatio
 
 Fresh release checks passed: **338 native Minecraft GameTests**, **103 Python launcher tests**, Geyser mapping/UDP startup and clean shutdown, and **two isolated full-stack Fabric 26.3/Geyser cycles**. Claude reviewed the name projection and regressions read-only and found no concrete regression in that scope. This does not establish that all name or graphical glitches are fixed.
 
-The playable Mac server is still on **Minecraft 1.21.11 / explore.20**. This source/package change has not been installed there. The failed private 26.3 installer remains unresolved and is not bundled. The draft review also records Claude's public-distribution objection to the owner's exact auto-running ruin ban command; that gameplay behavior has not been changed silently.
+At the time these name checks were recorded, the playable Mac server was on **Minecraft 1.21.11 / explore.20**. Claude subsequently repaired its private installer and installed **Minecraft 26.3 / explore.23** on October 9 under separate authorization; that installer is not bundled. The combined source includes Claude's finished host opt-in for the ruin ban, documented in ODYSSEY.md; public packages do not enable it by default.
 
 # The Odyssey ruins and prophecy — 2.13.0-explore.22
 

@@ -24,7 +24,11 @@
     "AgentTargetMixin",
     "PhysicsSafetyMixin",
     "KnockbackSafetyMixin",
-    "OdysseyCommandMixin"
+    "OdysseyCommandMixin",
+    "RcPlaneStateAccess",
+    "RcPlaneTickMixin",
+    "TntBudgetMixin",
+    "BlastRadiusMixin"
   ],
   "injectors": {
     "defaultRequire": 1
