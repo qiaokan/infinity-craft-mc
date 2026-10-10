@@ -42,8 +42,13 @@ def main():
         shutil.copy2(file, mods / file.name)
     test_mod = ROOT / f"java/build/libs/Infinity-Armor-{VERSION}-gametest.jar"
     shutil.copy2(test_mod, mods / test_mod.name)
-    framework = urllib.request.urlopen(FRAMEWORK_URL, timeout=60).read()
     expected = (ROOT / "tools/gametest-framework.sha256").read_text().split()[0]
+    # Reuse Gradle's cached copy when it matches the pinned checksum; download only otherwise.
+    gradle_home = Path(__import__("os").environ.get("GRADLE_USER_HOME", Path.home() / ".gradle"))
+    cached = [p.read_bytes() for p in (gradle_home / "caches/modules-2/files-2.1").glob("net.fabricmc.fabric-api/fabric-gametest-api-v1/*/*/" + FRAMEWORK)]
+    framework = next((data for data in cached if hashlib.sha256(data).hexdigest() == expected), None)
+    if framework is None:
+        framework = urllib.request.urlopen(FRAMEWORK_URL, timeout=60).read()
     if hashlib.sha256(framework).hexdigest() != expected:
         raise RuntimeError("Unexpected GameTest framework download")
     # 26.x is unobfuscated, so the framework's annotation defaults need no repair.
@@ -54,7 +59,9 @@ def main():
     report = runtime / "results.xml"
     report.unlink(missing_ok=True)
     with (runtime / "integration.log").open("w") as log:
-        result = subprocess.run([args.java, "-Xmx2G", "-Dfabric-api.gametest",
+        # Optional: sandboxed hosts may only allow temp files outside the system default.
+        tmp = __import__("os").environ.get("GAMETEST_TMPDIR")
+        result = subprocess.run([args.java, "-Xmx2G", *(["-Djava.io.tmpdir=" + tmp] if tmp else []), "-Dfabric-api.gametest",
             "-Dfabric-api.gametest.report-file=" + str(report), "-jar", "fabric-server-launch.jar", "nogui"],
             cwd=runtime, stdout=log, stderr=subprocess.STDOUT, timeout=300)
     tests = list(ET.parse(report).getroot().iter("testcase")) if report.exists() else []
