@@ -6,12 +6,16 @@ Infinity Armor for one shared Minecraft Java + Bedrock world. The Java Fabric se
 
 | Edition | Server address | Port |
 | --- | --- | --- |
-| Java (installed server: 1.21.11) | `infinity-craft.remotewire.net:25565` | Included in address |
+| Java (installed server: 26.3) | `infinity-craft.remotewire.net:25565` | Included in address |
 | Bedrock / iPad | `infinity-craft.remotewire.net` | `19132` |
 
 See [JOIN.md](JOIN.md) for connection steps. The owner confirmed a successful iPad/Bedrock join, and the Java TCP port passed an external check. A full Java player join still needs verification. You only need Minecraft on the device you play on. The host Mac must be awake and the Minecraft server running; the public website provides the guide and downloads.
 
-The combined **26.3 / 2.13.0-explore.22** source is prepared separately; the owner's live world remains on **1.21.11 / explore.20** pending installation approval. The 26.3 upgrade converts the world and requires Java players to update their clients.
+The owner’s Mac server runs **Minecraft 26.3 / 2.13.0-explore.24**. The **explore.25** expansion is prepared separately; its new features require installation. Java players need a 26.3 client. Upgrading an older 1.21.11 world converts it and requires a stopped-world backup.
+
+## New in explore.25
+
+Creative Studio adds an **Infinity Gust Glove**, **Infinity Anchor Charm** and complete **Tidewarden armor**. The [Odyssey journal](server/ODYSSEY.md) tracks physical ruin discoveries across the Overworld, Nether and End, with four one-time rewards. **Memory Circuit** and **Laser Gate Dash** join the course menu and saved leaderboards. Helpers gain saved **Escort, Wedge and Ring formations**, plus shared hostile focus for Regular squads. All are controlled through Infinity Menu; the original shrine loot, mode inventories and AI approval gates remain intact. See [Creative Studio](server/CREATIVE_STUDIO.md), [modes](server/MODES.md) and [validation](server/VALIDATION.md).
 
 ## Host your own world
 
@@ -31,7 +35,7 @@ The **explore.15** appearance update gives every helper a shared silver-faced ro
 
 ## Explore the world
 
-The Main Hub leads to Survival, Creative, Hardcore, Minigames, and Adventure. Select the **Infinity Menu** compass to choose modes and use gear, powers, cosmetics, backpacks and helpers. Lobby signs open it too. `/menu`, `/guide`, `/play` and `/hub` remain optional shortcuts. The hub and five mode lobbies have themed arches, glass lighting, flags and planted corners; existing builds are preserved during the upgrade. The Minigames and Adventure hall signs open course menus; `/play minigames` and `/play adventure` open them too. Six timed minigames have `/best` and `/leaderboard <map>` commands; two starter adventure maps are included. Inventories are separated between modes.
+The Main Hub leads to Survival, Creative, Hardcore, Minigames, and Adventure. Select the **Infinity Menu** compass to choose modes and use gear, powers, cosmetics, backpacks and helpers. Lobby signs open it too. `/menu`, `/guide`, `/play` and `/hub` remain optional shortcuts. The hub and five mode lobbies have themed arches, glass lighting, flags and planted corners; existing builds are preserved during the upgrade. The Minigames and Adventure hall signs open course menus; `/play minigames` and `/play adventure` open them too. Eight timed minigames have `/best` and `/leaderboard <map>` commands; two starter adventure maps are included. Inventories are separated between modes.
 
 Infinity gear includes custom blocks and building tools, armor looks, and backpacks with personal storage. `/ptrade <player>` opens a trade that both players review and confirm. Free, Go, Plus, Pro, and Ultra are earned through achievements or Survival item trades; Admin is owner-controlled. Powers and cosmetics can be earned separately. Optional supporter subscriptions are **planned at $50–$200 USD per month**, but checkout is not open. The earned ranks remain free and permanent. Read [`server/SUBSCRIPTIONS.md`](server/SUBSCRIPTIONS.md) for prices and status, and [`server/MODES.md`](server/MODES.md), [`server/EXPANSION.md`](server/EXPANSION.md), and [`server/REWARDS.md`](server/REWARDS.md) for play and unlocks.
 
