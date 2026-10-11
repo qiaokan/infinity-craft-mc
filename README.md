@@ -11,7 +11,7 @@ Infinity Armor for one shared Minecraft Java + Bedrock world. The Java Fabric se
 
 See [JOIN.md](JOIN.md) for connection steps. The owner confirmed a successful iPad/Bedrock join, and the Java TCP port passed an external check. A full Java player join still needs verification. You only need Minecraft on the device you play on. The host Mac must be awake and the Minecraft server running; the public website provides the guide and downloads.
 
-The owner’s Mac server runs **Minecraft 26.3 / 2.13.0-explore.24**. The **explore.25** expansion is prepared separately; its new features require installation. Java players need a 26.3 client. Upgrading an older 1.21.11 world converts it and requires a stopped-world backup.
+The owner’s Mac server runs **Minecraft 26.3 / 2.13.0-explore.25**, installed with a verified stopped-world backup on October 10, 2026. Its new features are available through Infinity Menu. Java players need a 26.3 client. Upgrading an older 1.21.11 world converts it and requires a stopped-world backup.
 
 ## New in explore.25
 
