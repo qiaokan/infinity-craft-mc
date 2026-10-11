@@ -19,7 +19,7 @@ Creative Studio adds an **Infinity Gust Glove**, **Infinity Anchor Charm** and c
 
 ## Host your own world
 
-1. Download the **server ZIP** from the [GitHub releases page](https://github.com/qiaokan/infinity-craft-mc/releases) or the website and extract it to a folder you will keep. Choose the newest exploration preview if you want the new minigames and menus. The source folders in this repository are for development; they are not a ready-to-run server on their own.
+1. Download the **server ZIP** from the [GitHub releases page](https://github.com/conorqiao-tech/infinity-craft-mc/releases) or the website and extract it to a folder you will keep. Choose the newest exploration preview if you want the new minigames and menus. The source folders in this repository are for development; they are not a ready-to-run server on their own.
 2. On Mac, open `Start-Mac.command` in the extracted folder. On Windows 10/11, run `start.bat`; on Linux, run `bash start.sh`.
 3. The local browser panel guides you through agreeing to the [Minecraft EULA](https://www.minecraft.net/eula), starting the world, and copying the current join addresses. The first launch downloads checksum-pinned Python/Java components and needs an Internet connection. You do not need Minecraft installed on the host computer.
 
